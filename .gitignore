@@ -11,3 +11,6 @@ contracts/typechain-types/
 
 # local agent database
 *.db
+*.db-journal
+*.db-wal
+*.db-shm

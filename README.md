@@ -91,6 +91,19 @@ pnpm dev:agent
 
 `ATTRIBUTION_TAG` must be set before deploying: the tag is issued at registration on celobuilders.xyz and every transaction that lacks it is invisible to the leaderboard.
 
+## Deploying
+
+`render.yaml` is a Render blueprint for the agent. It builds the web bundle, runs the agent, and mounts a
+disk at `/var/data` for the SQLite database.
+
+The plan is `starter`, not `free`, on purpose. A free Render service spins down after 15 idle minutes and
+has an ephemeral filesystem, which would stop the Telegram long poll, silence instalment nudges, halt the
+x402 sweeper, and wipe every plan on restart. None of that is acceptable for an agent whose whole job is
+to keep collecting over several days.
+
+Set `AGENT_PRIVATE_KEY`, `TELEGRAM_BOT_TOKEN` and `X402_API_KEY` in the Render dashboard. They are marked
+`sync: false` so they are never committed.
+
 ## License
 
 MIT
