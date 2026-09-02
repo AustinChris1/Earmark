@@ -84,7 +84,7 @@ function registerHandlers(b: Bot) {
         deadline: 0n,
         label,
       });
-      insertDrive({
+      await insertDrive({
         id: Number(id),
         chat_id: chatId(ctx),
         label,
@@ -96,7 +96,7 @@ function registerHandlers(b: Bot) {
         collector_name: displayName(ctx),
         created_tx: hash,
       });
-      const d = getDrive(Number(id))!;
+      const d = (await getDrive(Number(id)))!;
       await ctx.api.editMessageText(
         working.chat.id,
         working.message_id,
@@ -114,7 +114,7 @@ function registerHandlers(b: Bot) {
   });
 
   b.command("split", async (ctx) => {
-    const d = latestDriveForChat(chatId(ctx));
+    const d = await latestDriveForChat(chatId(ctx));
     if (!d || d.closed) return ctx.reply("No open drive here. Start one with /new.");
     const token = tokenByAddress(d.token)!;
     const pairs = [...(ctx.match ?? "").matchAll(/@(\w+)\s+([\d.]+)/g)];
@@ -127,7 +127,7 @@ function registerHandlers(b: Bot) {
     for (const [, name, amt] of pairs) {
       const amount = parseUnits(amt, token.decimals).toString();
       const tgId = String(mentionIds.get(name) ?? `@${name}`);
-      setShare({ drive_id: d.id, tg_id: tgId, name: `@${name}`, amount });
+      await setShare({ drive_id: d.id, tg_id: tgId, name: `@${name}`, amount });
       lines.push(`@${name}: ${fmt(amount, token)}`);
     }
     return ctx.reply(
@@ -137,7 +137,7 @@ function registerHandlers(b: Bot) {
   });
 
   b.command("plan", async (ctx) => {
-    const d = latestDriveForChat(chatId(ctx));
+    const d = await latestDriveForChat(chatId(ctx));
     if (!d || d.closed) return ctx.reply("No open drive here. Start one with /new.");
     if (ctx.from && d.collector_tg && String(ctx.from.id) !== d.collector_tg) {
       return ctx.reply(`Only ${d.collector_name ?? "the collector"} can set the plan.`);
@@ -148,7 +148,7 @@ function registerHandlers(b: Bot) {
     if (!days || !Number.isInteger(count) || count < 2 || count > 52) {
       return ctx.reply(`Usage: /plan <${Object.keys(CADENCE).slice(0, 4).join("|")}> <count 2-52>\ne.g. /plan weekly 4`);
     }
-    const shares = sharesFor(d.id);
+    const shares = await sharesFor(d.id);
     if (!shares.length) return ctx.reply("Set the shares first with /split @ada 40 @emeka 30.");
 
     const startOfDay = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
@@ -166,27 +166,27 @@ function registerHandlers(b: Bot) {
         due_at: startOfDay + i * days * 86_400,
       }));
     });
-    replacePlan(d.id, rows);
-    reconcileInstalments(d.id);
+    await replacePlan(d.id, rows);
+    await reconcileInstalments(d.id);
     return ctx.reply(
-      `${planText(d, instalmentsFor(d.id))}\n\nI will nudge each person here when their instalment is due. /pay gives you just the amount due now.`,
+      `${planText(d, await instalmentsFor(d.id))}\n\nI will nudge each person here when their instalment is due. /pay gives you just the amount due now.`,
       { parse_mode: "HTML" },
     );
   });
 
   b.command("pay", async (ctx) => {
-    const d = latestDriveForChat(chatId(ctx));
+    const d = await latestDriveForChat(chatId(ctx));
     if (!d || d.closed) return ctx.reply("No open drive here. Start one with /new.");
     if (!ctx.from) return;
     const name = displayName(ctx);
     const me = String(ctx.from.id);
-    if (ctx.from.username) rekeyMember(d.id, `@${ctx.from.username}`, me, name);
-    reconcileInstalments(d.id);
+    if (ctx.from.username) await rekeyMember(d.id, `@${ctx.from.username}`, me, name);
+    await reconcileInstalments(d.id);
     const token = tokenByAddress(d.token)!;
 
-    if (hasPlan(d.id)) {
-      const next = nextInstalment(d.id, me);
-      const { total, paid } = planCountFor(d.id, me);
+    if (await hasPlan(d.id)) {
+      const next = await nextInstalment(d.id, me);
+      const { total, paid } = await planCountFor(d.id, me);
       if (!total) {
         return ctx.reply(
           `${name}, you are not on the plan for <b>${escape(d.label)}</b> yet. Anything you send still counts:\n${payLink(d.id, me, name)}`,
@@ -205,7 +205,7 @@ function registerHandlers(b: Bot) {
       );
     }
 
-    const share = sharesFor(d.id).find((s) => s.tg_id === me || s.tg_id === name);
+    const share = (await sharesFor(d.id)).find((s) => s.tg_id === me || s.tg_id === name);
     const hint = share ? ` Your share: ${fmt(share.amount, token)}.` : "";
     const human = share ? formatUnits(BigInt(share.amount), token.decimals) : undefined;
     return ctx.reply(
@@ -215,22 +215,22 @@ function registerHandlers(b: Bot) {
   });
 
   b.command("tally", async (ctx) => {
-    const d = openDrivesForChat(chatId(ctx))[0] ?? latestDriveForChat(chatId(ctx));
+    const d = (await openDrivesForChat(chatId(ctx)))[0] ?? await latestDriveForChat(chatId(ctx));
     if (!d) return ctx.reply("No drive here yet. Start one with /new.");
-    reconcileInstalments(d.id);
-    const base = tallyText(d, paymentsFor(d.id), sharesFor(d.id));
-    const plan = hasPlan(d.id) ? `\n\n${planText(d, instalmentsFor(d.id))}` : "";
+    await reconcileInstalments(d.id);
+    const base = tallyText(d, await paymentsFor(d.id), await sharesFor(d.id));
+    const plan = await hasPlan(d.id) ? `\n\n${planText(d, await instalmentsFor(d.id))}` : "";
     return ctx.reply(`${base}${plan}`, { parse_mode: "HTML" });
   });
 
   b.command("remind", async (ctx) => {
-    const d = latestDriveForChat(chatId(ctx));
+    const d = await latestDriveForChat(chatId(ctx));
     if (!d || d.closed) return ctx.reply("No open drive here.");
-    reconcileInstalments(d.id);
+    await reconcileInstalments(d.id);
     const token = tokenByAddress(d.token)!;
 
-    if (hasPlan(d.id)) {
-      const outstanding = instalmentsFor(d.id).filter((r) => r.paid_at === null);
+    if (await hasPlan(d.id)) {
+      const outstanding = (await instalmentsFor(d.id)).filter((r) => r.paid_at === null);
       if (!outstanding.length) {
         return ctx.reply(`Every instalment for <b>${escape(d.label)}</b> is paid.`, { parse_mode: "HTML" });
       }
@@ -246,11 +246,11 @@ function registerHandlers(b: Bot) {
     }
 
     const paid = new Set(
-      paymentsFor(d.id)
+      (await paymentsFor(d.id))
         .map((p) => memoTgId(p.memo))
         .filter(Boolean),
     );
-    const outstanding = sharesFor(d.id).filter((s) => !paid.has(s.tg_id));
+    const outstanding = (await sharesFor(d.id)).filter((s) => !paid.has(s.tg_id));
     if (!outstanding.length) {
       return ctx.reply(`Everyone with a share has paid toward <b>${escape(d.label)}</b>. Anyone else: /pay`, {
         parse_mode: "HTML",
@@ -263,14 +263,14 @@ function registerHandlers(b: Bot) {
   });
 
   b.command("close", async (ctx) => {
-    const d = latestDriveForChat(chatId(ctx));
+    const d = await latestDriveForChat(chatId(ctx));
     if (!d || d.closed) return ctx.reply("No open drive here.");
     if (ctx.from && d.collector_tg && String(ctx.from.id) !== d.collector_tg) {
       return ctx.reply(`Only ${d.collector_name ?? "the collector"} can close this drive.`);
     }
     try {
       const hash = await closeDriveOnchain(BigInt(d.id));
-      markClosed(d.id);
+      await markClosed(d.id);
       return ctx.reply(`Closed <b>${escape(d.label)}</b>. https://celoscan.io/tx/${hash}`, {
         parse_mode: "HTML",
         link_preview_options: { is_disabled: true },
@@ -293,7 +293,7 @@ export function startBot(): Bot | null {
 // Posts one message per drive for instalments that have come due; the scheduler owns the timing.
 export async function nudgeDue(rows: DueInstalment[]): Promise<boolean> {
   if (!bot || !rows.length) return false;
-  const d = getDrive(rows[0].drive_id);
+  const d = await getDrive(rows[0].drive_id);
   if (!d) return false;
   const token = tokenByAddress(d.token)!;
   const lines = rows.map((r) => {
@@ -308,10 +308,10 @@ export async function nudgeDue(rows: DueInstalment[]): Promise<boolean> {
 }
 
 export async function announceContribution(driveId: number, payerName: string, amount: bigint, txHash: string) {
-  const d = getDrive(driveId);
+  const d = await getDrive(driveId);
   if (!d || !bot) return;
   const token = tokenByAddress(d.token)!;
-  const payments = paymentsFor(driveId);
+  const payments = await paymentsFor(driveId);
   const raised = payments.reduce((a, p) => a + BigInt(p.amount), 0n);
   const target = BigInt(d.target);
   let text = `✅ <b>${escape(payerName)}</b> paid ${fmt(amount, token)} toward <b>${escape(d.label)}</b>. It landed directly at the destination.`;

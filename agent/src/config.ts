@@ -67,6 +67,11 @@ export const env = {
   PORT: Number(process.env.PORT ?? 3010),
   X402_API_KEY: process.env.X402_API_KEY ?? "",
   DB_PATH: process.env.DB_PATH ?? path.resolve(here, "../../earmark.db"),
+  // Turso in production; a local file when DATABASE_URL is unset. The host filesystem is ephemeral.
+  DATABASE_URL:
+    process.env.DATABASE_URL ??
+    `file:${(process.env.DB_PATH ?? path.resolve(here, "../../earmark.db")).split(path.sep).join("/")}`,
+  DATABASE_AUTH_TOKEN: process.env.DATABASE_AUTH_TOKEN ?? "",
   AGENT_NAME: process.env.AGENT_NAME ?? "Earmark",
   AGENT_FEE_CURRENCY: process.env.AGENT_FEE_CURRENCY ?? "",
   START_BLOCK: process.env.START_BLOCK ?? "",

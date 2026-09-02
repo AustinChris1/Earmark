@@ -5,7 +5,7 @@
   "description": "Earmark: group-chat agent that pools a shared obligation and can only pay the locked destination, on Celo.",
   "scripts": {
     "compile": "pnpm -F @earmark/contracts compile",
-    "test": "pnpm -F @earmark/contracts test",
+    "test": "pnpm -F @earmark/contracts test && pnpm -F @earmark/agent test",
     "deploy": "pnpm -F @earmark/contracts deploy:celo",
     "dev:agent": "pnpm -F @earmark/agent dev",
     "register:8004": "pnpm -F @earmark/agent register:8004",

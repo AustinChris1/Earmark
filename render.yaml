@@ -2,24 +2,19 @@ services:
   - type: web
     name: earmark-agent
     runtime: node
-    # Not "free": a free service spins down after 15 idle minutes, which stops the Telegram
-    # long poll, the instalment nudges and the x402 sweeper, and its filesystem is wiped.
-    plan: starter
+    # Free is viable only because no state lives on this instance: the database is Turso and the
+    # filesystem here is disposable. A cron ping to /api/health every 10 minutes is still required,
+    # or Render suspends the service after 15 idle minutes and the bot, nudges and sweeper stop.
+    plan: free
     region: frankfurt
     branch: main
     buildCommand: pnpm install --frozen-lockfile && pnpm build:web
     startCommand: pnpm --filter @earmark/agent start
     healthCheckPath: /api/health
-    disk:
-      name: earmark-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
-      # node:sqlite is unflagged from Node 23.4; 22.x would need --experimental-sqlite.
+      # node:sqlite is not used any more, but Node 24 is what the code is tested against.
       - key: NODE_VERSION
         value: "24"
-      - key: DB_PATH
-        value: /var/data/earmark.db
       - key: PUBLIC_URL
         value: https://earmark-agent.onrender.com
       - key: CELO_RPC_URL
@@ -31,6 +26,10 @@ services:
       - key: ERC8004_AGENT_ID
         value: "9806"
       # Set these in the Render dashboard; never commit them.
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_AUTH_TOKEN
+        sync: false
       - key: AGENT_PRIVATE_KEY
         sync: false
       - key: TELEGRAM_BOT_TOKEN

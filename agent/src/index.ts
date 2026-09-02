@@ -5,10 +5,13 @@ import { startServer } from "./server.js";
 import { startWatcher } from "./watcher.js";
 import { startScheduler } from "./scheduler.js";
 import { startX402Sweeper } from "./x402.js";
+import { migrate } from "./db.js";
 
 console.log(
   `Earmark agent ${account.address} | earmark=${env.EARMARK_ADDRESS || "(not deployed)"} | tag=${env.ATTRIBUTION_TAG || "(none)"}`,
 );
+
+await migrate();
 
 startServer();
 

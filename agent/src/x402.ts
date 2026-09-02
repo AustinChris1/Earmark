@@ -90,7 +90,7 @@ export const x402Handler: RequestHandler = async (req: Request, res: Response) =
     const { id, drive, token, amount } = await quote(req.path, typeof raw === "string" ? raw : undefined);
     const payerName = typeof req.query.name === "string" && req.query.name ? req.query.name : "diaspora";
     const intentId = randomUUID();
-    addIntent({ id: intentId, drive_id: id, token: drive.token, amount: amount.toString(), payer_name: payerName });
+    await addIntent({ id: intentId, drive_id: id, token: drive.token, amount: amount.toString(), payer_name: payerName });
     const forwarded = await forwardIntent(intentId).catch(() => null);
     res.json({
       ok: true,
@@ -111,7 +111,7 @@ export const x402Handler: RequestHandler = async (req: Request, res: Response) =
 
 // Forwards one recorded intent if the agent actually holds the funds. Idempotent: a forwarded intent is skipped.
 async function forwardIntent(id: string): Promise<string | null> {
-  const intent = getIntent(id);
+  const intent = await getIntent(id);
   if (!intent || intent.forwarded_tx) return null;
   const amount = BigInt(intent.amount);
   const balance = await publicClient.readContract({
@@ -122,7 +122,7 @@ async function forwardIntent(id: string): Promise<string | null> {
   });
   if (balance < amount) return null;
   const hash = await contributeFromAgent(BigInt(intent.drive_id), intent.token as Address, amount, `x402:${intent.payer_name}`);
-  markForwarded(id, hash);
+  await markForwarded(id, hash);
   return hash;
 }
 
@@ -133,7 +133,7 @@ export function startX402Sweeper() {
     if (running) return;
     running = true;
     try {
-      for (const intent of pendingIntents()) {
+      for (const intent of await pendingIntents()) {
         const hash = await forwardIntent(intent.id).catch((e) => {
           console.error("x402 forward:", (e as Error).message);
           return null;

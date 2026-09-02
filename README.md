@@ -93,16 +93,22 @@ pnpm dev:agent
 
 ## Deploying
 
-`render.yaml` is a Render blueprint for the agent. It builds the web bundle, runs the agent, and mounts a
-disk at `/var/data` for the SQLite database.
+`render.yaml` is a Render blueprint for the agent. The plan is `free`, which works only because no
+state lives on the instance: the database is Turso (libSQL) and Render's filesystem is wiped on every
+restart, redeploy and spin-down.
 
-The plan is `starter`, not `free`, on purpose. A free Render service spins down after 15 idle minutes and
-has an ephemeral filesystem, which would stop the Telegram long poll, silence instalment nudges, halt the
-x402 sweeper, and wipe every plan on restart. None of that is acceptable for an agent whose whole job is
-to keep collecting over several days.
+Two things are required for a free instance to behave:
 
-Set `AGENT_PRIVATE_KEY`, `TELEGRAM_BOT_TOKEN` and `X402_API_KEY` in the Render dashboard. They are marked
-`sync: false` so they are never committed.
+1. A **Turso database**. Create one, then set `DATABASE_URL` and `DATABASE_AUTH_TOKEN` in the Render
+   dashboard. Unset locally, the same code opens a local libSQL file instead, so development needs
+   no account.
+2. A **cron ping** to `https://earmark-agent.onrender.com/api/health` every 10 minutes (cron-job.org
+   is enough). Render suspends a free service after 15 idle minutes, and the Telegram long poll is
+   outbound traffic, so without an inbound ping the bot stops answering, instalment nudges never
+   fire and the x402 sweeper stalls.
+
+`AGENT_PRIVATE_KEY`, `TELEGRAM_BOT_TOKEN` and `X402_API_KEY` are also set in the dashboard. Every
+secret is marked `sync: false` so none of them are committed.
 
 ## License
 

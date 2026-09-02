@@ -18,7 +18,7 @@ export function startWatcher(startBlock?: bigint) {
       const earmark = requireEarmark();
       const head = await publicClient.getBlockNumber();
       const base = configured ?? (isLocal ? 0n : head - 1n);
-      let from = BigInt(getMeta("last_block") ?? (base - 1n < 0n ? -1n : base - 1n).toString()) + 1n;
+      let from = BigInt(await getMeta("last_block") ?? (base - 1n < 0n ? -1n : base - 1n).toString()) + 1n;
       while (from <= head) {
         const to = from + CHUNK - 1n < head ? from + CHUNK - 1n : head;
         const contributed = await publicClient.getContractEvents({
@@ -33,7 +33,7 @@ export function startWatcher(startBlock?: bigint) {
           if (id === undefined || payer === undefined || amount === undefined) continue;
           const driveId = Number(id);
           const note = memo ?? "";
-          const isNew = insertPayment({
+          const isNew = await insertPayment({
             tx_hash: log.transactionHash,
             drive_id: driveId,
             payer,
@@ -41,8 +41,8 @@ export function startWatcher(startBlock?: bigint) {
             memo: note,
             block: Number(log.blockNumber),
           });
-          if (isNew) reconcileInstalments(driveId);
-          if (isNew && getDrive(driveId)) {
+          if (isNew) await reconcileInstalments(driveId);
+          if (isNew && await getDrive(driveId)) {
             await announceContribution(driveId, memoName(note, payer), amount, log.transactionHash).catch(console.error);
           }
         }
@@ -54,9 +54,9 @@ export function startWatcher(startBlock?: bigint) {
           toBlock: to,
         });
         for (const log of closed) {
-          if (log.args.id !== undefined) markClosed(Number(log.args.id));
+          if (log.args.id !== undefined) await markClosed(Number(log.args.id));
         }
-        setMeta("last_block", to.toString());
+        await setMeta("last_block", to.toString());
         from = to + 1n;
       }
     } catch (e) {

@@ -11,9 +11,9 @@ export function startScheduler() {
     if (running) return;
     running = true;
     try {
-      for (const id of drivesWithPlans()) reconcileInstalments(id);
+      for (const id of await drivesWithPlans()) await reconcileInstalments(id);
       const now = Math.floor(Date.now() / 1000);
-      const due = dueInstalments(now, now - NUDGE_GAP_SEC);
+      const due = await dueInstalments(now, now - NUDGE_GAP_SEC);
       if (!due.length) return;
 
       const byDrive = new Map<number, DueInstalment[]>();
@@ -27,7 +27,7 @@ export function startScheduler() {
         const earliest = new Map<string, DueInstalment>();
         for (const r of rows) if (!earliest.has(r.tg_id)) earliest.set(r.tg_id, r);
         const sent = await nudgeDue([...earliest.values()]);
-        if (sent) for (const r of rows) markNudged(r.drive_id, r.tg_id, r.seq, now);
+        if (sent) for (const r of rows) await markNudged(r.drive_id, r.tg_id, r.seq, now);
       }
     } catch (e) {
       console.error("scheduler:", (e as Error).message);
