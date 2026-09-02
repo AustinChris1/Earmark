@@ -12,7 +12,14 @@ function req(name: string): string {
   return v;
 }
 
-export type TokenInfo = { symbol: string; address: Address; decimals: number; feeCurrency: Address | null };
+export type TokenInfo = {
+  symbol: string;
+  address: Address;
+  decimals: number;
+  feeCurrency: Address | null;
+  // EIP-712 domain for EIP-3009 signing; version is derived from each token's on-chain DOMAIN_SEPARATOR.
+  eip712?: { name: string; version: string };
+};
 
 // Celo mainnet; feeCurrency is the gas adapter (null = not a whitelisted gas token).
 export const TOKENS: Record<string, TokenInfo> = {
@@ -21,18 +28,21 @@ export const TOKENS: Record<string, TokenInfo> = {
     address: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
     decimals: 6,
     feeCurrency: "0x0E2A3e05bc9A16F5292A6170456A710cb89C6f72",
+    eip712: { name: "Tether USD", version: "1" },
   },
   USDC: {
     symbol: "USDC",
     address: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
     decimals: 6,
     feeCurrency: "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B",
+    eip712: { name: "USDC", version: "2" },
   },
   USAT: {
     symbol: "USAT",
     address: "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771",
     decimals: 6,
     feeCurrency: "0x0357EE22278c922e1D36cFe6b899269b161880C4",
+    eip712: { name: "Tether America USD", version: "1" },
   },
   cNGN: {
     symbol: "cNGN",
@@ -69,4 +79,7 @@ export const LOCAL_CHAIN_ID = 31337;
 // A localhost RPC means a Hardhat node, used for local end to end testing.
 export const isLocal = /localhost|127\.0\.0\.1/.test(env.CELO_RPC_URL);
 export const chainId = isLocal ? LOCAL_CHAIN_ID : CELO_CHAIN_ID;
+export const X402_FACILITATOR = process.env.X402_FACILITATOR ?? "https://api.x402.celo.org";
+export const X402_NETWORK = "eip155:42220" as const;
+
 export const explorerUrl = isLocal ? "http://localhost:8545" : "https://celoscan.io";
