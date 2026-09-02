@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+
+  --color-paper: #f5f2ea;
+  --color-ink: #10201a;
+  --color-seal: #0f6b4a;
+  --color-amber: #b4661d;
+}
+
+:root[data-theme="light"] {
+  --bg: #f5f2ea;
+  --bg-raised: #ffffff;
+  --line: #ded7c7;
+  --text: #10201a;
+  --text-muted: #5c6a63;
+  --accent: #0f6b4a;
+  --accent-ink: #ffffff;
+  --pending: #b4661d;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0b1410;
+  --bg-raised: #121f19;
+  --line: #22352c;
+  --text: #edf2ee;
+  --text-muted: #94a69c;
+  --accent: #3fd68c;
+  --accent-ink: #08120d;
+  --pending: #e0913f;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@utility surface {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+}
+
+/* The seam the notch cuts through, used behind the hero mechanic. */
+@utility rule-grid {
+  background-image: linear-gradient(to right, var(--line) 1px, transparent 1px);
+  background-size: 72px 100%;
+}

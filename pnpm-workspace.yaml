@@ -1,0 +1,14 @@
+packages:
+  - contracts
+  - agent
+  - web
+
+allowBuilds:
+  esbuild: set this to true or false
+  keccak: set this to true or false
+  secp256k1: set this to true or false
+
+onlyBuiltDependencies:
+  - esbuild
+  - keccak
+  - secp256k1

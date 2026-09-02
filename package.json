@@ -1,0 +1,23 @@
+{
+  "name": "earmark",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Earmark: group-chat agent that pools a shared obligation and can only pay the locked destination, on Celo.",
+  "scripts": {
+    "compile": "pnpm -F @earmark/contracts compile",
+    "test": "pnpm -F @earmark/contracts test",
+    "deploy": "pnpm -F @earmark/contracts deploy:celo",
+    "dev:agent": "pnpm -F @earmark/agent dev",
+    "register:8004": "pnpm -F @earmark/agent register:8004",
+    "dev:web": "pnpm -F @earmark/web dev",
+    "build:web": "pnpm -F @earmark/web build",
+    "chain": "pnpm -F @earmark/contracts node",
+    "seed": "pnpm -F @earmark/contracts seed:local",
+    "shots": "node scripts/shots.mjs"
+  },
+  "license": "MIT",
+  "packageManager": "pnpm@11.25.0",
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}
