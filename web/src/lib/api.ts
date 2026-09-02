@@ -4,7 +4,10 @@ export type TokenInfo = { symbol: string; address: Address; decimals: number; fe
 
 export type Payment = { tx: string; payer: Address; name: string; amount: string; block: number };
 
+export type Instalment = { seq: number; count: number; paid: number; amount: string; dueAt: number };
+
 export type Drive = {
+  you: Instalment | null;
   id: number;
   label: string;
   token: TokenInfo;
@@ -32,5 +35,6 @@ async function get<T>(url: string): Promise<T> {
   return body as T;
 }
 
-export const getDrive = (id: number | string) => get<Drive>(`/api/drive/${id}`);
+export const getDrive = (id: number | string, u = "") =>
+  get<Drive>(`/api/drive/${id}${u ? `?u=${encodeURIComponent(u)}` : ""}`);
 export const getStats = () => get<Stats>(`/api/stats`);

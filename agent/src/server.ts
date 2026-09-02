@@ -4,14 +4,20 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chainId, env, explorerUrl, tokenByAddress } from "./config.js";
 import { account, driveCount, readDrive, readTokenInfo } from "./chain.js";
-import { db, getDrive, paymentsFor } from "./db.js";
+import { db, getDrive, hasPlan, nextInstalment, paymentsFor, planCountFor, reconcileInstalments } from "./db.js";
 import { memoName } from "./format.js";
+import { x402Guard, x402Handler, x402Middleware } from "./x402.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, "../../web/dist");
 
 export const app = express();
 app.use(express.json());
+
+// x402 must sit ahead of the SPA fallback so the 402 challenge is not swallowed by index.html.
+app.use(x402Guard);
+app.use(x402Middleware());
+app.get("/x402/drive/:id", x402Handler);
 
 app.get("/api/health", (_req, res) => res.json({ ok: true, agent: account.address, earmark: env.EARMARK_ADDRESS }));
 
@@ -38,7 +44,16 @@ app.get("/api/drive/:id", async (req, res) => {
       return res.status(404).json({ error: "No such drive." });
     }
     const local = getDrive(id);
+    const u = typeof req.query.u === "string" ? req.query.u : "";
+    let you = null as null | { seq: number; count: number; paid: number; amount: string; dueAt: number };
+    if (u && hasPlan(id)) {
+      reconcileInstalments(id);
+      const next = nextInstalment(id, u);
+      const { total, paid } = planCountFor(id, u);
+      if (next && total) you = { seq: next.seq, count: total, paid, amount: next.amount, dueAt: next.due_at };
+    }
     res.json({
+      you,
       id,
       label: onchain.label,
       token: tokenByAddress(onchain.token) ?? (await readTokenInfo(onchain.token)),

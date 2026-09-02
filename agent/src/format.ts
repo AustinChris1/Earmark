@@ -1,6 +1,6 @@
 import { formatUnits } from "viem";
 import { tokenByAddress, type TokenInfo } from "./config.js";
-import type { DriveRow, PaymentRow, ShareRow } from "./db.js";
+import type { DriveRow, InstalmentRow, PaymentRow, ShareRow } from "./db.js";
 
 export function fmt(amount: bigint | string, token: TokenInfo): string {
   const n = Number(formatUnits(BigInt(amount), token.decimals));
@@ -66,4 +66,30 @@ export function tallyText(d: DriveRow, payments: PaymentRow[], shares: ShareRow[
 
 export function escape(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+export function dueLabel(ts: number): string {
+  const startOfToday = new Date().setHours(0, 0, 0, 0);
+  const days = Math.round((ts * 1000 - startOfToday) / 86_400_000);
+  if (days <= 0) return "due now";
+  if (days === 1) return "due tomorrow";
+  return `due ${new Date(ts * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+}
+
+export function planText(d: DriveRow, inst: InstalmentRow[]): string {
+  const token = tokenByAddress(d.token)!;
+  const byMember = new Map<string, InstalmentRow[]>();
+  for (const r of inst) {
+    const list = byMember.get(r.tg_id) ?? [];
+    list.push(r);
+    byMember.set(r.tg_id, list);
+  }
+  const lines = [`🗓 <b>${escape(d.label)}</b> instalment plan`];
+  for (const [, rows] of byMember) {
+    const paid = rows.filter((r) => r.paid_at !== null).length;
+    const next = rows.find((r) => r.paid_at === null);
+    const tail = next ? `next ${fmt(next.amount, token)} ${dueLabel(next.due_at)}` : "complete";
+    lines.push(`${paid === rows.length ? "✅" : "•"} ${escape(rows[0].name)}: ${paid}/${rows.length} paid, ${tail}`);
+  }
+  return lines.join("\n");
 }

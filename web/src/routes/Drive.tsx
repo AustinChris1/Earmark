@@ -52,15 +52,23 @@ export function DrivePage() {
 
   const refresh = useCallback(() => {
     if (!id) return;
-    getDrive(id)
+    getDrive(id, tgId)
       .then((d) => {
         setDrive(d);
         setLoadError(null);
       })
       .catch((e: Error) => setLoadError(e.message));
-  }, [id]);
+  }, [id, tgId]);
 
   useEffect(refresh, [refresh]);
+
+  // Prefill: the instalment the API says is next, else an amount handed over in the link.
+  useEffect(() => {
+    if (!drive) return;
+    const amt = query.get("amt");
+    if (drive.you) setAmount(formatUnits(BigInt(drive.you.amount), drive.token.decimals));
+    else if (amt) setAmount(amt);
+  }, [drive]);
 
   const chain = useMemo(() => {
     if (!drive) return null;
@@ -176,7 +184,7 @@ export function DrivePage() {
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
             <div className="surface mt-6 rounded-2xl p-6">
               <p className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-                Drive #{drive.id}
+                {drive.you ? `Instalment ${drive.you.seq} of ${drive.you.count}` : `Drive #${drive.id}`}
               </p>
               <h1 className="mt-2 font-display text-3xl leading-tight tracking-tight">{drive.label}</h1>
 
@@ -217,7 +225,9 @@ export function DrivePage() {
               ) : (
                 <div className="mt-6">
                   <label htmlFor="amt" className="text-sm" style={{ color: "var(--text-muted)" }}>
-                    Your contribution{tgName ? ` as ${tgName}` : ""}
+                    {drive.you
+                      ? `Instalment ${drive.you.seq} of ${drive.you.count}${tgName ? ` for ${tgName}` : ""}`
+                      : `Your contribution${tgName ? ` as ${tgName}` : ""}`}
                   </label>
                   <div className="mt-2 flex items-center gap-2 rounded-xl px-3" style={{ border: "1px solid var(--line)" }}>
                     <input

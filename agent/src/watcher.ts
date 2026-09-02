@@ -1,6 +1,6 @@
 import { EARMARK_ABI, publicClient, requireEarmark } from "./chain.js";
 import { env, isLocal } from "./config.js";
-import { getDrive, getMeta, insertPayment, markClosed, setMeta } from "./db.js";
+import { getDrive, getMeta, insertPayment, markClosed, reconcileInstalments, setMeta } from "./db.js";
 import { memoName } from "./format.js";
 import { announceContribution } from "./bot.js";
 
@@ -41,6 +41,7 @@ export function startWatcher(startBlock?: bigint) {
             memo: note,
             block: Number(log.blockNumber),
           });
+          if (isNew) reconcileInstalments(driveId);
           if (isNew && getDrive(driveId)) {
             await announceContribution(driveId, memoName(note, payer), amount, log.transactionHash).catch(console.error);
           }

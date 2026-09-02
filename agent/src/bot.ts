@@ -1,20 +1,30 @@
 import { Bot, type Context } from "grammy";
-import { isAddress, parseUnits, getAddress } from "viem";
+import { isAddress, parseUnits, formatUnits, getAddress } from "viem";
 import { env, TOKENS, tokenByAddress } from "./config.js";
 import { createDriveOnchain, closeDriveOnchain } from "./chain.js";
 import {
   getDrive,
+  hasPlan,
   insertDrive,
+  instalmentsFor,
   latestDriveForChat,
   markClosed,
+  nextInstalment,
   openDrivesForChat,
   paymentsFor,
+  planCountFor,
+  reconcileInstalments,
+  rekeyMember,
+  replacePlan,
   setShare,
   sharesFor,
+  type DueInstalment,
 } from "./db.js";
-import { driveCard, escape, fmt, memoTgId, tallyText } from "./format.js";
+import { driveCard, dueLabel, escape, fmt, memoTgId, planText, tallyText } from "./format.js";
 
 let bot: Bot | null = null;
+
+const CADENCE: Record<string, number> = { daily: 1, weekly: 7, biweekly: 14, fortnightly: 14, monthly: 30 };
 
 const HELP = [
   `<b>Earmark</b> pools a group obligation and can only pay the locked destination. Nothing is held in between.`,
@@ -22,6 +32,7 @@ const HELP = [
   `/new &lt;amount&gt; &lt;TOKEN&gt; &lt;destination 0x…&gt; &lt;label&gt;`,
   `   e.g. /new 100 USDT 0xSchoolWallet Term 1 fees for Chioma`,
   `/split @name 40 @name 30 …   set each person's share`,
+  `/plan &lt;daily|weekly|monthly&gt; &lt;count&gt;   spread every share over instalments`,
   `/pay        get your personal pay link`,
   `/tally      who has paid, who is outstanding`,
   `/remind     nudge everyone still outstanding`,
@@ -40,8 +51,9 @@ function displayName(ctx: Context): string {
   return u.username ? `@${u.username}` : [u.first_name, u.last_name].filter(Boolean).join(" ");
 }
 
-function payLink(driveId: number, tgId: number | string, name: string): string {
-  return `${env.PUBLIC_URL}/d/${driveId}?u=${tgId}&n=${encodeURIComponent(name)}`;
+function payLink(driveId: number, tgId: number | string, name: string, amount?: string): string {
+  const base = `${env.PUBLIC_URL}/d/${driveId}?u=${tgId}&n=${encodeURIComponent(name)}`;
+  return amount ? `${base}&amt=${amount}` : base;
 }
 
 function registerHandlers(b: Bot) {
@@ -118,7 +130,48 @@ function registerHandlers(b: Bot) {
       setShare({ drive_id: d.id, tg_id: tgId, name: `@${name}`, amount });
       lines.push(`@${name}: ${fmt(amount, token)}`);
     }
-    return ctx.reply(`Shares for <b>${escape(d.label)}</b>\n${lines.join("\n")}`, { parse_mode: "HTML" });
+    return ctx.reply(
+      `Shares for <b>${escape(d.label)}</b>\n${lines.join("\n")}\n\nSpread them over time with /plan weekly 4.`,
+      { parse_mode: "HTML" },
+    );
+  });
+
+  b.command("plan", async (ctx) => {
+    const d = latestDriveForChat(chatId(ctx));
+    if (!d || d.closed) return ctx.reply("No open drive here. Start one with /new.");
+    if (ctx.from && d.collector_tg && String(ctx.from.id) !== d.collector_tg) {
+      return ctx.reply(`Only ${d.collector_name ?? "the collector"} can set the plan.`);
+    }
+    const [cadenceRaw, countRaw] = (ctx.match ?? "").trim().split(/\s+/);
+    const days = CADENCE[(cadenceRaw ?? "").toLowerCase()];
+    const count = Number(countRaw);
+    if (!days || !Number.isInteger(count) || count < 2 || count > 52) {
+      return ctx.reply(`Usage: /plan <${Object.keys(CADENCE).slice(0, 4).join("|")}> <count 2-52>\ne.g. /plan weekly 4`);
+    }
+    const shares = sharesFor(d.id);
+    if (!shares.length) return ctx.reply("Set the shares first with /split @ada 40 @emeka 30.");
+
+    const startOfDay = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
+    const rows = shares.flatMap((s) => {
+      const total = BigInt(s.amount);
+      const per = total / BigInt(count);
+      const remainder = total - per * BigInt(count);
+      return Array.from({ length: count }, (_, i) => ({
+        drive_id: d.id,
+        tg_id: s.tg_id,
+        seq: i + 1,
+        name: s.name,
+        // The remainder rides on the last instalment so the parts sum to the share exactly.
+        amount: (i === count - 1 ? per + remainder : per).toString(),
+        due_at: startOfDay + i * days * 86_400,
+      }));
+    });
+    replacePlan(d.id, rows);
+    reconcileInstalments(d.id);
+    return ctx.reply(
+      `${planText(d, instalmentsFor(d.id))}\n\nI will nudge each person here when their instalment is due. /pay gives you just the amount due now.`,
+      { parse_mode: "HTML" },
+    );
   });
 
   b.command("pay", async (ctx) => {
@@ -126,12 +179,37 @@ function registerHandlers(b: Bot) {
     if (!d || d.closed) return ctx.reply("No open drive here. Start one with /new.");
     if (!ctx.from) return;
     const name = displayName(ctx);
-    const link = payLink(d.id, ctx.from.id, name);
-    const share = sharesFor(d.id).find((s) => s.tg_id === String(ctx.from!.id) || s.tg_id === name);
+    const me = String(ctx.from.id);
+    if (ctx.from.username) rekeyMember(d.id, `@${ctx.from.username}`, me, name);
+    reconcileInstalments(d.id);
     const token = tokenByAddress(d.token)!;
+
+    if (hasPlan(d.id)) {
+      const next = nextInstalment(d.id, me);
+      const { total, paid } = planCountFor(d.id, me);
+      if (!total) {
+        return ctx.reply(
+          `${name}, you are not on the plan for <b>${escape(d.label)}</b> yet. Anything you send still counts:\n${payLink(d.id, me, name)}`,
+          { parse_mode: "HTML", link_preview_options: { is_disabled: true } },
+        );
+      }
+      if (!next) {
+        return ctx.reply(`${name}, you have paid all ${total} instalments for <b>${escape(d.label)}</b>. Thank you.`, {
+          parse_mode: "HTML",
+        });
+      }
+      const human = formatUnits(BigInt(next.amount), token.decimals);
+      return ctx.reply(
+        `${name}, instalment <b>${next.seq} of ${total}</b> for <b>${escape(d.label)}</b>: ${fmt(next.amount, token)} (${dueLabel(next.due_at)}). ${paid} paid so far.\n${payLink(d.id, me, name, human)}\n\nOpen it inside MiniPay to pay in one tap.`,
+        { parse_mode: "HTML", link_preview_options: { is_disabled: true } },
+      );
+    }
+
+    const share = sharesFor(d.id).find((s) => s.tg_id === me || s.tg_id === name);
     const hint = share ? ` Your share: ${fmt(share.amount, token)}.` : "";
+    const human = share ? formatUnits(BigInt(share.amount), token.decimals) : undefined;
     return ctx.reply(
-      `${name}, your pay link for <b>${escape(d.label)}</b>:${hint}\n${link}\n\nOpen it inside MiniPay to pay in one tap.`,
+      `${name}, your pay link for <b>${escape(d.label)}</b>:${hint}\n${payLink(d.id, me, name, human)}\n\nOpen it inside MiniPay to pay in one tap.`,
       { parse_mode: "HTML", link_preview_options: { is_disabled: true } },
     );
   });
@@ -139,19 +217,40 @@ function registerHandlers(b: Bot) {
   b.command("tally", async (ctx) => {
     const d = openDrivesForChat(chatId(ctx))[0] ?? latestDriveForChat(chatId(ctx));
     if (!d) return ctx.reply("No drive here yet. Start one with /new.");
-    return ctx.reply(tallyText(d, paymentsFor(d.id), sharesFor(d.id)), { parse_mode: "HTML" });
+    reconcileInstalments(d.id);
+    const base = tallyText(d, paymentsFor(d.id), sharesFor(d.id));
+    const plan = hasPlan(d.id) ? `\n\n${planText(d, instalmentsFor(d.id))}` : "";
+    return ctx.reply(`${base}${plan}`, { parse_mode: "HTML" });
   });
 
   b.command("remind", async (ctx) => {
     const d = latestDriveForChat(chatId(ctx));
     if (!d || d.closed) return ctx.reply("No open drive here.");
+    reconcileInstalments(d.id);
+    const token = tokenByAddress(d.token)!;
+
+    if (hasPlan(d.id)) {
+      const outstanding = instalmentsFor(d.id).filter((r) => r.paid_at === null);
+      if (!outstanding.length) {
+        return ctx.reply(`Every instalment for <b>${escape(d.label)}</b> is paid.`, { parse_mode: "HTML" });
+      }
+      const firstPerMember = new Map<string, (typeof outstanding)[number]>();
+      for (const r of outstanding) if (!firstPerMember.has(r.tg_id)) firstPerMember.set(r.tg_id, r);
+      const lines = [...firstPerMember.values()].map(
+        (r) => `• ${escape(r.name)} — ${fmt(r.amount, token)}, instalment ${r.seq} (${dueLabel(r.due_at)})`,
+      );
+      return ctx.reply(
+        `Gentle nudge for <b>${escape(d.label)}</b>:\n${lines.join("\n")}\n\nSend /pay for your link.`,
+        { parse_mode: "HTML" },
+      );
+    }
+
     const paid = new Set(
       paymentsFor(d.id)
         .map((p) => memoTgId(p.memo))
         .filter(Boolean),
     );
     const outstanding = sharesFor(d.id).filter((s) => !paid.has(s.tg_id));
-    const token = tokenByAddress(d.token)!;
     if (!outstanding.length) {
       return ctx.reply(`Everyone with a share has paid toward <b>${escape(d.label)}</b>. Anyone else: /pay`, {
         parse_mode: "HTML",
@@ -189,6 +288,23 @@ export function startBot(): Bot | null {
   bot.catch((err) => console.error("bot:", err.error));
   void bot.start({ onStart: (me) => console.log(`bot @${me.username} polling`) });
   return bot;
+}
+
+// Posts one message per drive for instalments that have come due; the scheduler owns the timing.
+export async function nudgeDue(rows: DueInstalment[]): Promise<boolean> {
+  if (!bot || !rows.length) return false;
+  const d = getDrive(rows[0].drive_id);
+  if (!d) return false;
+  const token = tokenByAddress(d.token)!;
+  const lines = rows.map((r) => {
+    const human = formatUnits(BigInt(r.amount), token.decimals);
+    return `• ${escape(r.name)} — ${fmt(r.amount, token)}, instalment ${r.seq} (${dueLabel(r.due_at)})\n${payLink(d.id, r.tg_id, r.name, human)}`;
+  });
+  await bot.api.sendMessage(d.chat_id, `⏰ Instalment due for <b>${escape(d.label)}</b>\n\n${lines.join("\n\n")}`, {
+    parse_mode: "HTML",
+    link_preview_options: { is_disabled: true },
+  });
+  return true;
 }
 
 export async function announceContribution(driveId: number, payerName: string, amount: bigint, txHash: string) {
