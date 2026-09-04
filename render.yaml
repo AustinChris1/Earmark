@@ -10,7 +10,9 @@ services:
     branch: main
     # pnpm is installed explicitly: Render's Node runtime does not document pnpm detection,
     # so relying on corepack or a lockfile sniff would be a build that works by luck.
-    buildCommand: npm i -g pnpm@11.25.0 && pnpm install --frozen-lockfile && pnpm build:web
+    # Only the agent and web workspaces are installed. Hardhat never runs here, and skipping it
+    # avoids compiling keccak and secp256k1 on the build host for no reason.
+    buildCommand: npm i -g pnpm@11.25.0 && pnpm install --frozen-lockfile --filter @earmark/agent --filter @earmark/web && pnpm --filter @earmark/web build
     startCommand: pnpm --filter @earmark/agent start
     healthCheckPath: /api/health
     envVars:

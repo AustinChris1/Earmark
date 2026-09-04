@@ -3,11 +3,9 @@ packages:
   - agent
   - web
 
-allowBuilds:
-  esbuild: set this to true or false
-  keccak: set this to true or false
-  secp256k1: set this to true or false
-
+# pnpm 11 blocks dependency install scripts until they are named here, and with CI=true
+# an ignored build is a hard failure rather than a warning.
+# esbuild unpacks a prebuilt binary for vite; keccak and secp256k1 are hardhat's, local only.
 onlyBuiltDependencies:
   - esbuild
   - keccak
