@@ -1,21 +1,47 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { animated } from "@react-spring/web";
 import { ArrowRight, Landmark, Lock, MessageSquare, Receipt, ShieldCheck, Users } from "lucide-react";
 import { Shell } from "../components/Shell";
 import { FlowDiagram } from "../components/FlowDiagram";
 import { Reveal } from "../components/Reveal";
 import { Counter } from "../components/Counter";
+import { useLift } from "../lib/springs";
 import { getStats, type Stats } from "../lib/api";
 
 const STEPS = [
-  { icon: MessageSquare, title: "Name the obligation", body: "/new 100 USDT 0xSchool Term 1 fees for Chioma" },
+  { icon: MessageSquare, title: "Name the obligation", body: "/new 450 USDT 0xSchool Term 1 fees for Chioma" },
   { icon: Users, title: "Split it", body: "Everyone gets their share and a one tap pay link." },
   { icon: Lock, title: "Money moves once", body: "Each payment lands at the locked destination in the same transaction." },
   { icon: Receipt, title: "The chat keeps score", body: "Who paid, who is outstanding, all of it on chain." },
 ];
 
+function StepCard({ step, delay }: { step: (typeof STEPS)[number]; delay: number }) {
+  const { style, bind } = useLift();
+  return (
+    <Reveal delay={delay}>
+      <animated.div {...bind} style={style} className="surface flex h-full gap-4 rounded-2xl p-5">
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+          style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+        >
+          <step.icon className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="font-semibold">{step.title}</p>
+          <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            {step.body}
+          </p>
+        </div>
+      </animated.div>
+    </Reveal>
+  );
+}
+
 export function Landing() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const cta = useLift(2);
+
   useEffect(() => {
     getStats().then(setStats).catch(() => setStats(null));
   }, []);
@@ -29,7 +55,7 @@ export function Landing() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs surface"
+              className="mb-5 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs surface"
               style={{ color: "var(--text-muted)" }}
             >
               <ShieldCheck className="h-3.5 w-3.5" style={{ color: "var(--accent)" }} />
@@ -39,17 +65,17 @@ export function Landing() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-              className="font-display text-5xl leading-[1.05] tracking-tight md:text-6xl"
+              className="font-display text-5xl leading-[1.12] tracking-tight md:text-6xl"
             >
               Money that carries
               <br />
-              its destination.
+              <span className="highlight px-2">its destination.</span>
             </motion.h1>
             <motion.p
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.12 }}
-              className="mt-5 max-w-md text-[15px] leading-relaxed"
+              className="mt-6 max-w-md text-[15px] leading-relaxed"
               style={{ color: "var(--text-muted)" }}
             >
               A group chat pools for one named obligation. The agent can only pay the destination it was locked to, so
@@ -59,16 +85,17 @@ export function Landing() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="mt-8 flex flex-wrap items-center gap-3"
+              className="mt-8 flex flex-wrap items-center gap-4"
             >
-              <a
-                href="https://t.me/"
-                className="group inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition"
-                style={{ background: "var(--accent)", color: "var(--accent-ink)" }}
+              <animated.a
+                {...cta.bind}
+                style={{ ...cta.style, background: "var(--brand)", color: "var(--brand-ink)" }}
+                href="https://t.me/Earmarked_bot"
+                className="group inline-flex items-center gap-2 rounded-xl px-5 py-3.5 text-sm font-semibold"
               >
                 Start a drive in your chat
                 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-              </a>
+              </animated.a>
               {stats && stats.drives > 0 && (
                 <a href={`/d/${stats.drives}`} className="text-sm underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
                   See a live drive
@@ -104,7 +131,10 @@ export function Landing() {
               </div>
             </Reveal>
             <Reveal delay={0.12}>
-              <div className="surface h-full rounded-2xl p-6">
+              <div
+                className="h-full rounded-2xl p-6"
+                style={{ background: "var(--accent-soft)", border: "1px solid var(--line)" }}
+              >
                 <p className="text-xs uppercase tracking-widest" style={{ color: "var(--accent)" }}>
                   Earmarked
                 </p>
@@ -123,22 +153,7 @@ export function Landing() {
           </Reveal>
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
             {STEPS.map((s, i) => (
-              <Reveal key={s.title} delay={i * 0.07}>
-                <div className="surface flex h-full gap-4 rounded-2xl p-5">
-                  <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                    style={{ background: "color-mix(in srgb, var(--accent) 14%, transparent)", color: "var(--accent)" }}
-                  >
-                    <s.icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="font-semibold">{s.title}</p>
-                    <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                      {s.body}
-                    </p>
-                  </div>
-                </div>
-              </Reveal>
+              <StepCard key={s.title} step={s} delay={i * 0.07} />
             ))}
           </div>
         </section>
@@ -161,15 +176,15 @@ export function Landing() {
             </Reveal>
             <Reveal delay={0.1}>
               <pre
-                className="surface overflow-x-auto rounded-2xl p-5 text-[12.5px] leading-relaxed"
-                style={{ color: "var(--text-muted)" }}
+                className="overflow-x-auto rounded-2xl p-5 text-[12.5px] leading-relaxed"
+                style={{ background: "var(--bg-sunken)", border: "1px solid var(--line)", color: "var(--text-muted)" }}
               >
                 <code>{`function contribute(uint256 id, uint256 amount, string memo) {
   Drive storage d = _drives[id];
   d.raised += amount;
   IERC20(d.token).safeTransferFrom(
     msg.sender,
-    `}<span style={{ color: "var(--accent)" }}>d.destination</span>{`,
+    `}<span style={{ color: "var(--accent)", fontWeight: 600 }}>d.destination</span>{`,
     amount
   );
 }`}</code>

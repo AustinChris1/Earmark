@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { animated, useSpring } from "@react-spring/web";
 import { CheckCircle2, ExternalLink, Loader2, Lock, TriangleAlert, Wallet } from "lucide-react";
 import {
   createPublicClient,
@@ -18,6 +19,7 @@ import {
 import { toDataSuffix } from "@celo/attribution-tags";
 import { Shell } from "../components/Shell";
 import { getDrive, type Drive } from "../lib/api";
+import { useLift } from "../lib/springs";
 
 const EARMARK_ABI = parseAbi(["function contribute(uint256 id, uint256 amount, string memo)"]);
 const ERC20_ABI = parseAbi([
@@ -89,6 +91,15 @@ export function DrivePage() {
   const target = drive ? BigInt(drive.target) : 0n;
   const remaining = target > raised ? target - raised : 0n;
   const pct = target > 0n ? Math.min(100, Number((raised * 1000n) / target) / 10) : 0;
+
+  const still = useReducedMotion();
+  const payBtn = useLift(2);
+  const progress = useSpring({
+    width: `${pct}%`,
+    from: { width: "0%" },
+    immediate: !!still,
+    config: { tension: 120, friction: 26 },
+  });
 
   async function pay() {
     if (!drive || !chain) return;
@@ -203,13 +214,7 @@ export function DrivePage() {
               {target > 0n && (
                 <div className="mt-5">
                   <div className="h-2.5 w-full overflow-hidden rounded-full" style={{ background: "var(--line)" }}>
-                    <motion.div
-                      className="h-full rounded-full"
-                      style={{ background: "var(--accent)" }}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${pct}%` }}
-                      transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-                    />
+                    <animated.div className="h-full rounded-full" style={{ ...progress, background: "var(--accent)" }} />
                   </div>
                   <div className="mt-2 flex justify-between text-sm">
                     <span className="font-semibold">{fmt(raised)}</span>
@@ -243,15 +248,16 @@ export function DrivePage() {
                     </span>
                   </div>
 
-                  <button
+                  <animated.button
+                    {...payBtn.bind}
                     onClick={pay}
                     disabled={busy}
-                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-[15px] font-semibold transition disabled:opacity-60"
-                    style={{ background: "var(--accent)", color: "var(--accent-ink)" }}
+                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-[15px] font-semibold disabled:opacity-60"
+                    style={{ ...payBtn.style, background: "var(--brand)", color: "var(--brand-ink)" }}
                   >
                     {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
                     {busy ? "Confirm in your wallet" : "Pay now"}
-                  </button>
+                  </animated.button>
 
                   <AnimatePresence>
                     {message && (

@@ -4,32 +4,44 @@
   --font-display: "Instrument Serif", ui-serif, Georgia, serif;
   --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
 
-  --color-paper: #f5f2ea;
-  --color-ink: #10201a;
-  --color-seal: #0f6b4a;
-  --color-amber: #b4661d;
+  /* Celo brand, taken from celo.org */
+  --color-prosperity: #fcff52;
+  --color-forest: #476520;
+  --color-spring: #56df7c;
 }
 
+/*
+  Prosperity yellow has very high luminance, so it is only ever a fill with black on top,
+  never a text or stroke colour. Green carries "landed", grey carries "still outstanding".
+*/
 :root[data-theme="light"] {
-  --bg: #f5f2ea;
+  --bg: #ffffff;
   --bg-raised: #ffffff;
-  --line: #ded7c7;
-  --text: #10201a;
-  --text-muted: #5c6a63;
-  --accent: #0f6b4a;
+  --bg-sunken: #f7f7f2;
+  --line: #e4e4d8;
+  --text: #0a0a08;
+  --text-muted: #5b5b52;
+  --brand: #fcff52;
+  --brand-ink: #0a0a08;
+  --accent: #476520;
   --accent-ink: #ffffff;
-  --pending: #b4661d;
+  --accent-soft: #eef3e4;
+  --pending: #7a7a6d;
 }
 
 :root[data-theme="dark"] {
-  --bg: #0b1410;
-  --bg-raised: #121f19;
-  --line: #22352c;
-  --text: #edf2ee;
-  --text-muted: #94a69c;
-  --accent: #3fd68c;
-  --accent-ink: #08120d;
-  --pending: #e0913f;
+  --bg: #0a0a08;
+  --bg-raised: #141410;
+  --bg-sunken: #000000;
+  --line: #2a2a22;
+  --text: #f7f7f2;
+  --text-muted: #9d9d90;
+  --brand: #fcff52;
+  --brand-ink: #0a0a08;
+  --accent: #56df7c;
+  --accent-ink: #0a0a08;
+  --accent-soft: #16251a;
+  --pending: #9d9d90;
 }
 
 html,
@@ -50,8 +62,10 @@ body {
   border: 1px solid var(--line);
 }
 
-/* The seam the notch cuts through, used behind the hero mechanic. */
-@utility rule-grid {
-  background-image: linear-gradient(to right, var(--line) 1px, transparent 1px);
-  background-size: 72px 100%;
+/* Yellow block behind the hero headline, the way Celo uses prosperity as a fill. */
+@utility highlight {
+  background: var(--brand);
+  color: var(--brand-ink);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
