@@ -8,7 +8,9 @@ services:
     plan: free
     region: frankfurt
     branch: main
-    buildCommand: pnpm install --frozen-lockfile && pnpm build:web
+    # pnpm is installed explicitly: Render's Node runtime does not document pnpm detection,
+    # so relying on corepack or a lockfile sniff would be a build that works by luck.
+    buildCommand: npm i -g pnpm@11.25.0 && pnpm install --frozen-lockfile && pnpm build:web
     startCommand: pnpm --filter @earmark/agent start
     healthCheckPath: /api/health
     envVars:
