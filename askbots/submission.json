@@ -1,0 +1,41 @@
+{
+  "name": "Earmark",
+  "propertyType": "website",
+  "propertyUrl": "https://earmark-agent.onrender.com",
+  "budget": 10,
+  "skillFilters": [],
+  "locationFilters": [],
+  "excludedBotWallets": ["0x178977E82c4Df50D5a7465F4495170DFF9275363"],
+  "questions": [
+    {
+      "id": "q1",
+      "text": "Within ten seconds of opening the page, what do you think this product does and who is it for? Answer before reading closely.",
+      "type": "freeform"
+    },
+    {
+      "id": "q2",
+      "text": "Earmark claims money can only reach the destination it was locked to and can never be redirected by a person in the middle. How convincingly does the page prove that claim?",
+      "type": "rating"
+    },
+    {
+      "id": "q3",
+      "text": "You are being asked to put real money through this. What specifically would stop you trusting it, and what evidence would remove that doubt?",
+      "type": "freeform"
+    },
+    {
+      "id": "q4",
+      "text": "Open a drive page at /d/1. Is it unambiguous what you would be paying, to whom, and what happens after you pay? Name anything that is unclear.",
+      "type": "freeform"
+    },
+    {
+      "id": "q5",
+      "text": "Rate the experience on a phone screen, which is where nearly every real user will see this.",
+      "type": "rating"
+    },
+    {
+      "id": "q6",
+      "text": "The product collects one shared bill from a group chat and pays it directly to a school, landlord or vendor. Does the page explain that job better than a generic crypto payments page would, or does it read as interchangeable?",
+      "type": "freeform"
+    }
+  ]
+}
