@@ -27,18 +27,28 @@ export function sumPaid(payments: PaymentRow[]): bigint {
   return payments.reduce((acc, p) => acc + BigInt(p.amount), 0n);
 }
 
-export function driveCard(d: DriveRow, payments: PaymentRow[], publicUrl: string): string {
+// Ten cells, so the bar reads the same on a narrow phone as on a desktop.
+export function progressBar(raised: bigint, target: bigint): string {
+  if (target <= 0n) return "";
+  const filled = Math.max(0, Math.min(10, Number((raised * 10n) / target)));
+  const pct = Math.min(100, Number((raised * 100n) / target));
+  return `${"▰".repeat(filled)}${"▱".repeat(10 - filled)}  ${pct}%`;
+}
+
+export function driveCard(d: DriveRow, payments: PaymentRow[], _publicUrl: string): string {
   const token = tokenByAddress(d.token)!;
   const raised = sumPaid(payments);
   const target = BigInt(d.target);
-  const lines = [
-    `📌 <b>${escape(d.label)}</b>`,
-    `Destination (locked): <code>${d.destination}</code>`,
-    target > 0n ? `Raised: <b>${fmt(raised, token)}</b> of ${fmt(target, token)}` : `Raised: <b>${fmt(raised, token)}</b>`,
-  ];
-  if (d.deadline) lines.push(`Deadline: ${new Date(d.deadline * 1000).toUTCString()}`);
-  lines.push(`Pay: ${publicUrl}/d/${d.id}`);
-  if (d.closed) lines.push(`Status: closed`);
+  const lines = [`📌 <b>${escape(d.label)}</b>`, ""];
+  if (target > 0n) {
+    lines.push(`<code>${progressBar(raised, target)}</code>`);
+    lines.push(`<b>${fmt(raised, token)}</b> of ${fmt(target, token)}`);
+  } else {
+    lines.push(`Raised so far: <b>${fmt(raised, token)}</b>`);
+  }
+  lines.push("", `🔒 Pays only to <code>${shortAddr(d.destination)}</code>, locked when the drive opened.`);
+  if (d.deadline) lines.push(`Closes ${new Date(d.deadline * 1000).toUTCString()}`);
+  if (d.closed) lines.push("Status: closed");
   return lines.join("\n");
 }
 
