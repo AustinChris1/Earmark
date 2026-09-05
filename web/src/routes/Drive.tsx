@@ -18,6 +18,7 @@ import {
 } from "viem";
 import { toDataSuffix } from "@celo/attribution-tags";
 import { Shell } from "../components/Shell";
+import "../lib/wallet";
 import { getDrive, type Drive } from "../lib/api";
 import { useLift } from "../lib/springs";
 
@@ -27,15 +28,6 @@ const ERC20_ABI = parseAbi([
   "function allowance(address owner, address spender) view returns (uint256)",
   "function balanceOf(address owner) view returns (uint256)",
 ]);
-
-declare global {
-  interface Window {
-    ethereum?: {
-      isMiniPay?: boolean;
-      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-    };
-  }
-}
 
 type Stage = "idle" | "approving" | "paying" | "done" | "error";
 

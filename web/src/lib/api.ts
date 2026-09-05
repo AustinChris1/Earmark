@@ -38,3 +38,17 @@ async function get<T>(url: string): Promise<T> {
 export const getDrive = (id: number | string, u = "") =>
   get<Drive>(`/api/drive/${id}${u ? `?u=${encodeURIComponent(u)}` : ""}`);
 export const getStats = () => get<Stats>(`/api/stats`);
+
+export type DriveSummary = {
+  id: number;
+  label: string;
+  token: TokenInfo;
+  destination: Address;
+  collector: Address;
+  target: string;
+  raised: string;
+  closed: boolean;
+};
+
+export const getDrives = () => get<DriveSummary[]>(`/api/drives`);
+export const getConfig = () => get<import("./wallet").Config>(`/api/config`);

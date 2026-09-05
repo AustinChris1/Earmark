@@ -5,6 +5,7 @@ import { BadgeCheck, ExternalLink, Loader2, ShieldCheck, TriangleAlert, Wallet }
 import { createWalletClient, custom, getAddress } from "viem";
 import { celo } from "viem/chains";
 import { Shell } from "../components/Shell";
+import "../lib/wallet";
 import { useLift } from "../lib/springs";
 
 type Status = {
@@ -14,15 +15,6 @@ type Status = {
   verifyUrl: string;
   enforced: boolean;
 };
-
-declare global {
-  interface Window {
-    ethereum?: {
-      isMiniPay?: boolean;
-      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-    };
-  }
-}
 
 export function VerifyPage() {
   const tgId = new URLSearchParams(location.search).get("u") ?? "";

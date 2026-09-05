@@ -2,8 +2,8 @@ import express from "express";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import { chainId, env, explorerUrl, tokenByAddress } from "./config.js";
-import { account, driveCount, readDrive, readTokenInfo } from "./chain.js";
+import { chainId, env, explorerUrl, TOKENS, tokenByAddress } from "./config.js";
+import { account, driveCount, listDrives, readDrive, readTokenInfo } from "./chain.js";
 import { counts, getDrive, hasPlan, nextInstalment, paymentsFor, planCountFor, reconcileInstalments } from "./db.js";
 import { memoName } from "./format.js";
 import { x402Guard, x402Handler, x402Middleware } from "./x402.js";
@@ -23,6 +23,39 @@ app.get("/x402/drive/:id", x402Handler);
 app.get("/api/verify/nonce", nonceHandler);
 app.post("/api/verify/link", linkHandler);
 app.get("/api/verify/status", statusHandler);
+
+// Everything the browser needs to talk to the contract itself.
+app.get("/api/config", (_req, res) =>
+  res.json({
+    earmark: env.EARMARK_ADDRESS,
+    tag: env.ATTRIBUTION_TAG,
+    chainId,
+    rpcUrl: env.CELO_RPC_URL,
+    explorer: explorerUrl,
+    agent: account.address,
+    tokens: TOKENS,
+  }),
+);
+
+app.get("/api/drives", async (_req, res) => {
+  try {
+    const drives = await listDrives();
+    res.json(
+      drives.map((d) => ({
+        id: d.id,
+        label: d.label,
+        token: tokenByAddress(d.token) ?? { symbol: "TOKEN", address: d.token, decimals: 18, feeCurrency: null },
+        destination: d.destination,
+        collector: d.collector,
+        target: d.target.toString(),
+        raised: d.raised.toString(),
+        closed: d.closed,
+      })),
+    );
+  } catch (e) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
 
 app.get("/api/health", (_req, res) => res.json({ ok: true, agent: account.address, earmark: env.EARMARK_ADDRESS }));
 

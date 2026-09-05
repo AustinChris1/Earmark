@@ -148,6 +148,20 @@ export async function driveCount(): Promise<bigint> {
   return publicClient.readContract({ address: requireEarmark(), abi: EARMARK_ABI, functionName: "driveCount" });
 }
 
+// Reads the most recent drives straight from chain, newest first, so the dashboard needs no index.
+export async function listDrives(limit = 100) {
+  const count = Number(await driveCount());
+  const ids: number[] = [];
+  for (let i = count; i > 0 && ids.length < limit; i--) ids.push(i);
+  const rows = await Promise.all(
+    ids.map(async (id) => {
+      const d = await readDrive(BigInt(id));
+      return { id, ...d };
+    }),
+  );
+  return rows.filter((d) => d.destination !== "0x0000000000000000000000000000000000000000");
+}
+
 export async function readDrive(id: bigint) {
   return publicClient.readContract({ address: requireEarmark(), abi: EARMARK_ABI, functionName: "drive", args: [id] });
 }

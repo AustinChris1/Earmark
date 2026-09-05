@@ -12,6 +12,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <Link to="/" aria-label="Earmark home">
             <Wordmark />
           </Link>
+          <div className="flex items-center gap-3">
+          <Link to="/app" className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
+            Drives
+          </Link>
           <button
             onClick={toggle}
             aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
@@ -19,6 +23,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           >
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
+          </div>
         </div>
       </header>
       {children}
