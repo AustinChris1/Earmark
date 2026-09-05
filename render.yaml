@@ -40,3 +40,8 @@ services:
         sync: false
       - key: X402_API_KEY
         sync: false
+      # Self gate. Leave unset until the on-chain flow exists; the bot then does not enforce it.
+      - key: SELF_SBT_ADDRESS
+        sync: false
+      - key: SELF_VERIFY_URL
+        sync: false

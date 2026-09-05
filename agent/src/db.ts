@@ -61,6 +61,11 @@ const SCHEMA = [
      forwarded_tx TEXT,
      created_at INTEGER NOT NULL
    )`,
+  `CREATE TABLE IF NOT EXISTS verifications (
+     tg_id TEXT PRIMARY KEY,
+     address TEXT NOT NULL,
+     linked_at INTEGER NOT NULL
+   )`,
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)`,
 ];
 
@@ -346,6 +351,19 @@ export async function counts(): Promise<{ payments: number; payers: number }> {
     `SELECT COUNT(*) AS payments, COUNT(DISTINCT payer) AS payers FROM payments`,
   );
   return { payments: Number(r?.payments ?? 0), payers: Number(r?.payers ?? 0) };
+}
+
+export async function linkWallet(tgId: string, address: string) {
+  await run(
+    `INSERT INTO verifications (tg_id, address, linked_at) VALUES (?, ?, ?)
+     ON CONFLICT(tg_id) DO UPDATE SET address = excluded.address, linked_at = excluded.linked_at`,
+    [tgId, address, now()],
+  );
+}
+
+export async function walletFor(tgId: string): Promise<string | undefined> {
+  const r = await one<{ address: string }>(`SELECT address FROM verifications WHERE tg_id = ?`, [tgId]);
+  return r?.address;
 }
 
 export async function getMeta(k: string): Promise<string | undefined> {

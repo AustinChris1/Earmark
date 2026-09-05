@@ -23,6 +23,7 @@ import {
 } from "./db.js";
 import { driveCard, dueLabel, escape, fmt, memoTgId, planText, tallyText } from "./format.js";
 import { CB, confirmNewKeyboard, driveKeyboard, payKeyboard, planMenuKeyboard, refreshKeyboard } from "./keyboards.js";
+import { collectorIsHuman } from "./verify.js";
 
 let bot: Bot | null = null;
 
@@ -77,6 +78,7 @@ async function openDrive(
   ctx: Context,
   args: { token: TokenInfo; destination: Address; target: bigint; label: string },
 ) {
+  if (ctx.from && !(await requireHuman(ctx))) return;
   const working = await ctx.reply(`Opening “${args.label}” on Celo…`);
   try {
     const { id, hash } = await createDriveOnchain({
@@ -109,6 +111,25 @@ async function openDrive(
       .editMessageText(working.chat.id, working.message_id, `Could not open the drive: ${(e as Error).message}`)
       .catch(() => {});
   }
+}
+
+// Only a verified human may open a drive, so a fake obligation cannot be spun up anonymously.
+async function requireHuman(ctx: Context): Promise<boolean> {
+  if (!ctx.from) return false;
+  const { allowed } = await collectorIsHuman(String(ctx.from.id));
+  if (allowed) return true;
+  const kb = new InlineKeyboard().url("Verify once with Self", `${env.PUBLIC_URL}/verify?u=${ctx.from.id}`);
+  await ctx.reply(
+    [
+      "Before opening a drive, verify once that you are a real person.",
+      "",
+      "Earmark asks for this because a drive names where money must land. Proof of personhood is what stops anyone spinning up a fake school or landlord anonymously.",
+      "",
+      "Self checks a government document on your device. Earmark never sees the document, only whether the check passed.",
+    ].join("\n"),
+    { ...HTML, reply_markup: kb },
+  );
+  return false;
 }
 
 async function sendPersonalLink(ctx: Context, d: DriveRow) {
@@ -330,6 +351,20 @@ function registerHandlers(b: Bot) {
     return ctx.reply(await remindBody(d), { ...HTML, reply_markup: driveKeyboard(d.id) });
   });
 
+  b.command("verify", async (ctx) => {
+    if (!ctx.from) return;
+    const { allowed, address } = await collectorIsHuman(String(ctx.from.id));
+    if (allowed && address) {
+      return ctx.reply(`You are verified, with <code>${address}</code>.`, HTML);
+    }
+    if (allowed) return ctx.reply("Verification is not being enforced on this deployment yet.");
+    const kb = new InlineKeyboard().url("Verify with Self", `${env.PUBLIC_URL}/verify?u=${ctx.from.id}`);
+    return ctx.reply("Verify once that you are a real person, then you can open drives.", {
+      ...HTML,
+      reply_markup: kb,
+    });
+  });
+
   b.command("close", async (ctx) => {
     const d = await latestDriveForChat(chatId(ctx));
     if (!d || d.closed) return ctx.reply("No open drive here.");
@@ -486,6 +521,7 @@ export function startBot(): Bot | null {
         { command: "pay", description: "Get your personal pay link" },
         { command: "tally", description: "Who has paid, who has not" },
         { command: "remind", description: "Nudge whoever is outstanding" },
+        { command: "verify", description: "Prove you are a real person, once" },
         { command: "close", description: "Stop the drive" },
         { command: "help", description: "What Earmark does" },
       ];

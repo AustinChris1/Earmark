@@ -38,7 +38,11 @@ That is the whole trust story: the destination is fixed before the first naira a
 - **Fee abstraction**: gas paid in USDT/USDC/USAT through the fee adapters, so contributors never hold CELO.
 - **x402** for the diaspora leg, settled through `https://api.x402.celo.org`.
 - **ERC-8004** identity for the agent, registered in the Celo Identity Registry.
-- **Self** (planned): proof of personhood on the collector who can create a drive.
+- **Self**: proof of personhood on whoever opens a drive. Self Enterprise deploys a soulbound token
+  contract per flow on Celo and pays the mint gas, so the gate is a single `balanceOf(wallet) >= 1`
+  read. A Telegram account is bound to a wallet by a signed message before that read counts, so a
+  verified address cannot simply be claimed by someone else. With `SELF_SBT_ADDRESS` unset the gate
+  is not enforced rather than locking everyone out.
 
 ## Token addresses (Celo mainnet, verified on chain)
 

@@ -132,6 +132,18 @@ export async function closeDriveOnchain(id: bigint): Promise<Hex> {
   return hash;
 }
 
+// A wallet is a verified human when it holds Self's soulbound token for our flow.
+export async function isVerifiedHuman(address: Address): Promise<boolean> {
+  if (!env.SELF_SBT_ADDRESS) return false;
+  const balance = await publicClient.readContract({
+    address: env.SELF_SBT_ADDRESS,
+    abi: ERC20_ABI,
+    functionName: "balanceOf",
+    args: [address],
+  });
+  return balance > 0n;
+}
+
 export async function driveCount(): Promise<bigint> {
   return publicClient.readContract({ address: requireEarmark(), abi: EARMARK_ABI, functionName: "driveCount" });
 }

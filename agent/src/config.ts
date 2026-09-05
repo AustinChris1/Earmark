@@ -75,6 +75,9 @@ export const env = {
   AGENT_NAME: process.env.AGENT_NAME ?? "Earmark",
   AGENT_FEE_CURRENCY: process.env.AGENT_FEE_CURRENCY ?? "",
   START_BLOCK: process.env.START_BLOCK ?? "",
+  // Self Enterprise mints a soulbound token per verified human; balanceOf >= 1 is the whole check.
+  SELF_SBT_ADDRESS: (process.env.SELF_SBT_ADDRESS ?? "") as Address,
+  SELF_VERIFY_URL: process.env.SELF_VERIFY_URL ?? "",
 };
 
 export const ERC8004_IDENTITY_REGISTRY: Address = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";

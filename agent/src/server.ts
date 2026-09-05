@@ -7,6 +7,7 @@ import { account, driveCount, readDrive, readTokenInfo } from "./chain.js";
 import { counts, getDrive, hasPlan, nextInstalment, paymentsFor, planCountFor, reconcileInstalments } from "./db.js";
 import { memoName } from "./format.js";
 import { x402Guard, x402Handler, x402Middleware } from "./x402.js";
+import { linkHandler, nonceHandler, statusHandler } from "./verify.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, "../../web/dist");
@@ -18,6 +19,10 @@ app.use(express.json());
 app.use(x402Guard);
 app.use(x402Middleware());
 app.get("/x402/drive/:id", x402Handler);
+
+app.get("/api/verify/nonce", nonceHandler);
+app.post("/api/verify/link", linkHandler);
+app.get("/api/verify/status", statusHandler);
 
 app.get("/api/health", (_req, res) => res.json({ ok: true, agent: account.address, earmark: env.EARMARK_ADDRESS }));
 
