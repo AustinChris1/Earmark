@@ -23,6 +23,13 @@ The logo is the literal earmark: a notch cut into an ear, the oldest way of sayi
 
 That is the whole trust story: the destination is fixed before the first naira arrives, and it is visible on chain to everyone in the group.
 
+## Docs
+
+- [What Earmark is, and what it can actually pay](docs/README.md)
+- [How it works](docs/how-it-works.md)
+- [Using it, and testing it end to end](docs/usage.md)
+- [Architecture](docs/architecture.md)
+
 ## Repo layout
 
 | Path | What |
