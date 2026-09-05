@@ -1,6 +1,6 @@
 import { Bot, InlineKeyboard, type Context } from "grammy";
 import { isAddress, parseUnits, formatUnits, getAddress, type Address } from "viem";
-import { env, TOKENS, tokenByAddress, type TokenInfo } from "./config.js";
+import { env, TOKENS, tokenByAddress, tokenBySymbol, type TokenInfo } from "./config.js";
 import { createDriveOnchain, closeDriveOnchain } from "./chain.js";
 import {
   getDrive,
@@ -22,7 +22,17 @@ import {
   type DueInstalment,
 } from "./db.js";
 import { driveCard, dueLabel, escape, fmt, memoTgId, planText, tallyText } from "./format.js";
-import { CB, confirmNewKeyboard, driveKeyboard, payKeyboard, planMenuKeyboard, refreshKeyboard } from "./keyboards.js";
+import {
+  CB,
+  MENU,
+  confirmNewKeyboard,
+  driveKeyboard,
+  menuKeyboard,
+  payKeyboard,
+  planMenuKeyboard,
+  refreshKeyboard,
+  replyMenu,
+} from "./keyboards.js";
 import { collectorIsHuman } from "./verify.js";
 
 let bot: Bot | null = null;
@@ -164,6 +174,40 @@ async function sendPersonalLink(ctx: Context, d: DriveRow) {
   });
 }
 
+async function showVerify(ctx: Context) {
+  if (!ctx.from) return;
+  const { allowed, address } = await collectorIsHuman(String(ctx.from.id));
+  if (allowed && address) return ctx.reply(`You are verified, with <code>${address}</code>.`, HTML);
+  if (allowed) return ctx.reply("Verification is not being enforced on this deployment yet.");
+  const kb = new InlineKeyboard().url("Verify with Self", `${env.PUBLIC_URL}/verify?u=${ctx.from.id}`);
+  return ctx.reply("Verify once that you are a real person, then you can open drives.", {
+    ...HTML,
+    reply_markup: kb,
+  });
+}
+
+async function startNewWizard(ctx: Context) {
+  if (!ctx.from) return;
+  if (!(await requireHuman(ctx))) return;
+  const prompt = await ask(
+    ctx,
+    `<b>New drive, step 1 of 3.</b>
+Reply with the total and the token.
+For example: <code>450 USDT</code>
+
+Tokens: ${Object.keys(TOKENS).join(", ")}`,
+  );
+  pending.set(pkey(chatId(ctx), ctx.from.id), { step: "amount", promptId: prompt.message_id });
+}
+
+async function showMenu(ctx: Context) {
+  const isPrivate = ctx.chat?.type === "private";
+  return ctx.reply("<b>Earmark menu</b>\nPick an action.", {
+    ...HTML,
+    reply_markup: isPrivate ? replyMenu() : menuKeyboard(),
+  });
+}
+
 async function currentDrive(ctx: Context) {
   return (await openDrivesForChat(chatId(ctx)))[0] ?? (await latestDriveForChat(chatId(ctx)));
 }
@@ -189,14 +233,16 @@ function registerHandlers(b: Bot) {
         "Add Earmark to a group",
         `https://t.me/${b.botInfo.username}?startgroup=true`,
       );
-      return ctx.reply(`${body}\n\nEarmark works best inside the group that shares the bill.`, {
+      await ctx.reply(`${body}\n\nEarmark works best inside the group that shares the bill.`, {
         ...HTML,
         reply_markup: kb,
       });
+      return showMenu(ctx);
     }
     const d = await currentDrive(ctx);
-    if (d) return showDrive(ctx, d, `${body}\n\n<b>This chat's latest drive</b>\n`);
-    return ctx.reply(body, HTML);
+    if (d) await showDrive(ctx, d, `${body}\n\n<b>This chat's latest drive</b>\n`);
+    else await ctx.reply(body, HTML);
+    return showMenu(ctx);
   });
 
   b.command("new", async (ctx) => {
@@ -206,7 +252,7 @@ function registerHandlers(b: Bot) {
     // Typed form for people who already know it; otherwise walk them through it.
     if (raw) {
       const [amountStr, symbolRaw, destination, ...labelParts] = raw.split(/\s+/);
-      const token = symbolRaw ? (TOKENS[symbolRaw.toUpperCase()] ?? TOKENS[symbolRaw]) : undefined;
+      const token = symbolRaw ? tokenBySymbol(symbolRaw) : undefined;
       const label = labelParts.join(" ").trim();
       if (!amountStr || !token || !destination || !isAddress(destination) || !label) {
         return ctx.reply(
@@ -223,12 +269,10 @@ function registerHandlers(b: Bot) {
       return openDrive(ctx, { token, destination: getAddress(destination), target, label });
     }
 
-    const prompt = await ask(
-      ctx,
-      `<b>New drive, step 1 of 3.</b>\nReply with the total and the token.\nFor example: <code>450 USDT</code>\n\nTokens: ${Object.keys(TOKENS).join(", ")}`,
-    );
-    pending.set(pkey(chatId(ctx), ctx.from.id), { step: "amount", promptId: prompt.message_id });
+    return startNewWizard(ctx);
   });
+
+  b.command("menu", (ctx) => showMenu(ctx));
 
   // Only replies to our own force-reply prompts are consumed, which also works under privacy mode.
   b.on("message:text", async (ctx, next) => {
@@ -240,7 +284,7 @@ function registerHandlers(b: Bot) {
 
     if (p.step === "amount") {
       const [amountStr, symbolRaw] = text.split(/\s+/);
-      const token = symbolRaw ? (TOKENS[symbolRaw.toUpperCase()] ?? TOKENS[symbolRaw]) : undefined;
+      const token = symbolRaw ? tokenBySymbol(symbolRaw) : undefined;
       if (!token) {
         const again = await ask(ctx, `I did not recognise that token. Try <code>450 USDT</code>.`);
         pending.set(key, { ...p, promptId: again.message_id });
@@ -351,19 +395,7 @@ function registerHandlers(b: Bot) {
     return ctx.reply(await remindBody(d), { ...HTML, reply_markup: driveKeyboard(d.id) });
   });
 
-  b.command("verify", async (ctx) => {
-    if (!ctx.from) return;
-    const { allowed, address } = await collectorIsHuman(String(ctx.from.id));
-    if (allowed && address) {
-      return ctx.reply(`You are verified, with <code>${address}</code>.`, HTML);
-    }
-    if (allowed) return ctx.reply("Verification is not being enforced on this deployment yet.");
-    const kb = new InlineKeyboard().url("Verify with Self", `${env.PUBLIC_URL}/verify?u=${ctx.from.id}`);
-    return ctx.reply("Verify once that you are a real person, then you can open drives.", {
-      ...HTML,
-      reply_markup: kb,
-    });
-  });
+  b.command("verify", (ctx) => showVerify(ctx));
 
   b.command("close", async (ctx) => {
     const d = await latestDriveForChat(chatId(ctx));
@@ -378,6 +410,23 @@ function registerHandlers(b: Bot) {
     } catch (e) {
       return ctx.reply(`Could not close: ${(e as Error).message}`);
     }
+  });
+
+  async function runMenuAction(ctx: Context, action: string) {
+    if (action === "new") return startNewWizard(ctx);
+    if (action === "verify") return showVerify(ctx);
+    const d = await currentDrive(ctx);
+    if (!d) return ctx.reply("No drive in this chat yet. Tap New drive to open one.");
+    if (action === "pay") return sendPersonalLink(ctx, d);
+    if (action === "tally") return ctx.reply(await tallyBody(d), { ...HTML, reply_markup: refreshKeyboard(d.id) });
+    if (action === "remind") return ctx.reply(await remindBody(d), { ...HTML, reply_markup: driveKeyboard(d.id) });
+    if (action === "plan") return ctx.reply("How should the shares be spread?", { reply_markup: planMenuKeyboard(d.id) });
+  }
+
+  // Private chats get a persistent keyboard, which sends plain text; groups use the inline menu.
+  b.hears(Object.values(MENU), async (ctx) => {
+    const entry = Object.entries(MENU).find(([, label]) => label === ctx.message?.text);
+    if (entry) await runMenuAction(ctx, entry[0]);
   });
 
   b.on("callback_query:data", async (ctx) => {
@@ -405,6 +454,11 @@ function registerHandlers(b: Bot) {
       await ctx.answerCallbackQuery({ text: "Opening the drive…" });
       await ctx.deleteMessage().catch(() => {});
       return openDrive(ctx, { token: p.token, destination: p.destination, target: p.amount, label: p.label });
+    }
+
+    if (data.startsWith("m:")) {
+      await ctx.answerCallbackQuery();
+      return runMenuAction(ctx, data.slice(2));
     }
 
     const [kind, idRaw, a, bArg] = data.split(":");
@@ -515,12 +569,14 @@ export function startBot(): Bot | null {
     onStart: async (me) => {
       console.log(`bot @${me.username} polling`);
       const commands = [
+        { command: "menu", description: "Show the button menu" },
         { command: "new", description: "Open a drive for a shared bill" },
         { command: "split", description: "Set who owes what" },
         { command: "plan", description: "Spread shares over instalments" },
         { command: "pay", description: "Get your personal pay link" },
         { command: "tally", description: "Who has paid, who has not" },
         { command: "remind", description: "Nudge whoever is outstanding" },
+        { command: "menu", description: "Show the button menu" },
         { command: "verify", description: "Prove you are a real person, once" },
         { command: "close", description: "Stop the drive" },
         { command: "help", description: "What Earmark does" },

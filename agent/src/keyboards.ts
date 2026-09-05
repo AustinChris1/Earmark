@@ -46,3 +46,41 @@ export function refreshKeyboard(id: number) {
 export function confirmNewKeyboard() {
   return new InlineKeyboard().text("Create drive", CB.confirmNew).text("Cancel", CB.cancelNew);
 }
+
+export const MENU = {
+  new: "➕ New drive",
+  pay: "💳 Pay my share",
+  tally: "🧾 Who has paid",
+  remind: "🔔 Nudge everyone",
+  plan: "🗓 Instalments",
+  verify: "✅ Verify me",
+} as const;
+
+// Inline menu works everywhere, including groups where privacy mode hides plain text.
+export function menuKeyboard() {
+  return new InlineKeyboard()
+    .text(MENU.new, "m:new")
+    .text(MENU.pay, "m:pay")
+    .row()
+    .text(MENU.tally, "m:tally")
+    .text(MENU.remind, "m:remind")
+    .row()
+    .text(MENU.plan, "m:plan")
+    .text(MENU.verify, "m:verify")
+    .row()
+    .text("Dismiss", CB.dismiss);
+}
+
+// A persistent keyboard is only offered in private chats: in a group, privacy mode means
+// Telegram never delivers these taps, since the text does not begin with a slash.
+export function replyMenu() {
+  return {
+    keyboard: [
+      [{ text: MENU.new }, { text: MENU.pay }],
+      [{ text: MENU.tally }, { text: MENU.remind }],
+      [{ text: MENU.plan }, { text: MENU.verify }],
+    ],
+    resize_keyboard: true,
+    is_persistent: true,
+  };
+}

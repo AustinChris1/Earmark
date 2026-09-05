@@ -52,6 +52,12 @@ export const TOKENS: Record<string, TokenInfo> = {
   },
 };
 
+// Symbols are matched case insensitively: people type "cngn", not "cNGN".
+export function tokenBySymbol(symbol: string): TokenInfo | undefined {
+  const k = symbol.trim().toLowerCase();
+  return Object.values(TOKENS).find((t) => t.symbol.toLowerCase() === k);
+}
+
 export function tokenByAddress(addr: string): TokenInfo | undefined {
   const a = addr.toLowerCase();
   return Object.values(TOKENS).find((t) => t.address.toLowerCase() === a);
