@@ -160,7 +160,7 @@ export function Landing() {
 
         <section className="border-t py-16" style={{ borderColor: "var(--line)" }}>
           <div className="grid gap-8 md:grid-cols-2 md:items-center">
-            <Reveal>
+            <Reveal className="min-w-0">
               <h2 className="font-display text-3xl tracking-tight md:text-4xl">No custody, by construction.</h2>
               <p className="mt-4 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
                 There is no withdraw function and no admin key that can redirect a drive. The contract never holds a
@@ -174,9 +174,9 @@ export function Landing() {
                 ))}
               </div>
             </Reveal>
-            <Reveal delay={0.1}>
+            <Reveal delay={0.1} className="min-w-0">
               <pre
-                className="overflow-x-auto rounded-2xl p-5 text-[12.5px] leading-relaxed"
+                className="max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-2xl p-4 text-[12px] leading-relaxed sm:whitespace-pre sm:p-5 sm:text-[12.5px]"
                 style={{ background: "var(--bg-sunken)", border: "1px solid var(--line)", color: "var(--text-muted)" }}
               >
                 <code>{`function contribute(uint256 id, uint256 amount, string memo) {
