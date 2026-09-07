@@ -29,6 +29,9 @@ importers:
       '@x402/express':
         specifier: ^2.24.0
         version: 2.24.0(ethers@6.17.0)(express@5.2.1(supports-color@8.1.1))(typescript@5.9.3)
+      cencori:
+        specifier: ^1.6.1
+        version: 1.6.1(lucide-react@1.38.0(react@19.2.8))(react@19.2.8)
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
@@ -1395,6 +1398,20 @@ packages:
   cbor@9.0.2:
     resolution: {integrity: sha512-JPypkxsB10s9QOWwa6zwPzqE1Md3vqpPc+cai4sAecuCsRyAtAl/pMyhPlMbT/xtPnm2dznJZYRLui57qiRhaQ==}
     engines: {node: '>=16'}
+
+  cencori@1.6.1:
+    resolution: {integrity: sha512-RGU8zBZdCuHBs6gnQgcuda+yETw59NUllyFPCkcDN9uoiFBVE8mtoVaGwgbD0v5c6eOwtlyO8zFJUlY5FdwSuw==}
+    peerDependencies:
+      '@ai-sdk/provider': '>=1.0.0'
+      lucide-react: '>=0.400.0'
+      react: '>=18.0.0'
+    peerDependenciesMeta:
+      '@ai-sdk/provider':
+        optional: true
+      lucide-react:
+        optional: true
+      react:
+        optional: true
 
   chai-as-promised@7.1.2:
     resolution: {integrity: sha512-aBDHZxRzYnUYuIAIPBH2s511DjlKPzXNlXSGFC8CwmroWQLfrW0LtE1nK3MAwwNhJPa9raEjNCmRoFpG0Hurdw==}
@@ -4705,6 +4722,11 @@ snapshots:
   cbor@9.0.2:
     dependencies:
       nofilter: 3.1.0
+
+  cencori@1.6.1(lucide-react@1.38.0(react@19.2.8))(react@19.2.8):
+    optionalDependencies:
+      lucide-react: 1.38.0(react@19.2.8)
+      react: 19.2.8
 
   chai-as-promised@7.1.2(chai@4.5.0):
     dependencies:

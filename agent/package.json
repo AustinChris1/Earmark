@@ -8,7 +8,7 @@
     "start": "tsx src/index.ts",
     "register:8004": "tsx src/register8004.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/db.test.mts"
+    "test": "tsx --test test/*.test.mts"
   },
   "dependencies": {
     "@celo/attribution-tags": "^0.3.0",
@@ -16,6 +16,7 @@
     "@x402/core": "^2.24.0",
     "@x402/evm": "^2.24.0",
     "@x402/express": "^2.24.0",
+    "cencori": "^1.6.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "grammy": "^1.46.0",

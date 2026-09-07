@@ -52,3 +52,6 @@ services:
         sync: false
       - key: SELF_VERIFY_URL
         sync: false
+      # Optional. Without it /new keeps using its guided prompts instead of reading a sentence.
+      - key: CENCORI_API_KEY
+        sync: false

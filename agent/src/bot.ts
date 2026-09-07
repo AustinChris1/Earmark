@@ -34,6 +34,7 @@ import {
   replyMenu,
 } from "./keyboards.js";
 import { collectorIsHuman } from "./verify.js";
+import { aiEnabled, parseDriveRequest } from "./ai.js";
 
 let bot: Bot | null = null;
 
@@ -255,8 +256,22 @@ function registerHandlers(b: Bot) {
       const token = symbolRaw ? tokenBySymbol(symbolRaw) : undefined;
       const label = labelParts.join(" ").trim();
       if (!amountStr || !token || !destination || !isAddress(destination) || !label) {
+        // Not the strict form, so let the model read the sentence before falling back to prompts.
+        if (aiEnabled()) {
+          const thinking = await ctx.reply("Reading that…");
+          const guess = await parseDriveRequest(raw);
+          await ctx.api.deleteMessage(thinking.chat.id, thinking.message_id).catch(() => {});
+          if (guess) {
+            return openDrive(ctx, {
+              token: guess.token,
+              destination: guess.destination,
+              target: guess.amount,
+              label: guess.label,
+            });
+          }
+        }
         return ctx.reply(
-          `That did not parse. Either send <code>/new</code> on its own and I will walk you through it, or use:\n<code>/new 450 USDT 0xSchoolWallet Term 1 fees for Chioma</code>`,
+          `I could not read that. Send <code>/new</code> on its own and I will ask three short questions, or write it as:\n<code>/new 450 USDT 0xSchoolWallet Term 1 fees for Chioma</code>`,
           HTML,
         );
       }

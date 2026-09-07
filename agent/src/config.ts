@@ -95,6 +95,9 @@ export const env = {
   // Self Enterprise mints a soulbound token per verified human; balanceOf >= 1 is the whole check.
   SELF_SBT_ADDRESS: (process.env.SELF_SBT_ADDRESS ?? "") as Address,
   SELF_VERIFY_URL: process.env.SELF_VERIFY_URL ?? "",
+  // Optional. Without a key the bot simply keeps using its guided prompts.
+  CENCORI_API_KEY: process.env.CENCORI_API_KEY ?? "",
+  CENCORI_MODEL: process.env.CENCORI_MODEL ?? "gpt-4o",
 };
 
 export const ERC8004_IDENTITY_REGISTRY: Address = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";

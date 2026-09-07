@@ -31,7 +31,10 @@ to hold CELO.
 ### In a group chat
 
 1. Add [@Earmarked_bot](https://t.me/Earmarked_bot) to the group.
-2. Send `/new`. The bot asks three questions: the amount and token, the destination
+2. Send `/new`. You can also write it in one line, for example
+   `/new collect 450 USDT for Chioma's school fees, pay 0xd6db...0216`, and the agent reads the
+   sentence. Anything it extracts is checked back against your message before it is used, and it
+   will never accept an address you did not type. On its own, `/new` asks three questions: the amount and token, the destination
    address, and what the money is for. Answer each by replying to its message.
 3. Confirm on the summary card. The drive is opened onchain and the card is posted with
    buttons.

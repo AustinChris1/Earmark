@@ -60,6 +60,18 @@ disposable filesystem, so keeping those on the instance meant a restart could si
 destroy the schedule that the whole product turns on. State lives in Turso instead, and
 the instance holds nothing worth losing.
 
+## Reading a sentence
+
+`/new` accepts free text as well as its strict form. Cencori routes the request to a model,
+which only ever locates values: every field is then checked back against the message it came
+from. The address must appear in the user's own text character for character, the digits must
+appear too, and the ticker must resolve to a listed token. Anything that fails drops back to the
+guided prompts.
+
+That check is the whole point. A destination cannot be changed once a drive is open, so a
+hallucinated address would send money to a stranger with no way back. The model is allowed to
+read, never to supply.
+
 ## RPC
 
 The agent reads the chain constantly, so a single endpoint is a single point of failure
