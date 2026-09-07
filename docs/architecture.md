@@ -60,6 +60,15 @@ disposable filesystem, so keeping those on the instance meant a restart could si
 destroy the schedule that the whole product turns on. State lives in Turso instead, and
 the instance holds nothing worth losing.
 
+## RPC
+
+The agent reads the chain constantly, so a single endpoint is a single point of failure
+for a watcher that must not miss a payment. Chainstack is the primary endpoint and Forno
+is the automatic fallback, through viem's fallback transport.
+
+A Chainstack URL carries its credential in the path, so it is never handed to a browser.
+`/api/config` serves a separate public endpoint, and the keyed one stays server side.
+
 ## Attribution
 
 Every transaction Earmark sends carries an ERC-8021 attribution tag through

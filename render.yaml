@@ -21,7 +21,14 @@ services:
         value: "24"
       - key: PUBLIC_URL
         value: https://earmark-agent.onrender.com
+      # Chainstack is the primary endpoint; the agent falls back to Forno on its own.
+      # Set this in the dashboard, not here: a Chainstack URL carries its key in the path.
       - key: CELO_RPC_URL
+        sync: false
+      - key: CELO_RPC_FALLBACK
+        value: https://forno.celo.org
+      # What the browser is told to use. Never the keyed endpoint.
+      - key: PUBLIC_RPC_URL
         value: https://forno.celo.org
       - key: ATTRIBUTION_TAG
         value: celo_c4e6d31d42c8

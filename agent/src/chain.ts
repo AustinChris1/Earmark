@@ -1,6 +1,7 @@
 import {
   createPublicClient,
   createWalletClient,
+  fallback,
   http,
   parseAbi,
   parseEventLogs,
@@ -35,8 +36,13 @@ export const ERC20_ABI = parseAbi([
 
 export const chain = isLocal ? { ...celo, id: LOCAL_CHAIN_ID, name: "Hardhat" } : celo;
 export const account = privateKeyToAccount(env.AGENT_PRIVATE_KEY);
-export const publicClient = createPublicClient({ chain, transport: http(env.CELO_RPC_URL) });
-export const walletClient = createWalletClient({ chain, account, transport: http(env.CELO_RPC_URL) });
+
+// One endpoint is a single point of failure for a watcher that must not miss a payment.
+const endpoints = [env.CELO_RPC_URL, env.CELO_RPC_FALLBACK].filter((u, i, a) => u && a.indexOf(u) === i);
+const transport = isLocal || endpoints.length < 2 ? http(env.CELO_RPC_URL) : fallback(endpoints.map((u) => http(u)));
+
+export const publicClient = createPublicClient({ chain, transport });
+export const walletClient = createWalletClient({ chain, account, transport });
 
 // Every agent transaction carries the hackathon attribution tag.
 export const tagSuffix: Hex | undefined = env.ATTRIBUTION_TAG ? toDataSuffix(env.ATTRIBUTION_TAG) : undefined;

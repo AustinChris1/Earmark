@@ -10,6 +10,19 @@ Two things are needed and neither is Earmark's to give you.
 2. **Payers need the drive's token in a Celo wallet.** [MiniPay](https://www.opera.com/products/minipay)
    is the usual one. A drive denominated in cNGN can only be paid in cNGN.
 
+Earmark accepts 25 Celo stablecoins, each checked on chain for its symbol and decimals
+before being listed:
+
+| Group | Tokens |
+|---|---|
+| Dollars | USDT, USDC, USAT, USDm |
+| Naira | cNGN, NGNm |
+| Mento local | KESm, GHSm, ZARm, XOFm, EURm, BRLm, COPm, PHPm, GBPm, CHFm, JPYm, AUDm, CADm |
+| Ripio wFIAT | wARS, wBRL, wMXN, wCOP, wPEN, wCLP |
+
+Pick the one the payee actually wants to hold. A drive in a currency nobody around you
+can obtain is a drive nobody can pay.
+
 Gas is paid in the stablecoin through Celo's fee abstraction, so a payer does not need
 to hold CELO.
 

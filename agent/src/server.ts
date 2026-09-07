@@ -2,7 +2,7 @@ import express from "express";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import { chainId, env, explorerUrl, TOKENS, tokenByAddress } from "./config.js";
+import { chainId, env, explorerUrl, publicRpcUrl, TOKENS, tokenByAddress } from "./config.js";
 import { account, driveCount, listDrives, readDrive, readTokenInfo } from "./chain.js";
 import { counts, getDrive, hasPlan, nextInstalment, paymentsFor, planCountFor, reconcileInstalments } from "./db.js";
 import { memoName } from "./format.js";
@@ -30,7 +30,7 @@ app.get("/api/config", (_req, res) =>
     earmark: env.EARMARK_ADDRESS,
     tag: env.ATTRIBUTION_TAG,
     chainId,
-    rpcUrl: env.CELO_RPC_URL,
+    rpcUrl: publicRpcUrl,
     explorer: explorerUrl,
     agent: account.address,
     tokens: TOKENS,
@@ -103,7 +103,7 @@ app.get("/api/drive/:id", async (req, res) => {
       earmark: env.EARMARK_ADDRESS,
       tag: env.ATTRIBUTION_TAG,
       chainId,
-      rpcUrl: env.CELO_RPC_URL,
+      rpcUrl: publicRpcUrl,
       explorer: explorerUrl,
       chat: local ? { collectorName: local.collector_name } : null,
       payments: (await paymentsFor(id)).map((p) => ({
