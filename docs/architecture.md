@@ -49,7 +49,11 @@ back to a person in the chat.
 - **x402.ts** issues the HTTP 402 challenge, then records an intent and forwards it to
   the drive. Forwarding is a separate idempotent sweep rather than inline, so it does
   not depend on whether the facilitator settles before or after the route handler runs.
-- **verify.ts** nonce, signature check, and the `balanceOf` read against Self's token.
+- **verify.ts** nonce, signature check, a Self session created per person, and the `balanceOf`
+  read against Self's token. Self issues a one time verification URL per session, so there is no
+  static link. The call is a plain POST to `/v1/sessions` rather than the official SDK, whose
+  dependency tree resolves `node-forge` from a git repository and is blocked by this project's
+  supply chain policy.
 - **db.ts** libSQL. Every accessor is async because the production database is remote.
 
 ## Why the database is not on the host

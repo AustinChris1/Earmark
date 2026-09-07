@@ -7,7 +7,7 @@ import { account, driveCount, listDrives, readDrive, readTokenInfo } from "./cha
 import { counts, getDrive, hasPlan, nextInstalment, paymentsFor, planCountFor, reconcileInstalments } from "./db.js";
 import { memoName } from "./format.js";
 import { x402Guard, x402Handler, x402Middleware } from "./x402.js";
-import { linkHandler, nonceHandler, statusHandler } from "./verify.js";
+import { linkHandler, nonceHandler, sessionHandler, statusHandler } from "./verify.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, "../../web/dist");
@@ -23,6 +23,7 @@ app.get("/x402/drive/:id", x402Handler);
 app.get("/api/verify/nonce", nonceHandler);
 app.post("/api/verify/link", linkHandler);
 app.get("/api/verify/status", statusHandler);
+app.post("/api/verify/session", sessionHandler);
 
 // Everything the browser needs to talk to the contract itself.
 app.get("/api/config", (_req, res) =>

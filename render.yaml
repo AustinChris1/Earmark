@@ -50,7 +50,9 @@ services:
       # Self gate. Leave unset until the on-chain flow exists; the bot then does not enforce it.
       - key: SELF_SBT_ADDRESS
         sync: false
-      - key: SELF_VERIFY_URL
+      - key: SELF_API_KEY
+        sync: false
+      - key: SELF_FLOW_ID
         sync: false
       # Optional. Without it /new keeps using its guided prompts instead of reading a sentence.
       - key: CENCORI_API_KEY

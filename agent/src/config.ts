@@ -94,7 +94,10 @@ export const env = {
   START_BLOCK: process.env.START_BLOCK ?? "",
   // Self Enterprise mints a soulbound token per verified human; balanceOf >= 1 is the whole check.
   SELF_SBT_ADDRESS: (process.env.SELF_SBT_ADDRESS ?? "") as Address,
-  SELF_VERIFY_URL: process.env.SELF_VERIFY_URL ?? "",
+  // Self Enterprise: a session is created per user, so there is no static verification link.
+  SELF_API_KEY: process.env.SELF_API_KEY ?? "",
+  SELF_FLOW_ID: process.env.SELF_FLOW_ID ?? "",
+  SELF_API_BASE: process.env.SELF_API_BASE ?? "https://edge.dashboard.self.xyz",
   // Optional. Without a key the bot simply keeps using its guided prompts.
   CENCORI_API_KEY: process.env.CENCORI_API_KEY ?? "",
   CENCORI_MODEL: process.env.CENCORI_MODEL ?? "gpt-4o",

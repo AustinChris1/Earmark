@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { RequestHandler } from "express";
 import { getAddress, isAddress, verifyMessage, type Address } from "viem";
 import { env } from "./config.js";
@@ -67,9 +67,46 @@ export const statusHandler: RequestHandler = async (req, res) => {
     address: address ?? null,
     verified,
     // Empty means the gate is not configured, which the bot treats as "do not enforce".
-    verifyUrl: env.SELF_VERIFY_URL,
+    canVerify: selfConfigured(),
     enforced: !!env.SELF_SBT_ADDRESS,
   });
+};
+
+export function selfConfigured(): boolean {
+  return !!env.SELF_API_KEY && !!env.SELF_FLOW_ID;
+}
+
+// A stable, non identifying id per Telegram user, so the Self dashboard shows one row per person.
+function externalUuid(tgId: string): string {
+  const h = createHash("sha256").update(`earmark:${tgId}`).digest("hex").slice(0, 32);
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
+}
+
+// Self issues a one time verification URL per session, so there is nothing static to link to.
+export const sessionHandler: RequestHandler = async (req, res) => {
+  const u = typeof req.body?.u === "string" ? req.body.u : "";
+  if (!/^\d{1,20}$/.test(u)) return res.status(400).json({ error: "Bad Telegram id." });
+  if (!selfConfigured()) return res.status(503).json({ error: "Verification is not configured yet." });
+
+  try {
+    const r = await fetch(`${env.SELF_API_BASE}/v1/sessions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.SELF_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ flowId: env.SELF_FLOW_ID, externalUuid: externalUuid(u) }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const body = (await r.json().catch(() => ({}))) as {
+      verificationUrl?: string;
+      id?: string;
+      error?: { message?: string };
+    };
+    if (!r.ok || !body.verificationUrl) {
+      return res.status(502).json({ error: body.error?.message ?? "Self did not return a session." });
+    }
+    res.json({ url: body.verificationUrl, id: body.id });
+  } catch (e) {
+    res.status(502).json({ error: (e as Error).message });
+  }
 };
 
 // The bot's gate. With no SBT contract configured this stays open rather than locking everyone out.

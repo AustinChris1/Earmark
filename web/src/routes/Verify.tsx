@@ -12,7 +12,7 @@ type Status = {
   linked: boolean;
   address: string | null;
   verified: boolean;
-  verifyUrl: string;
+  canVerify: boolean;
   enforced: boolean;
 };
 
@@ -33,6 +33,26 @@ export function VerifyPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Self mints a one time verification link per person, so it is requested at the moment it is needed.
+  async function startSelf() {
+    setError("");
+    setBusy(true);
+    try {
+      const r = await fetch("/api/verify/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ u: tgId }),
+      });
+      const body = await r.json();
+      if (!r.ok || !body.url) throw new Error(body.error ?? "Could not start verification.");
+      window.location.href = body.url;
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function linkWallet() {
     setError("");
@@ -152,18 +172,18 @@ export function VerifyPage() {
                   <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
                     Verify with Self using that same wallet. Self pays the gas and mints you a non transferable badge.
                   </p>
-                  {step2Ready && status?.verifyUrl && (
-                    <a
-                      href={status.verifyUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold"
+                  {step2Ready && status?.canVerify && (
+                    <button
+                      onClick={startSelf}
+                      disabled={busy}
+                      className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
                       style={{ background: "var(--accent)", color: "var(--accent-ink)" }}
                     >
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                       Open Self <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
+                    </button>
                   )}
-                  {step2Ready && !status?.verifyUrl && (
+                  {step2Ready && !status?.canVerify && (
                     <p className="mt-3 text-sm" style={{ color: "var(--pending)" }}>
                       The verification flow is not configured on this deployment yet.
                     </p>
