@@ -69,3 +69,157 @@ body {
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
+
+/*
+  Rendered markdown from the /docs folder. Everything that can be wide (code, tables,
+  long addresses) scrolls inside its own box rather than widening the page on a phone.
+*/
+.prose-earmark {
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.prose-earmark > *:first-child {
+  margin-top: 0;
+}
+
+.prose-earmark h1,
+.prose-earmark h2,
+.prose-earmark h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.prose-earmark h1 {
+  font-size: 2rem;
+  margin: 2.5rem 0 1rem;
+}
+
+.prose-earmark h2 {
+  font-size: 1.5rem;
+  margin: 2.25rem 0 0.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.prose-earmark h3 {
+  font-size: 1.15rem;
+  margin: 1.75rem 0 0.5rem;
+}
+
+.prose-earmark p,
+.prose-earmark ul,
+.prose-earmark ol {
+  margin: 0.9rem 0;
+}
+
+.prose-earmark ul,
+.prose-earmark ol {
+  padding-left: 1.25rem;
+}
+
+.prose-earmark ul {
+  list-style: disc;
+}
+
+.prose-earmark ol {
+  list-style: decimal;
+}
+
+.prose-earmark li {
+  margin: 0.35rem 0;
+}
+
+.prose-earmark li::marker {
+  color: var(--text-muted);
+}
+
+.prose-earmark strong {
+  font-weight: 600;
+}
+
+.prose-earmark a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+.prose-earmark code {
+  font-size: 0.85em;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: 0.375rem;
+  padding: 0.1rem 0.35rem;
+  overflow-wrap: anywhere;
+}
+
+.prose-earmark pre {
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  margin: 1.25rem 0;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.prose-earmark pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+  overflow-wrap: normal;
+  white-space: pre;
+}
+
+.prose-earmark blockquote {
+  margin: 1.25rem 0;
+  padding: 0.25rem 0 0.25rem 1rem;
+  border-left: 3px solid var(--accent);
+  color: var(--text-muted);
+}
+
+/* A block-level table is the only way to let a wide table scroll on its own. */
+.prose-earmark table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-size: 0.9rem;
+}
+
+.prose-earmark th,
+.prose-earmark td {
+  border: 1px solid var(--line);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.prose-earmark th {
+  background: var(--bg-sunken);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* A path or ticker in a cell should not be split mid word; the table scrolls instead. */
+.prose-earmark th code,
+.prose-earmark td code {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.prose-earmark hr {
+  margin: 2rem 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.prose-earmark img {
+  max-width: 100%;
+}

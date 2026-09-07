@@ -16,6 +16,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <Link to="/app" className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
             Drives
           </Link>
+          <Link to="/docs" className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
+            Docs
+          </Link>
           <button
             onClick={toggle}
             aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}

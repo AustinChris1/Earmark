@@ -7,6 +7,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: { "/api": "http://localhost:3010" },
+    // The docs pages are imported ?raw from the repo root, outside this workspace.
+    fs: { allow: [".."] },
   },
   build: { outDir: "dist", emptyOutDir: true },
 });

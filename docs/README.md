@@ -61,4 +61,4 @@ group named. It does not guarantee that account belongs to an institution.
 | Agent identity | ERC-8004 [agent 9806](https://8004scan.io/agents/celo/9806) |
 | Bot | [@Earmarked_bot](https://t.me/Earmarked_bot) |
 | Web | <https://earmark-agent.onrender.com> |
-| Tokens | USDT, USDC, USAT, cNGN |
+| Tokens | 25 Celo stablecoins, see [using it](./usage.md) |
