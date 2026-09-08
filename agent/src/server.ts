@@ -8,6 +8,7 @@ import { counts, getDrive, hasPlan, nextInstalment, paymentsFor, planCountFor, r
 import { memoName } from "./format.js";
 import { x402Guard, x402Handler, x402Middleware } from "./x402.js";
 import { linkHandler, nonceHandler, sessionHandler, statusHandler } from "./verify.js";
+import { pickFeatured } from "./featured.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, "../../web/dist");
@@ -62,15 +63,21 @@ app.get("/api/health", (_req, res) => res.json({ ok: true, agent: account.addres
 
 app.get("/api/stats", async (_req, res) => {
   const { payments, payers } = await counts();
-  const drives = env.EARMARK_ADDRESS
-    ? Number(
-        await driveCount().catch((e) => {
-          console.error("driveCount:", (e as Error).message);
-          return 0n;
-        }),
-      )
-    : 0;
-  res.json({ drives, payments, payers, agent: account.address, earmark: env.EARMARK_ADDRESS });
+  const listed = env.EARMARK_ADDRESS
+    ? await listDrives().catch((e) => {
+        console.error("listDrives:", (e as Error).message);
+        return [];
+      })
+    : [];
+  const featuredDrive = pickFeatured(listed);
+  res.json({
+    drives: listed.length,
+    payments,
+    payers,
+    featured: featuredDrive ? { id: featuredDrive.id, label: featuredDrive.label } : null,
+    agent: account.address,
+    earmark: env.EARMARK_ADDRESS,
+  });
 });
 
 app.get("/api/drive/:id", async (req, res) => {

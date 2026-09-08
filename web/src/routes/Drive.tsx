@@ -200,8 +200,24 @@ export function DrivePage() {
                   <p className="mt-0.5 break-all font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>
                     {drive.destination}
                   </p>
+                  <a
+                    href={`${drive.explorer}/address/${drive.destination}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 inline-flex items-center gap-1 text-xs underline underline-offset-4"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    Open on Celoscan <ExternalLink className="h-3 w-3" />
+                  </a>
                 </div>
               </div>
+
+              <p className="mt-4 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                You are paying <span style={{ color: "var(--text)" }}>{drive.label}</span>
+                {target > 0n ? `, ${fmt(remaining)} still needed of ${fmt(target)}` : ""}. After you confirm, the
+                tokens leave your wallet and arrive at the address above in the same transaction. Earmark never
+                holds the money and nobody can redirect it.
+              </p>
 
               {target > 0n && (
                 <div className="mt-5">

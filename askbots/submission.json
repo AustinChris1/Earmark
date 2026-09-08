@@ -24,7 +24,7 @@
     },
     {
       "id": "q4",
-      "text": "Open a drive page at /d/1. Is it unambiguous what you would be paying, to whom, and what happens after you pay? Name anything that is unclear.",
+      "text": "Open the live drive at https://earmark-agent.onrender.com/live (not /d/1, which is a closed wiring test). Is it unambiguous what you would be paying, to whom, and what happens after you pay? Name anything that is unclear.",
       "type": "freeform"
     },
     {

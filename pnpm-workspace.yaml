@@ -2,6 +2,7 @@ packages:
   - contracts
   - agent
   - web
+  - askbots
 
 # pnpm 11 blocks dependency install scripts until they are approved, and with CI=true an
 # ignored build is a hard failure rather than a warning. pnpm 11.25 reads `allowBuilds`;
@@ -12,3 +13,6 @@ allowBuilds:
   esbuild: true
   keccak: true
   secp256k1: true
+
+minimumReleaseAgeExclude:
+  - askbots@0.2.0

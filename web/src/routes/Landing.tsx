@@ -96,8 +96,8 @@ export function Landing() {
                 Start a drive in your chat
                 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
               </animated.a>
-              {stats && stats.drives > 0 && (
-                <a href={`/d/${stats.drives}`} className="text-sm underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
+              {stats?.featured && (
+                <a href="/live" className="text-sm underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
                   See a live drive
                 </a>
               )}

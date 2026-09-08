@@ -5,7 +5,7 @@
   "description": "Earmark: group-chat agent that pools a shared obligation and can only pay the locked destination, on Celo.",
   "scripts": {
     "compile": "pnpm -F @earmark/contracts compile",
-    "test": "pnpm -F @earmark/contracts test && pnpm -F @earmark/agent test",
+    "test": "pnpm -F @earmark/contracts test && pnpm -F @earmark/agent test && pnpm -F @earmark/askbots test",
     "deploy": "pnpm -F @earmark/contracts deploy:celo",
     "dev:agent": "pnpm -F @earmark/agent dev",
     "register:8004": "pnpm -F @earmark/agent register:8004",
@@ -13,7 +13,10 @@
     "build:web": "pnpm -F @earmark/web build",
     "chain": "pnpm -F @earmark/contracts node",
     "seed": "pnpm -F @earmark/contracts seed:local",
-    "shots": "node scripts/shots.mjs"
+    "shots": "node scripts/shots.mjs",
+    "askbots": "pnpm -F @earmark/askbots preview",
+    "askbots:fund": "pnpm -F @earmark/askbots fund",
+    "askbots:dashboard": "pnpm -F @earmark/askbots dashboard"
   },
   "license": "MIT",
   "packageManager": "pnpm@11.25.0",

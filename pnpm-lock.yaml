@@ -58,6 +58,12 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  askbots:
+    dependencies:
+      askbots:
+        specifier: 0.2.0
+        version: 0.2.0(typescript@5.9.3)
+
   contracts:
     dependencies:
       '@openzeppelin/contracts':
@@ -1278,6 +1284,11 @@ packages:
 
   asap@2.0.6:
     resolution: {integrity: sha512-BSHWgDSAiKs50o2Re8ppvp3seVHXSRM44cdSsT9FfNEUUZLOGWVCsiWaRPWM1Znn+mqZ1OfVZ3z3DWEzSp7hRA==}
+
+  askbots@0.2.0:
+    resolution: {integrity: sha512-mjHmSgh+Ctgohnr5Xi/fgBeonPy/d2GOzLL9B4hMNOWYESPQMQ4Fj8yqNbFz8oomyFzkfru0Hl0GZ0JAlAGmYw==}
+    engines: {node: '>=20.0.0'}
+    hasBin: true
 
   assertion-error@1.1.0:
     resolution: {integrity: sha512-jgsaNduz+ndvGyFt3uSuWqvy4lCnIJiovtouQN5JZHOKCS2QuhEdbcQHFhVksz2N2U9hXJo8odG7ETyWlEeuDw==}
@@ -4588,6 +4599,15 @@ snapshots:
   array-uniq@1.0.3: {}
 
   asap@2.0.6: {}
+
+  askbots@0.2.0(typescript@5.9.3):
+    dependencies:
+      viem: 2.56.1(typescript@5.9.3)(zod@3.25.76)
+    transitivePeerDependencies:
+      - bufferutil
+      - typescript
+      - utf-8-validate
+      - zod
 
   assertion-error@1.1.0: {}
 

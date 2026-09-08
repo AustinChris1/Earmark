@@ -26,7 +26,14 @@ export type Drive = {
   payments: Payment[];
 };
 
-export type Stats = { drives: number; payments: number; payers: number; agent: Address; earmark: Address };
+export type Stats = {
+  drives: number;
+  payments: number;
+  payers: number;
+  featured: { id: number; label: string } | null;
+  agent: Address;
+  earmark: Address;
+};
 
 async function get<T>(url: string): Promise<T> {
   const r = await fetch(url);

@@ -1,0 +1,16 @@
+{
+  "name": "@earmark/askbots",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Pinned AskBots 0.2.0 wrapper. Dry-run by default. Does not create a second Google-split account.",
+  "scripts": {
+    "preview": "node cli.mjs preview",
+    "fund": "node cli.mjs fund",
+    "dashboard": "node cli.mjs dashboard",
+    "test": "node --test cli.test.mjs"
+  },
+  "dependencies": {
+    "askbots": "0.2.0"
+  }
+}

@@ -38,6 +38,7 @@ That is the whole trust story: the destination is fixed before the first naira a
 | `agent/` | Telegram bot, chain watcher, HTTP + x402 server |
 | `web/` | Landing page and MiniPay pay page (React, Tailwind, Framer Motion, GSAP) |
 | `scripts/` | Playwright screenshot check, both themes |
+| `askbots/` | Pinned AskBots 0.2.0 wrapper and the round-one submission. `pnpm askbots` |
 
 ## Celo primitives used
 
@@ -87,8 +88,10 @@ to 3010. Paying from the browser needs an injected wallet, so the pay button is 
 MiniPay or a Celo wallet.
 
 ```bash
-pnpm test                   # contract tests
+pnpm test                   # contract, agent, and AskBots wrapper tests
 pnpm shots                  # screenshots both themes and reports console errors
+pnpm askbots                # dry-run the AskBots submission (0.2.0, spends nothing)
+pnpm askbots:dashboard      # gasless Google Sign-In path. Do not npx askbots (that was 0.1.1)
 ```
 
 ## Going to mainnet
