@@ -15,6 +15,7 @@
     "seed": "pnpm -F @earmark/contracts seed:local",
     "shots": "node scripts/shots.mjs",
     "askbots": "pnpm -F @earmark/askbots preview",
+    "askbots:register": "pnpm -F @earmark/askbots register",
     "askbots:fund": "pnpm -F @earmark/askbots fund",
     "askbots:dashboard": "pnpm -F @earmark/askbots dashboard"
   },

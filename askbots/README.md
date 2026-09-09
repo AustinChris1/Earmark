@@ -22,7 +22,9 @@ pnpm askbots:dashboard    # prints what to paste
 
 Then open https://askbots.ai/dashboard/new, Sign in with Google, paste the fields. Budget **10**. Exclude reviewer wallet `0x178977E82c4Df50D5a7465F4495170DFF9275363` (the Earmark agent; it must not review itself).
 
-Save the project URL. That is `askbotsProjectUrl` on the Celo Builders submission.
+Round one (live): https://askbots.ai/p/k17227d5a18qn9g6yfbanem3b58e3jgv
+
+That URL is `askbotsProjectUrl` on the Celo Builders draft.
 
 Round two is the weekend before 14 Sep 09:00 GMT, after you fix what round one found. Track 3 scores the gap, with a floor on round two.
 

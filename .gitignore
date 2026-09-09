@@ -14,3 +14,6 @@ contracts/typechain-types/
 *.db-journal
 *.db-wal
 *.db-shm
+
+# recording brief only; not part of the public repo
+demo-video.md

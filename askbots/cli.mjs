@@ -139,23 +139,42 @@ async function dashboard() {
   return 0;
 }
 
+async function registerAccount(argv) {
+  if (!process.env.ASKBOTS_PASSWORD) {
+    warn([
+      "askbots: set ASKBOTS_PASSWORD in this terminal first. It is not a flag.",
+      "",
+      "  PowerShell:",
+      "    $env:ASKBOTS_PASSWORD = 'your-password'",
+      "    pnpm askbots:register --email you@example.com --name \"Your Name\"",
+      "",
+      "  Do not Google-sign-in later with this email. That is a different account.",
+    ]);
+    return 2;
+  }
+  console.log(`askbots ${installedVersion()} register`);
+  return runOfficial(["register", ...argv]);
+}
+
 async function main(argv) {
   const cmd = argv[0] ?? "preview";
   if (cmd === "preview") return preview();
   if (cmd === "fund") return fund();
   if (cmd === "dashboard") return dashboard();
+  if (cmd === "register") return registerAccount(argv.slice(1));
   if (cmd === "help" || cmd === "--help" || cmd === "-h") {
     console.log(`Earmark AskBots wrapper (pins askbots@${installedVersion()})
 
-  pnpm askbots            dry-run the submission (default, spends nothing)
-  pnpm askbots:fund       submit --execute (password + key, or it prints the dashboard)
-  pnpm askbots:dashboard  print the gasless Google-account path
+  pnpm askbots              dry-run the submission (spends nothing)
+  pnpm askbots:register     create an email+password account (needs ASKBOTS_PASSWORD)
+  pnpm askbots:fund         submit --execute (password + agent key)
+  pnpm askbots:dashboard    print the gasless browser path
 
 Do not npx askbots. npx resolved 0.1.1 last time and refused --execute.
-Do not askbots register after signing in with Google.`);
+Create the account with email here. Do not also Sign in with Google.`);
     return 0;
   }
-  warn([`unknown command: ${cmd}`, "Try: preview | fund | dashboard | help"]);
+  warn([`unknown command: ${cmd}`, "Try: preview | register | fund | dashboard | help"]);
   return 2;
 }
 
