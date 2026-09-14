@@ -4,6 +4,10 @@
   --font-display: "Instrument Serif", ui-serif, Georgia, serif;
   --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
 
+  /* Built-in easings are too soft to read as intentional. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
   /* Celo brand, taken from celo.org */
   --color-prosperity: #fcff52;
   --color-forest: #476520;
@@ -27,6 +31,7 @@
   --accent-ink: #ffffff;
   --accent-soft: #eef3e4;
   --pending: #7a7a6d;
+  --danger: #b42318;
 }
 
 :root[data-theme="dark"] {
@@ -42,6 +47,7 @@
   --accent-ink: #0a0a08;
   --accent-soft: #16251a;
   --pending: #9d9d90;
+  --danger: #ff8f85;
 }
 
 html,
@@ -55,6 +61,68 @@ body {
   color: var(--text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+/* The parts of the page the browser draws still belong to the palette. */
+::selection {
+  background: var(--brand);
+  color: var(--brand-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+input::placeholder {
+  color: var(--pending);
+}
+
+/* Press feedback for anything that acts like a button. Hover lift is only offered to a real pointer. */
+@utility pressable {
+  transition: transform 160ms var(--ease-out), background-color 160ms ease, color 160ms ease, opacity 160ms ease;
+  &:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    &:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+  }
+}
+
+/* Text inputs: a border that reads at rest and a ring that reads on focus, so the outline can go. */
+@utility field {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text);
+  border-radius: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+  &:focus,
+  &:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 @utility surface {
@@ -178,8 +246,9 @@ body {
 
 .prose-earmark blockquote {
   margin: 1.25rem 0;
-  padding: 0.25rem 0 0.25rem 1rem;
-  border-left: 3px solid var(--accent);
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  background: var(--accent-soft);
   color: var(--text-muted);
 }
 

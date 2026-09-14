@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { animated } from "@react-spring/web";
-import { ArrowRight, Landmark, Lock, MessageSquare, Receipt, ShieldCheck, Users } from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { Shell } from "../components/Shell";
 import { FlowDiagram } from "../components/FlowDiagram";
 import { Reveal } from "../components/Reveal";
@@ -10,31 +10,33 @@ import { useLift } from "../lib/springs";
 import { getStats, type Stats } from "../lib/api";
 
 const STEPS = [
-  { icon: MessageSquare, title: "Name the obligation", body: "/new 450 USDT 0xSchool Term 1 fees for Chioma" },
-  { icon: Users, title: "Split it", body: "Everyone gets their share and a one tap pay link." },
-  { icon: Lock, title: "Money moves once", body: "Each payment lands at the locked destination in the same transaction." },
-  { icon: Receipt, title: "The chat keeps score", body: "Who paid, who is outstanding, all of it on chain." },
+  { title: "Name the obligation", body: <code className="text-[13px]">/new 450 USDT 0xSchool Term 1 fees for Chioma</code> },
+  { title: "Split it", body: "Everyone gets their share and a one tap pay link." },
+  { title: "Money moves once", body: "Each payment lands at the locked destination in the same transaction." },
+  { title: "The chat keeps score", body: "Who paid, who is outstanding, all of it on chain." },
 ];
 
-function StepCard({ step, delay }: { step: (typeof STEPS)[number]; delay: number }) {
-  const { style, bind } = useLift();
+const AGENT_ID = 9806;
+
+function short(a: string) {
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
+function ProofLink({ href, label, value }: { href: string; label: string; value: string }) {
   return (
-    <Reveal delay={delay}>
-      <animated.div {...bind} style={style} className="surface flex h-full gap-4 rounded-2xl p-5">
-        <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-          style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
-        >
-          <step.icon className="h-5 w-5" />
-        </div>
-        <div>
-          <p className="font-semibold">{step.title}</p>
-          <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
-            {step.body}
-          </p>
-        </div>
-      </animated.div>
-    </Reveal>
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="group flex items-baseline justify-between gap-4 border-t py-3 text-sm first:border-t-0"
+      style={{ borderColor: "var(--line)" }}
+    >
+      <span style={{ color: "var(--text-muted)" }}>{label}</span>
+      <span className="inline-flex items-center gap-1 font-mono text-[13px]" style={{ color: "var(--text)" }}>
+        {value}
+        <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" style={{ color: "var(--accent)" }} />
+      </span>
+    </a>
   );
 }
 
@@ -46,25 +48,17 @@ export function Landing() {
     getStats().then(setStats).catch(() => setStats(null));
   }, []);
 
+  const hasActivity = !!stats && stats.payments > 0;
+
   return (
     <Shell>
       <main className="mx-auto max-w-5xl px-5">
-        <section className="grid items-center gap-10 pt-10 pb-20 md:grid-cols-2 md:pt-20">
+        <section className="grid items-center gap-10 pt-12 pb-20 md:grid-cols-2 md:pt-20">
           <div>
-            <motion.p
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="mb-5 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs surface"
-              style={{ color: "var(--text-muted)" }}
-            >
-              <ShieldCheck className="h-3.5 w-3.5" style={{ color: "var(--accent)" }} />
-              Celo Agents at Work
-            </motion.p>
             <motion.h1
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.6, ease: [0.23, 1, 0.32, 1] }}
               className="font-display text-5xl leading-[1.12] tracking-tight md:text-6xl"
             >
               Money that carries
@@ -74,7 +68,7 @@ export function Landing() {
             <motion.p
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.12 }}
+              transition={{ duration: 0.6, delay: 0.1, ease: [0.23, 1, 0.32, 1] }}
               className="mt-6 max-w-md text-[15px] leading-relaxed"
               style={{ color: "var(--text-muted)" }}
             >
@@ -84,7 +78,7 @@ export function Landing() {
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+              transition={{ duration: 0.6, delay: 0.18, ease: [0.23, 1, 0.32, 1] }}
               className="mt-8 flex flex-wrap items-center gap-4"
             >
               <animated.a
@@ -94,10 +88,10 @@ export function Landing() {
                 className="group inline-flex items-center gap-2 rounded-xl px-5 py-3.5 text-sm font-semibold"
               >
                 Start a drive in your chat
-                <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </animated.a>
               {stats?.featured && (
-                <a href="/live" className="text-sm underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
+                <a href="/live" className="rounded-lg text-sm underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
                   See a live drive
                 </a>
               )}
@@ -107,7 +101,7 @@ export function Landing() {
           <motion.div
             initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.7, delay: 0.15 }}
+            transition={{ duration: 0.7, delay: 0.15, ease: [0.23, 1, 0.32, 1] }}
             className="surface rounded-2xl p-4"
           >
             <FlowDiagram className="w-full" />
@@ -115,52 +109,56 @@ export function Landing() {
         </section>
 
         <section className="border-t py-16" style={{ borderColor: "var(--line)" }}>
-          <Reveal>
-            <h2 className="font-display text-3xl tracking-tight md:text-4xl">Remittance breaks on arrival, not on FX.</h2>
-          </Reveal>
+          <h2 className="font-display text-3xl tracking-tight md:text-4xl">Remittance breaks on arrival, not on FX.</h2>
           <div className="mt-8 grid gap-4 md:grid-cols-2">
-            <Reveal delay={0.05}>
-              <div className="surface h-full rounded-2xl p-6">
-                <p className="text-xs uppercase tracking-widest" style={{ color: "var(--pending)" }}>
-                  Sent to a person
-                </p>
-                <p className="mt-3 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                  The transfer succeeds. The school is still unpaid, the light is still off, and the treasurer has stopped
-                  answering.
-                </p>
-              </div>
-            </Reveal>
-            <Reveal delay={0.12}>
-              <div
-                className="h-full rounded-2xl p-6"
-                style={{ background: "var(--accent-soft)", border: "1px solid var(--line)" }}
-              >
-                <p className="text-xs uppercase tracking-widest" style={{ color: "var(--accent)" }}>
-                  Earmarked
-                </p>
-                <p className="mt-3 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                  The destination is fixed before the first payment. Every share lands there directly, and the group can
-                  see it.
-                </p>
-              </div>
-            </Reveal>
+            <div className="surface h-full rounded-2xl p-6">
+              <p className="font-semibold" style={{ color: "var(--pending)" }}>
+                Sent to a person
+              </p>
+              <p className="mt-2 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                The transfer succeeds. The school is still unpaid, the light is still off, and the treasurer has stopped
+                answering.
+              </p>
+            </div>
+            <div className="h-full rounded-2xl p-6" style={{ background: "var(--accent-soft)" }}>
+              <p className="font-semibold" style={{ color: "var(--accent)" }}>
+                Earmarked
+              </p>
+              <p className="mt-2 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                The destination is fixed before the first payment. Every share lands there directly, and the group can
+                see it.
+              </p>
+            </div>
           </div>
         </section>
 
         <section className="border-t py-16" style={{ borderColor: "var(--line)" }}>
-          <Reveal>
-            <h2 className="font-display text-3xl tracking-tight md:text-4xl">Four moves, inside the chat.</h2>
-          </Reveal>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          <h2 className="font-display text-3xl tracking-tight md:text-4xl">Four moves, inside the chat.</h2>
+          <ol className="mt-10 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((s, i) => (
-              <StepCard key={s.title} step={s} delay={i * 0.07} />
+              <li key={s.title} className="relative pt-5">
+                {/* The rail: a line the number sits on, so the sequence reads as one path. */}
+                <span className="absolute top-0 left-0 h-px w-full" style={{ background: "var(--line)" }} />
+                <span
+                  className="absolute -top-3 left-0 flex h-6 w-6 items-center justify-center rounded-full font-mono text-[11px] font-semibold"
+                  style={{ background: "var(--brand)", color: "var(--brand-ink)" }}
+                >
+                  {i + 1}
+                </span>
+                <Reveal delay={i * 0.08}>
+                  <p className="font-semibold">{s.title}</p>
+                  <p className="mt-1.5 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                    {s.body}
+                  </p>
+                </Reveal>
+              </li>
             ))}
-          </div>
+          </ol>
         </section>
 
         <section className="border-t py-16" style={{ borderColor: "var(--line)" }}>
           <div className="grid gap-8 md:grid-cols-2 md:items-center">
-            <Reveal className="min-w-0">
+            <div className="min-w-0">
               <h2 className="font-display text-3xl tracking-tight md:text-4xl">No custody, by construction.</h2>
               <p className="mt-4 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
                 There is no withdraw function and no admin key that can redirect a drive. The contract never holds a
@@ -173,10 +171,10 @@ export function Landing() {
                   </span>
                 ))}
               </div>
-            </Reveal>
+            </div>
             <Reveal delay={0.1} className="min-w-0">
               <pre
-                className="max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-2xl p-4 text-[12px] leading-relaxed sm:whitespace-pre sm:p-5 sm:text-[12.5px]"
+                className="max-w-full overflow-x-auto whitespace-pre-wrap wrap-break-word rounded-2xl p-4 text-[12px] leading-relaxed sm:whitespace-pre sm:p-5 sm:text-[12.5px]"
                 style={{ background: "var(--bg-sunken)", border: "1px solid var(--line)", color: "var(--text-muted)" }}
               >
                 <code>{`function contribute(uint256 id, uint256 amount, string memo) {
@@ -195,24 +193,30 @@ export function Landing() {
 
         {stats && (
           <section className="border-t py-16" style={{ borderColor: "var(--line)" }}>
-            <div className="grid gap-4 sm:grid-cols-3">
-              {[
-                { label: "Drives", value: stats.drives, icon: Landmark },
-                { label: "Payments", value: stats.payments, icon: Receipt },
-                { label: "Distinct payers", value: stats.payers, icon: Users },
-              ].map((s, i) => (
-                <Reveal key={s.label} delay={i * 0.08}>
-                  <div className="surface rounded-2xl p-6">
-                    <s.icon className="h-5 w-5" style={{ color: "var(--accent)" }} />
-                    <p className="mt-3 font-display text-4xl">
-                      <Counter to={s.value} />
-                    </p>
-                    <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-                      {s.label}
-                    </p>
-                  </div>
-                </Reveal>
-              ))}
+            <div className="grid gap-8 md:grid-cols-2 md:items-start">
+              <div>
+                <h2 className="font-display text-3xl tracking-tight md:text-4xl">Live on Celo mainnet.</h2>
+                <p className="mt-4 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  {hasActivity ? (
+                    <>
+                      <Counter to={stats.payments} className="font-semibold" style={{ color: "var(--text)" }} />{" "}
+                      {stats.payments === 1 ? "payment" : "payments"} from{" "}
+                      <Counter to={stats.payers} className="font-semibold" style={{ color: "var(--text)" }} />{" "}
+                      {stats.payers === 1 ? "person" : "people"} across{" "}
+                      <Counter to={stats.drives} className="font-semibold" style={{ color: "var(--text)" }} />{" "}
+                      {stats.drives === 1 ? "drive" : "drives"}, every one of them forwarded on arrival.
+                    </>
+                  ) : (
+                    <>Not a testnet and not a demo mode. Every address below is real and can be checked.</>
+                  )}
+                </p>
+              </div>
+              <div className="surface rounded-2xl px-5 py-2">
+                <ProofLink href={`https://celoscan.io/address/${stats.earmark}`} label="Contract" value={short(stats.earmark)} />
+                <ProofLink href={`https://8004scan.io/agents/celo/${AGENT_ID}`} label="ERC-8004 agent" value={`#${AGENT_ID}`} />
+                <ProofLink href={`https://celoscan.io/address/${stats.agent}`} label="Agent wallet" value={short(stats.agent)} />
+                <ProofLink href="https://t.me/Earmarked_bot" label="Telegram" value="@Earmarked_bot" />
+              </div>
             </div>
           </section>
         )}

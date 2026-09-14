@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { animated, useSpring } from "@react-spring/web";
 import { useInView, useReducedMotion } from "framer-motion";
 
-export function Counter({ to, className = "" }: { to: number; className?: string }) {
+export function Counter({ to, className = "", style }: { to: number; className?: string; style?: React.CSSProperties }) {
   const ref = useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true, amount: 0.4 });
   const still = useReducedMotion();
@@ -15,7 +15,7 @@ export function Counter({ to, className = "" }: { to: number; className?: string
   });
 
   return (
-    <animated.span ref={ref} className={className}>
+    <animated.span ref={ref} className={className} style={style}>
       {spring.n.to((v) => Math.round(v).toLocaleString("en-US"))}
     </animated.span>
   );

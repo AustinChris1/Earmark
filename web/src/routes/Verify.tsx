@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { animated } from "@react-spring/web";
-import { BadgeCheck, ExternalLink, Loader2, ShieldCheck, TriangleAlert, Wallet } from "lucide-react";
+import { BadgeCheck, Check, ExternalLink, Loader2, ShieldCheck, TriangleAlert, Wallet } from "lucide-react";
 import { createWalletClient, custom, getAddress } from "viem";
 import { celo } from "viem/chains";
 import { Shell } from "../components/Shell";
@@ -111,14 +111,11 @@ export function VerifyPage() {
       <main className="mx-auto max-w-lg px-5 pb-16">
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <div className="surface mt-6 rounded-2xl p-6">
-            <p className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-              One time check
-            </p>
-            <h1 className="mt-2 font-display text-3xl leading-tight tracking-tight">Prove you are a real person</h1>
+            <h1 className="font-display text-3xl leading-tight tracking-tight">Prove you are a real person</h1>
             <p className="mt-4 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              A drive names where money must land. This check is what stops anyone opening a fake school or landlord
-              anonymously. Self reads a government document on your own device; Earmark only ever learns whether the
-              check passed.
+              You do this once. A drive names where money must land, and this check is what stops anyone opening a
+              fake school or landlord anonymously. Self reads a government document on your own device; Earmark only
+              ever learns whether the check passed.
             </p>
 
             {status?.verified ? (
@@ -140,43 +137,40 @@ export function VerifyPage() {
                 </div>
               </div>
             ) : (
-              <div className="mt-6 flex flex-col gap-3">
-                <div className="rounded-xl p-4" style={{ border: "1px solid var(--line)" }}>
-                  <p className="text-sm font-semibold">
-                    Step 1 {status?.linked ? "· done" : ""}
-                  </p>
-                  <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-                    {status?.linked
-                      ? `Linked ${status.address?.slice(0, 6)}…${status.address?.slice(-4)}`
-                      : "Link the wallet you will verify with. You sign a message, nothing is sent."}
-                  </p>
-                  {!status?.linked && (
-                    <animated.button
-                      {...linkBtn.bind}
-                      onClick={linkWallet}
-                      disabled={busy}
-                      className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[15px] font-semibold disabled:opacity-60"
-                      style={{ ...linkBtn.style, background: "var(--brand)", color: "var(--brand-ink)" }}
-                    >
-                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
-                      {busy ? "Check your wallet" : "Link my wallet"}
-                    </animated.button>
+              <ol className="mt-8">
+                <Step n={1} done={!!status?.linked} title={status?.linked ? "Wallet linked" : "Link your wallet"} last={false}>
+                  {status?.linked ? (
+                    <p className="font-mono text-[12px]" style={{ color: "var(--text-muted)" }}>
+                      {status.address?.slice(0, 6)}…{status.address?.slice(-4)}
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                        The wallet you will verify with. You sign a message, nothing is sent.
+                      </p>
+                      <animated.button
+                        {...linkBtn.bind}
+                        onClick={linkWallet}
+                        disabled={busy}
+                        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[15px] font-semibold disabled:opacity-60"
+                        style={{ ...linkBtn.style, background: "var(--brand)", color: "var(--brand-ink)" }}
+                      >
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
+                        {busy ? "Check your wallet" : "Link my wallet"}
+                      </animated.button>
+                    </>
                   )}
-                </div>
+                </Step>
 
-                <div
-                  className="rounded-xl p-4"
-                  style={{ border: "1px solid var(--line)", opacity: step2Ready ? 1 : 0.55 }}
-                >
-                  <p className="text-sm font-semibold">Step 2</p>
-                  <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-                    Verify with Self using that same wallet. Self pays the gas and mints you a non transferable badge.
+                <Step n={2} done={false} title="Verify with Self" last dim={!step2Ready}>
+                  <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                    Same wallet. Self pays the gas and mints you a non transferable badge.
                   </p>
                   {step2Ready && status?.canVerify && (
                     <button
                       onClick={startSelf}
                       disabled={busy}
-                      className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
+                      className="pressable mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
                       style={{ background: "var(--accent)", color: "var(--accent-ink)" }}
                     >
                       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -184,22 +178,21 @@ export function VerifyPage() {
                     </button>
                   )}
                   {step2Ready && !status?.canVerify && (
-                    <p className="mt-3 text-sm" style={{ color: "var(--pending)" }}>
+                    <p className="mt-3 text-sm" style={{ color: "var(--danger)" }}>
                       The verification flow is not configured on this deployment yet.
                     </p>
                   )}
-                </div>
-
-                {step2Ready && (
-                  <button
-                    onClick={refresh}
-                    className="text-sm underline underline-offset-4"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    I have finished with Self, check again
-                  </button>
-                )}
-              </div>
+                  {step2Ready && (
+                    <button
+                      onClick={refresh}
+                      className="mt-3 block rounded-lg text-sm underline underline-offset-4"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      I have finished with Self, check again
+                    </button>
+                  )}
+                </Step>
+              </ol>
             )}
 
             {message && (
@@ -208,7 +201,7 @@ export function VerifyPage() {
               </p>
             )}
             {error && (
-              <p className="mt-4 text-sm" style={{ color: "var(--pending)" }}>
+              <p role="alert" className="mt-4 text-sm" style={{ color: "var(--danger)" }}>
                 {error}
               </p>
             )}
@@ -223,5 +216,43 @@ export function VerifyPage() {
         </motion.div>
       </main>
     </Shell>
+  );
+}
+
+function Step({
+  n,
+  title,
+  done,
+  dim = false,
+  last,
+  children,
+}: {
+  n: number;
+  title: string;
+  done: boolean;
+  dim?: boolean;
+  last: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <li className="relative flex gap-4 transition-opacity" style={{ opacity: dim ? 0.5 : 1 }}>
+      <div className="flex flex-col items-center">
+        <span
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono text-[12px] font-semibold"
+          style={
+            done
+              ? { background: "var(--accent)", color: "var(--accent-ink)" }
+              : { background: "var(--brand)", color: "var(--brand-ink)" }
+          }
+        >
+          {done ? <Check className="h-3.5 w-3.5" /> : n}
+        </span>
+        {!last && <span className="w-px flex-1" style={{ background: "var(--line)" }} />}
+      </div>
+      <div className={`min-w-0 flex-1 ${last ? "" : "pb-7"}`}>
+        <p className="pt-1 text-sm font-semibold">{title}</p>
+        <div className="mt-1">{children}</div>
+      </div>
+    </li>
   );
 }

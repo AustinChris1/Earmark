@@ -1,7 +1,19 @@
-import { Link } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import { Moon, Sun } from "lucide-react";
 import { Wordmark } from "../brand/Logo";
 import { useTheme } from "../lib/theme";
+
+function NavItem({ to, children }: { to: string; children: React.ReactNode }) {
+  return (
+    <NavLink
+      to={to}
+      className="rounded-lg px-2 py-1 text-sm font-medium transition-colors"
+      style={({ isActive }) => ({ color: isActive ? "var(--text)" : "var(--text-muted)" })}
+    >
+      {children}
+    </NavLink>
+  );
+}
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const { theme, toggle } = useTheme();
@@ -9,24 +21,20 @@ export function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-dvh">
       <header className="sticky top-0 z-30 backdrop-blur-md" style={{ background: "color-mix(in srgb, var(--bg) 82%, transparent)" }}>
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4">
-          <Link to="/" aria-label="Earmark home">
+          <Link to="/" aria-label="Earmark home" className="rounded-lg">
             <Wordmark />
           </Link>
-          <div className="flex items-center gap-3">
-          <Link to="/app" className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
-            Drives
-          </Link>
-          <Link to="/docs" className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
-            Docs
-          </Link>
-          <button
-            onClick={toggle}
-            aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-            className="surface rounded-full p-2 transition hover:opacity-80"
-          >
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
-          </div>
+          <nav className="flex items-center gap-1" aria-label="Site">
+            <NavItem to="/app">Drives</NavItem>
+            <NavItem to="/docs">Docs</NavItem>
+            <button
+              onClick={toggle}
+              aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+              className="surface pressable ml-2 rounded-full p-2"
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+          </nav>
         </div>
       </header>
       {children}

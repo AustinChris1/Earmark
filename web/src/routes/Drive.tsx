@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { animated, useSpring } from "@react-spring/web";
-import { CheckCircle2, ExternalLink, Loader2, Lock, TriangleAlert, Wallet } from "lucide-react";
+import { Check, CheckCircle2, Copy, ExternalLink, Loader2, Lock, TriangleAlert, Wallet } from "lucide-react";
 import {
   createPublicClient,
   createWalletClient,
@@ -39,6 +39,7 @@ export function DrivePage() {
   const [stage, setStage] = useState<Stage>("idle");
   const [message, setMessage] = useState("");
   const [txHash, setTxHash] = useState<Hex | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const query = new URLSearchParams(location.search);
   const tgId = query.get("u") ?? "";
@@ -163,6 +164,17 @@ export function DrivePage() {
 
   const busy = stage === "approving" || stage === "paying";
 
+  async function copyDestination() {
+    if (!drive) return;
+    try {
+      await navigator.clipboard.writeText(drive.destination);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* the address is selectable on screen either way */
+    }
+  }
+
   return (
     <Shell>
       <main className="mx-auto max-w-lg px-5 pb-16">
@@ -186,10 +198,11 @@ export function DrivePage() {
         {drive && (
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
             <div className="surface mt-6 rounded-2xl p-6">
-              <p className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
+              <h1 className="font-display text-3xl leading-tight tracking-tight">{drive.label}</h1>
+              <p className="mt-1.5 text-sm tabular-nums" style={{ color: "var(--text-muted)" }}>
                 {drive.you ? `Instalment ${drive.you.seq} of ${drive.you.count}` : `Drive #${drive.id}`}
+                {drive.closed ? " · closed" : ""}
               </p>
-              <h1 className="mt-2 font-display text-3xl leading-tight tracking-tight">{drive.label}</h1>
 
               <div className="mt-5 flex items-start gap-2 rounded-xl p-3" style={{ background: "color-mix(in srgb, var(--accent) 10%, transparent)" }}>
                 <Lock className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--accent)" }} />
@@ -197,18 +210,31 @@ export function DrivePage() {
                   <p className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
                     Pays only to this address
                   </p>
-                  <p className="mt-0.5 break-all font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>
-                    {drive.destination}
+                  <p className="mt-0.5 font-mono text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                    {drive.destination.slice(0, 22)}
+                    <wbr />
+                    {drive.destination.slice(22)}
                   </p>
-                  <a
-                    href={`${drive.explorer}/address/${drive.destination}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-1 inline-flex items-center gap-1 text-xs underline underline-offset-4"
-                    style={{ color: "var(--accent)" }}
-                  >
-                    Open on Celoscan <ExternalLink className="h-3 w-3" />
-                  </a>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                    <a
+                      href={`${drive.explorer}/address/${drive.destination}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 rounded underline underline-offset-4"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      Open on Celoscan <ExternalLink className="h-3 w-3" />
+                    </a>
+                    <button
+                      type="button"
+                      onClick={copyDestination}
+                      className="pressable inline-flex items-center gap-1 rounded"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      {copied ? "Copied" : "Copy"}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -224,7 +250,7 @@ export function DrivePage() {
                   <div className="h-2.5 w-full overflow-hidden rounded-full" style={{ background: "var(--line)" }}>
                     <animated.div className="h-full rounded-full" style={{ ...progress, background: "var(--accent)" }} />
                   </div>
-                  <div className="mt-2 flex justify-between text-sm">
+                  <div className="mt-2 flex justify-between text-sm tabular-nums">
                     <span className="font-semibold">{fmt(raised)}</span>
                     <span style={{ color: "var(--text-muted)" }}>of {fmt(target)}</span>
                   </div>
@@ -242,14 +268,14 @@ export function DrivePage() {
                       ? `Instalment ${drive.you.seq} of ${drive.you.count}${tgName ? ` for ${tgName}` : ""}`
                       : `Your contribution${tgName ? ` as ${tgName}` : ""}`}
                   </label>
-                  <div className="mt-2 flex items-center gap-2 rounded-xl px-3" style={{ border: "1px solid var(--line)" }}>
+                  <div className="field mt-2 flex items-center gap-2 py-0">
                     <input
                       id="amt"
                       inputMode="decimal"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       placeholder={remaining > 0n ? formatUnits(remaining, drive.token.decimals) : "0.00"}
-                      className="w-full bg-transparent py-3 text-lg outline-none"
+                      className="w-full bg-transparent py-3 text-lg tabular-nums outline-none"
                     />
                     <span className="text-sm" style={{ color: "var(--text-muted)" }}>
                       {drive.token.symbol}
@@ -273,8 +299,10 @@ export function DrivePage() {
                         initial={{ opacity: 0, y: -4 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0 }}
+                        role={stage === "error" ? "alert" : "status"}
+                        transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
                         className="mt-3 flex items-start gap-2 text-sm"
-                        style={{ color: stage === "error" ? "var(--pending)" : "var(--text-muted)" }}
+                        style={{ color: stage === "error" ? "var(--danger)" : "var(--text-muted)" }}
                       >
                         {stage === "done" && <CheckCircle2 className="mt-0.5 h-4 w-4" style={{ color: "var(--accent)" }} />}
                         <span>{message}</span>
@@ -299,8 +327,11 @@ export function DrivePage() {
 
             {drive.payments.length > 0 && (
               <div className="surface mt-4 rounded-2xl p-6">
-                <p className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-                  Who has paid
+                <p className="text-sm font-semibold">
+                  Who has paid{" "}
+                  <span className="font-normal tabular-nums" style={{ color: "var(--text-muted)" }}>
+                    {drive.payments.length}
+                  </span>
                 </p>
                 <ul className="mt-3">
                   {drive.payments.map((p) => (
@@ -308,7 +339,8 @@ export function DrivePage() {
                       key={p.tx}
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
-                      className="flex items-center justify-between border-t py-2.5 text-sm first:border-t-0"
+                      transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
+                      className="flex items-center justify-between border-t py-2.5 text-sm tabular-nums first:border-t-0"
                       style={{ borderColor: "var(--line)" }}
                     >
                       <span className="flex items-center gap-2">

@@ -54,7 +54,7 @@ export function DocsPage() {
                 <button
                   key={p.slug || "overview"}
                   onClick={() => navigate(p.slug ? `/docs/${p.slug}` : "/docs")}
-                  className="shrink-0 rounded-xl px-3 py-2 text-left text-sm transition md:shrink"
+                  className="pressable shrink-0 rounded-xl px-3 py-2 text-left text-sm md:shrink"
                   style={{
                     background: active ? "var(--accent-soft)" : "transparent",
                     color: active ? "var(--accent)" : "var(--text-muted)",

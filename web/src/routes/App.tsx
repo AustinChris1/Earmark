@@ -54,9 +54,12 @@ function DriveRow({ d, mine, onClose }: { d: DriveSummary; mine: boolean; onClos
       {target > 0n && (
         <div className="mt-4">
           <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--line)" }}>
-            <div className="h-full rounded-full" style={{ width: `${pct(raised, target)}%`, background: "var(--accent)" }} />
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${pct(raised, target)}%`, background: d.closed ? "var(--pending)" : "var(--accent)" }}
+            />
           </div>
-          <div className="mt-2 flex justify-between text-sm">
+          <div className="mt-2 flex justify-between text-sm tabular-nums">
             <span className="font-semibold">{amount(raised)}</span>
             <span style={{ color: "var(--text-muted)" }}>of {amount(target)}</span>
           </div>
@@ -66,7 +69,7 @@ function DriveRow({ d, mine, onClose }: { d: DriveSummary; mine: boolean; onClos
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <Link
           to={`/d/${d.id}`}
-          className="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold"
+          className="pressable inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold"
           style={
             d.closed
               ? { border: "1px solid var(--line)", color: "var(--text-muted)" }
@@ -78,7 +81,7 @@ function DriveRow({ d, mine, onClose }: { d: DriveSummary; mine: boolean; onClos
         {mine && !d.closed && (
           <button
             onClick={() => onClose(d.id)}
-            className="text-sm underline underline-offset-4"
+            className="rounded-lg text-sm underline underline-offset-4"
             style={{ color: "var(--text-muted)" }}
           >
             Close drive
@@ -212,7 +215,11 @@ export function AppPage() {
           {account ? (
             <div className="flex items-center gap-3">
               <span className="surface rounded-full px-3 py-1.5 font-mono text-xs">{short(account)}</span>
-              <button onClick={() => setShowNew(true)} className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold" style={{ background: "var(--brand)", color: "var(--brand-ink)" }}>
+              <button
+                onClick={() => setShowNew(true)}
+                className="pressable inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold"
+                style={{ background: "var(--brand)", color: "var(--brand-ink)" }}
+              >
                 <Plus className="h-4 w-4" /> New drive
               </button>
             </div>
@@ -234,7 +241,7 @@ export function AppPage() {
           </p>
         )}
         {error && (
-          <p className="mt-4 text-sm" style={{ color: "var(--pending)" }}>
+          <p role="alert" className="mt-4 text-sm" style={{ color: "var(--danger)" }}>
             {error}
           </p>
         )}
@@ -245,6 +252,7 @@ export function AppPage() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
               className="overflow-hidden"
             >
               <NewDriveForm cfg={cfg} onCancel={() => setShowNew(false)} onSubmit={createDrive} />
@@ -260,8 +268,11 @@ export function AppPage() {
           <>
             {account && mine.length > 0 && (
               <section className="mt-10">
-                <h2 className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-                  Drives you opened
+                <h2 className="text-sm font-semibold">
+                  Drives you opened{" "}
+                  <span className="font-normal tabular-nums" style={{ color: "var(--text-muted)" }}>
+                    {mine.length}
+                  </span>
                 </h2>
                 <div className="mt-3 grid gap-3">
                   {mine.map((d) => (
@@ -273,11 +284,19 @@ export function AppPage() {
 
             <section className="mt-10">
               <div className="flex items-center justify-between">
-                <h2 className="text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-                  {account && mine.length > 0 ? "Everything else" : "All drives"}
+                <h2 className="text-sm font-semibold">
+                  {account && mine.length > 0 ? "Everything else" : "All drives"}{" "}
+                  <span className="font-normal tabular-nums" style={{ color: "var(--text-muted)" }}>
+                    {others.length}
+                  </span>
                 </h2>
-                <button onClick={load} className="inline-flex items-center gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
-                  <RefreshCw className="h-3 w-3" /> Refresh
+                <button
+                  onClick={load}
+                  disabled={loading}
+                  className="pressable inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} /> Refresh
                 </button>
               </div>
               {others.length === 0 ? (
@@ -314,14 +333,14 @@ function NewDriveForm({
   const [destination, setDestination] = useState("");
   const [label, setLabel] = useState("");
 
-  const field = "w-full rounded-xl px-3 py-2.5 text-[15px] outline-none";
-  const fieldStyle = { border: "1px solid var(--line)", background: "var(--bg-raised)", color: "var(--text)" };
+  const field = "field";
+  const fieldStyle = {};
 
   return (
     <div className="surface mt-6 rounded-2xl p-6">
       <div className="flex items-center justify-between">
         <p className="font-semibold">Open a drive</p>
-        <button onClick={onCancel} aria-label="Cancel">
+        <button onClick={onCancel} aria-label="Cancel" className="pressable -m-2 rounded-full p-2">
           <X className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
         </button>
       </div>
@@ -332,14 +351,15 @@ function NewDriveForm({
       <div className="mt-4 grid gap-3">
         <div className="flex gap-3">
           <input
-            className={field}
+            className={`${field} tabular-nums`}
             style={fieldStyle}
             inputMode="decimal"
+            aria-label="Amount"
             placeholder="450"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
-          <select className={field} style={{ ...fieldStyle, maxWidth: 130 }} value={symbol} onChange={(e) => setSymbol(e.target.value)}>
+          <select className={field} style={{ ...fieldStyle, maxWidth: 130 }} aria-label="Token" value={symbol} onChange={(e) => setSymbol(e.target.value)}>
             {symbols.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -351,6 +371,9 @@ function NewDriveForm({
           className={field}
           style={fieldStyle}
           placeholder="Destination address, 0x…"
+          aria-label="Destination address"
+          spellCheck={false}
+          autoComplete="off"
           value={destination}
           onChange={(e) => setDestination(e.target.value)}
         />
@@ -358,12 +381,13 @@ function NewDriveForm({
           className={field}
           style={fieldStyle}
           placeholder="What is it for? Term 1 fees for Chioma"
+          aria-label="What the drive is for"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
         />
         <button
           onClick={() => onSubmit({ amount, symbol, destination, label })}
-          className="rounded-xl py-3 text-[15px] font-semibold"
+          className="pressable rounded-xl py-3 text-[15px] font-semibold"
           style={{ background: "var(--accent)", color: "var(--accent-ink)" }}
         >
           Open drive
