@@ -202,6 +202,9 @@ export function DrivePage() {
               <p className="mt-1.5 text-sm tabular-nums" style={{ color: "var(--text-muted)" }}>
                 {drive.you ? `Instalment ${drive.you.seq} of ${drive.you.count}` : `Drive #${drive.id}`}
                 {drive.closed ? " · closed" : ""}
+                {!drive.closed && drive.deadline > 0
+                  ? ` · closes ${new Date(drive.deadline * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`
+                  : ""}
               </p>
 
               <div className="mt-5 flex items-start gap-2 rounded-xl p-3" style={{ background: "color-mix(in srgb, var(--accent) 10%, transparent)" }}>

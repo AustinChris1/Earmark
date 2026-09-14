@@ -164,7 +164,7 @@ export function AppPage() {
     }
   }
 
-  async function createDrive(form: { amount: string; symbol: string; destination: string; label: string }) {
+  async function createDrive(form: { amount: string; symbol: string; destination: string; label: string; deadline: string }) {
     if (!cfg || !account) return;
     setError("");
     const token = Object.values(cfg.tokens).find((t) => t.symbol.toLowerCase() === form.symbol.toLowerCase());
@@ -178,6 +178,14 @@ export function AppPage() {
       return setError("The amount must be a number.");
     }
     if (target <= 0n) return setError("The amount must be greater than zero.");
+    // A date is the end of that day, UTC, so "by the 30th" still accepts a payment on the 30th.
+    let deadline = 0n;
+    if (form.deadline) {
+      const t = Date.parse(`${form.deadline}T23:59:59Z`);
+      if (Number.isNaN(t)) return setError("That closing date is not valid.");
+      if (t < Date.now()) return setError("The closing date has already passed.");
+      deadline = BigInt(Math.floor(t / 1000));
+    }
 
     setBusy("Opening the drive");
     try {
@@ -187,7 +195,7 @@ export function AppPage() {
         address: cfg.earmark,
         abi: EARMARK_ABI,
         functionName: "createDrive",
-        args: [token.address, form.destination as Address, target, 0n, form.label.trim()],
+        args: [token.address, form.destination as Address, target, deadline, form.label.trim()],
         chain: chainFor(cfg),
         dataSuffix: cfg.tag ? toDataSuffix(cfg.tag) : undefined,
       } as never);
@@ -325,13 +333,14 @@ function NewDriveForm({
 }: {
   cfg: Config;
   onCancel: () => void;
-  onSubmit: (f: { amount: string; symbol: string; destination: string; label: string }) => void;
+  onSubmit: (f: { amount: string; symbol: string; destination: string; label: string; deadline: string }) => void;
 }) {
   const symbols = Object.values(cfg.tokens).map((t) => t.symbol);
   const [amount, setAmount] = useState("");
   const [symbol, setSymbol] = useState(symbols[0] ?? "USDT");
   const [destination, setDestination] = useState("");
   const [label, setLabel] = useState("");
+  const [deadline, setDeadline] = useState("");
 
   const field = "field";
   const fieldStyle = {};
@@ -385,8 +394,19 @@ function NewDriveForm({
           value={label}
           onChange={(e) => setLabel(e.target.value)}
         />
+        <label className="grid gap-1 text-sm" style={{ color: "var(--text-muted)" }}>
+          Closes on <span className="font-normal">(optional, the drive stops accepting payments after this day)</span>
+          <input
+            className={`${field} tabular-nums`}
+            style={fieldStyle}
+            type="date"
+            min={new Date().toISOString().slice(0, 10)}
+            value={deadline}
+            onChange={(e) => setDeadline(e.target.value)}
+          />
+        </label>
         <button
-          onClick={() => onSubmit({ amount, symbol, destination, label })}
+          onClick={() => onSubmit({ amount, symbol, destination, label, deadline })}
           className="pressable rounded-xl py-3 text-[15px] font-semibold"
           style={{ background: "var(--accent)", color: "var(--accent-ink)" }}
         >

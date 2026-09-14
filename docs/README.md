@@ -58,6 +58,7 @@ group named. It does not guarantee that account belongs to an institution.
 | Piece | Where |
 |---|---|
 | Contract | [`0x93316de31b4f891c56cf3b65a3f96aa6b04192ae`](https://celoscan.io/address/0x93316de31b4f891c56cf3b65a3f96aa6b04192ae) on Celo mainnet |
+| Source | [verified on Sourcify](https://repo.sourcify.dev/42220/0x93316DE31b4f891C56cf3b65A3f96AA6b04192Ae), exact match of the deployed bytecode |
 | Agent identity | ERC-8004 [agent 9806](https://8004scan.io/agents/celo/9806) |
 | Bot | [@Earmarked_bot](https://t.me/Earmarked_bot) |
 | Web | <https://earmark-agent.onrender.com> |

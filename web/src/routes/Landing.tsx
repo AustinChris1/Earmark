@@ -17,6 +17,8 @@ const STEPS = [
 ];
 
 const AGENT_ID = 9806;
+// Sourcify exact match of the deployed bytecode; the claim below is checkable there, not just stated.
+const SOURCE_URL = "https://repo.sourcify.dev/42220/0x93316DE31b4f891C56cf3b65A3f96AA6b04192Ae";
 
 function short(a: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
@@ -161,9 +163,20 @@ export function Landing() {
             <div className="min-w-0">
               <h2 className="font-display text-3xl tracking-tight md:text-4xl">No custody, by construction.</h2>
               <p className="mt-4 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                There is no withdraw function and no admin key that can redirect a drive. The contract never holds a
+                Three functions change state: <code className="text-[13px]">createDrive</code>,{" "}
+                <code className="text-[13px]">contribute</code> and <code className="text-[13px]">close</code>. There is
+                no withdraw, no owner and no upgrade path, so nobody can redirect a drive. The contract never holds a
                 balance, so there is nothing to run away with.
               </p>
+              <a
+                href={SOURCE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex items-center gap-1 rounded text-sm underline underline-offset-4"
+                style={{ color: "var(--accent)" }}
+              >
+                Read the verified source <ArrowUpRight className="h-3.5 w-3.5" />
+              </a>
               <div className="mt-6 flex flex-wrap gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
                 {["Fee abstraction", "x402", "ERC-8004", "Attribution tags"].map((t) => (
                   <span key={t} className="surface rounded-full px-3 py-1">
@@ -213,6 +226,7 @@ export function Landing() {
               </div>
               <div className="surface rounded-2xl px-5 py-2">
                 <ProofLink href={`https://celoscan.io/address/${stats.earmark}`} label="Contract" value={short(stats.earmark)} />
+                <ProofLink href={SOURCE_URL} label="Source" value="verified, exact match" />
                 <ProofLink href={`https://8004scan.io/agents/celo/${AGENT_ID}`} label="ERC-8004 agent" value={`#${AGENT_ID}`} />
                 <ProofLink href={`https://celoscan.io/address/${stats.agent}`} label="Agent wallet" value={short(stats.agent)} />
                 <ProofLink href="https://t.me/Earmarked_bot" label="Telegram" value="@Earmarked_bot" />

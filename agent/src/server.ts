@@ -1,6 +1,7 @@
 import express from "express";
 import path from "node:path";
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { chainId, env, explorerUrl, publicRpcUrl, TOKENS, tokenByAddress } from "./config.js";
 import { account, driveCount, listDrives, readDrive, readTokenInfo } from "./chain.js";
@@ -14,6 +15,43 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, "../../web/dist");
 
 export const app = express();
+app.disable("x-powered-by");
+
+// The theme script in index.html is inline; hashing it keeps the CSP strict without 'unsafe-inline' for scripts.
+const inlineScriptHashes = (() => {
+  const file = path.join(webDist, "index.html");
+  if (!fs.existsSync(file)) return [];
+  // The HTML parser normalises CRLF to LF before hashing, so the hash must be taken over the same bytes.
+  const html = fs.readFileSync(file, "utf8").replace(/\r\n?/g, "\n");
+  return [...html.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(
+    (m) => `'sha256-${createHash("sha256").update(m[1]).digest("base64")}'`,
+  );
+})();
+
+const csp = [
+  "default-src 'self'",
+  `script-src 'self' ${inlineScriptHashes.join(" ")}`.trim(),
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src https://fonts.gstatic.com",
+  "img-src 'self' data:",
+  // Wallet RPC calls go to whichever public Celo node the page was told about.
+  "connect-src 'self' https:",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+].join("; ");
+
+app.use((_req, res, next) => {
+  res.setHeader("Content-Security-Policy", csp);
+  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  next();
+});
+
 app.use(express.json());
 
 // x402 must sit ahead of the SPA fallback so the 402 challenge is not swallowed by index.html.

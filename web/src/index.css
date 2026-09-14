@@ -18,6 +18,8 @@
   Prosperity yellow has very high luminance, so it is only ever a fill with black on top,
   never a text or stroke colour. Green carries "landed", grey carries "still outstanding".
 */
+/* Bare :root carries the light palette too, so the page is coloured before, or without, the theme script. */
+:root,
 :root[data-theme="light"] {
   --bg: #ffffff;
   --bg-raised: #ffffff;

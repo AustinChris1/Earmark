@@ -34,7 +34,68 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      Server-rendered stand-in for the landing page. React replaces it on hydration; a reader
+      that does not execute JavaScript (crawlers, link previews, automated reviewers) sees the
+      product instead of an empty div. Keep it in step with routes/Landing.tsx.
+    -->
+    <div id="root">
+      <main class="mx-auto max-w-5xl px-5">
+        <section class="pt-12 pb-16 md:pt-20">
+          <h1 class="font-display text-5xl leading-[1.12] tracking-tight md:text-6xl">
+            Money that carries<br /><span class="highlight px-2">its destination.</span>
+          </h1>
+          <p class="mt-6 max-w-md text-[15px] leading-relaxed" style="color: var(--text-muted)">
+            Earmark collects money from a group chat for one named obligation, such as school fees, rent or a shared
+            bill, and pays it straight to the wallet the group agreed on. The agent can only pay the destination it
+            was locked to, so nothing stops at a person on the way.
+          </p>
+          <p class="mt-8">
+            <a href="https://t.me/Earmarked_bot" class="inline-flex rounded-xl px-5 py-3.5 text-sm font-semibold" style="background: var(--brand); color: var(--brand-ink)">Start a drive in your chat</a>
+          </p>
+        </section>
+
+        <section class="border-t py-12" style="border-color: var(--line)">
+          <h2 class="font-display text-3xl tracking-tight">Four moves, inside the chat.</h2>
+          <ol class="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <li><strong>Name the obligation.</strong> <code class="text-[13px]">/new 450 USDT 0xSchool Term 1 fees for Chioma</code></li>
+            <li><strong>Split it.</strong> Everyone gets their share and a one tap pay link.</li>
+            <li><strong>Money moves once.</strong> Each payment lands at the locked destination in the same transaction.</li>
+            <li><strong>The chat keeps score.</strong> Who paid, who is outstanding, all of it on chain.</li>
+          </ol>
+        </section>
+
+        <section class="border-t py-12" style="border-color: var(--line)">
+          <h2 class="font-display text-3xl tracking-tight">No custody, by construction.</h2>
+          <p class="mt-4 max-w-2xl text-[15px] leading-relaxed" style="color: var(--text-muted)">
+            The contract has three functions that change state: <code>createDrive</code>, <code>contribute</code> and
+            <code>close</code>. There is no withdraw, no owner and no upgrade path. Every contribution is forwarded to
+            the destination inside the same transaction, so the contract never holds a balance.
+          </p>
+          <ul class="mt-4 grid gap-1 text-sm">
+            <li>Contract <a class="underline underline-offset-4" href="https://celoscan.io/address/0x93316de31b4f891c56cf3b65a3f96aa6b04192ae">0x93316de31b4f891c56cf3b65a3f96aa6b04192ae</a> on Celo mainnet</li>
+            <li>Source code, <a class="underline underline-offset-4" href="https://repo.sourcify.dev/42220/0x93316DE31b4f891C56cf3b65A3f96AA6b04192Ae">verified on Sourcify, exact match</a></li>
+            <li>Agent identity <a class="underline underline-offset-4" href="https://8004scan.io/agents/celo/9806">ERC-8004 #9806</a></li>
+            <li>Telegram <a class="underline underline-offset-4" href="https://t.me/Earmarked_bot">@Earmarked_bot</a></li>
+          </ul>
+        </section>
+
+        <section class="border-t py-12" style="border-color: var(--line)">
+          <h2 class="font-display text-3xl tracking-tight">Who it is for</h2>
+          <ul class="mt-4 grid gap-1 text-[15px]" style="color: var(--text-muted)">
+            <li>Families and diaspora paying for one thing together: fees, a medical bill, rent.</li>
+            <li>Housemates and compounds on a shared meter, rent or water bill.</li>
+            <li>Small groups with a recurring levy, where a treasurer currently holds the cash.</li>
+            <li>Agents that need to pay another agent for a service, over x402.</li>
+          </ul>
+          <p class="mt-4 text-sm" style="color: var(--text-muted)">
+            Earmark pays a wallet address, not a bank account. Accepts 25 Celo stablecoins including USDT, USDC, cNGN
+            and the Mento local currencies. <a class="underline underline-offset-4" href="/docs">Read the docs</a> or
+            <a class="underline underline-offset-4" href="/app">open the dashboard</a>.
+          </p>
+        </section>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

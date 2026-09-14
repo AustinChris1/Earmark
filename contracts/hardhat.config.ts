@@ -17,6 +17,8 @@ const config: HardhatUserConfig = {
       accounts: process.env.AGENT_PRIVATE_KEY ? [process.env.AGENT_PRIVATE_KEY] : [],
     },
   },
+  // Sourcify needs no key, and Blockscout reads from it, so the source is checkable by anyone.
+  sourcify: { enabled: true },
   etherscan: {
     apiKey: { celo: process.env.CELOSCAN_API_KEY ?? "" },
     customChains: [
