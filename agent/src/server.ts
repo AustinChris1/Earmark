@@ -10,6 +10,7 @@ import { memoName } from "./format.js";
 import { x402Guard, x402Handler, x402Middleware } from "./x402.js";
 import { linkHandler, nonceHandler, sessionHandler, statusHandler } from "./verify.js";
 import { pickFeatured } from "./featured.js";
+import { drivePageHtml, noLiveDriveHtml, productHomeHtml } from "./publicHtml.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, "../../web/dist");
@@ -98,6 +99,46 @@ app.get("/api/drives", async (_req, res) => {
 });
 
 app.get("/api/health", (_req, res) => res.json({ ok: true, agent: account.address, earmark: env.EARMARK_ADDRESS }));
+
+function wantsHtml(req: { headers: { accept?: string } }) {
+  const accept = String(req.headers.accept ?? "");
+  if (accept.includes("application/json") && !accept.includes("text/html")) return false;
+  return true;
+}
+
+function livePayload() {
+  return listDrives().then((listed) => pickFeatured(listed));
+}
+
+// AskBots reviewers often do not run JavaScript. /live must be real HTML, not the SPA shell.
+app.get("/live", async (req, res, next) => {
+  if (!wantsHtml(req)) return next();
+  try {
+    const featured = env.EARMARK_ADDRESS ? await livePayload() : null;
+    if (!featured) {
+      res.type("html").send(noLiveDriveHtml());
+      return;
+    }
+    const token = tokenByAddress(featured.token) ?? { symbol: "TOKEN", decimals: 18 };
+    res.type("html").send(
+      drivePageHtml({
+        id: featured.id,
+        label: featured.label,
+        destination: featured.destination,
+        collector: featured.collector,
+        tokenSymbol: token.symbol,
+        decimals: token.decimals,
+        target: featured.target,
+        raised: featured.raised,
+        deadline: Number(featured.deadline),
+        closed: featured.closed,
+        explorer: explorerUrl,
+      }),
+    );
+  } catch (e) {
+    next(e);
+  }
+});
 
 app.get("/api/stats", async (_req, res) => {
   const { payments, payers } = await counts();

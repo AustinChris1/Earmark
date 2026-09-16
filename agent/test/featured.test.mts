@@ -18,10 +18,10 @@ test("reviewers are sent to an open drive, never /d/1", () => {
   assert.equal(featured.id, 2);
 });
 
-test("an open real drive beats a closed throwaway even when the throwaway is first", () => {
+test("a two-letter label like os is not featured", () => {
   const featured = pickFeatured([
     { id: 1, label: "x402 wiring test (throwaway)", destination: dead, closed: true },
     { id: 2, label: "os", destination: live, closed: false },
   ]);
-  assert.equal(featured?.id, 2);
+  assert.equal(featured, null);
 });

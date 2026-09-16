@@ -15,5 +15,6 @@ contracts/typechain-types/
 *.db-wal
 *.db-shm
 
-# recording brief only; not part of the public repo
+# recording briefs only; not part of the public repo
 demo-video.md
+demo.md
