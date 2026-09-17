@@ -91,7 +91,7 @@ To exercise the whole product rather than a single payment, add a second person,
 | `/pay` | Your personal pay link |
 | `/tally` | Who has paid and who has not |
 | `/remind` | Nudges whoever is outstanding |
-| `/verify` | Proves you are a real person, once |
+| `/verify` | Optional Self check. Nigerian passports are not accepted by Self yet, so this is not required to open a drive |
 | `/menu` | Brings the buttons back |
 | `/close` | Stops the drive |
 

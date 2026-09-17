@@ -68,7 +68,7 @@ export const statusHandler: RequestHandler = async (req, res) => {
     verified,
     // Empty means the gate is not configured, which the bot treats as "do not enforce".
     canVerify: selfConfigured(),
-    enforced: !!env.SELF_SBT_ADDRESS,
+    enforced: env.SELF_ENFORCE === "1" && !!env.SELF_SBT_ADDRESS,
   });
 };
 
@@ -109,10 +109,12 @@ export const sessionHandler: RequestHandler = async (req, res) => {
   }
 };
 
-// The bot's gate. With no SBT contract configured this stays open rather than locking everyone out.
+// The bot's gate. Self's app currently shows "Coming Soon" for Nigerian passports,
+// so enforcement is opt-in via SELF_ENFORCE=1. The /verify flow still works for
+// documents Self does accept.
 export async function collectorIsHuman(tgId: string): Promise<{ allowed: boolean; address?: string }> {
-  if (!env.SELF_SBT_ADDRESS) return { allowed: true };
-  const address = await walletFor(tgId);
+  const address = (await walletFor(tgId)) ?? undefined;
+  if (env.SELF_ENFORCE !== "1" || !env.SELF_SBT_ADDRESS) return { allowed: true, address };
   if (!address) return { allowed: false };
   const verified = await isVerifiedHuman(address as Address).catch(() => false);
   return { allowed: verified, address };

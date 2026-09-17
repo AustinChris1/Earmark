@@ -98,6 +98,9 @@ export const env = {
   SELF_API_KEY: process.env.SELF_API_KEY ?? "",
   SELF_FLOW_ID: process.env.SELF_FLOW_ID ?? "",
   SELF_API_BASE: process.env.SELF_API_BASE ?? "https://edge.dashboard.self.xyz",
+  // Set to "1" only when Self accepts the documents your collectors actually have.
+  // Nigerian e-passports currently show "Coming Soon" in the Self app.
+  SELF_ENFORCE: process.env.SELF_ENFORCE ?? "",
   // Optional. Without a key the bot simply keeps using its guided prompts.
   CENCORI_API_KEY: process.env.CENCORI_API_KEY ?? "",
   CENCORI_MODEL: process.env.CENCORI_MODEL ?? "gpt-4o",

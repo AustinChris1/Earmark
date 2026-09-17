@@ -179,7 +179,12 @@ async function showVerify(ctx: Context) {
   if (!ctx.from) return;
   const { allowed, address } = await collectorIsHuman(String(ctx.from.id));
   if (allowed && address) return ctx.reply(`You are verified, with <code>${address}</code>.`, HTML);
-  if (allowed) return ctx.reply("Verification is not being enforced on this deployment yet.");
+  if (allowed) {
+    return ctx.reply(
+      "You can open drives without Self for now. Self's app does not yet accept Nigerian passports (it shows Coming Soon). /verify still works if you have a supported NFC passport, ID, or Aadhaar.",
+      HTML,
+    );
+  }
   const kb = new InlineKeyboard().url("Verify with Self", `${env.PUBLIC_URL}/verify?u=${ctx.from.id}`);
   return ctx.reply("Verify once that you are a real person, then you can open drives.", {
     ...HTML,
