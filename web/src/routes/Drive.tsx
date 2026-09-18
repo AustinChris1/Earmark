@@ -18,7 +18,7 @@ import {
 } from "viem";
 import { toDataSuffix } from "@celo/attribution-tags";
 import { Shell } from "../components/Shell";
-import "../lib/wallet";
+import { ensureChain } from "../lib/wallet";
 import { getDrive, type Drive } from "../lib/api";
 import { useLift } from "../lib/springs";
 
@@ -104,12 +104,13 @@ export function DrivePage() {
     }
     if (!window.ethereum) {
       setStage("error");
-      setMessage("Open this page inside MiniPay or another Celo wallet to pay.");
+      setMessage("No wallet here. Open this link in MiniPay, or in the browser inside MetaMask or another Celo wallet.");
       return;
     }
     try {
       const [raw] = (await window.ethereum.request({ method: "eth_requestAccounts" })) as string[];
       const account = getAddress(raw);
+      await ensureChain({ chainId: drive.chainId, rpcUrl: drive.rpcUrl, explorer: drive.explorer });
       const pub = createPublicClient({ chain, transport: http(drive.rpcUrl) });
       const wallet = createWalletClient({ chain, account, transport: custom(window.ethereum) });
       const dataSuffix: Hex | undefined = drive.tag ? toDataSuffix(drive.tag) : undefined;
