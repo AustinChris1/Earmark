@@ -20,6 +20,50 @@ const AGENT_ID = 9806;
 // Sourcify exact match of the deployed bytecode; the claim below is checkable there, not just stated.
 const SOURCE_URL = "https://repo.sourcify.dev/42220/0x93316DE31b4f891C56cf3b65A3f96AA6b04192Ae";
 
+// Every answer here describes what the contract and the pages actually do, not what we intend.
+const FAQ: { q: string; a: React.ReactNode }[] = [
+  {
+    q: "Does Earmark ever hold my money?",
+    a: "No. A payment is one transaction that moves tokens from your wallet to the locked destination. The contract has no balance to hold, so there is nothing for anyone to withdraw, freeze or sweep.",
+  },
+  {
+    q: "Can the destination be changed after a drive opens?",
+    a: "No. It is written once when the drive is created. There is no function to edit it, no owner and no upgrade path, and you can check that in the verified source rather than take our word for it.",
+  },
+  {
+    q: "What if the person who opened the drive typed the wrong address?",
+    a: "They can close the drive so nobody else pays it, then open a correct one. Money already sent is at that address and Earmark cannot pull it back, which is why every pay page shows the full destination with a Celoscan link before you confirm.",
+  },
+  {
+    q: "What happens if a drive is full, closed, or past its date?",
+    a: "The contract refuses the payment and nothing leaves your wallet. A payment that would push the total past the target is rejected, and a drive closes itself the moment the target is reached.",
+  },
+  {
+    q: "Can I get a refund?",
+    a: "Not from Earmark, because it never had the money. Each contribution is a direct payment to the payee, so a refund is between you and them, the same as any transfer.",
+  },
+  {
+    q: "What does it cost?",
+    a: "Earmark takes no fee. You pay Celo network gas, which is a fraction of a cent. Inside a wallet that supports fee abstraction the gas comes out of the stablecoin itself; in MetaMask it is paid in CELO.",
+  },
+  {
+    q: "Which wallets and tokens work?",
+    a: "Any Celo wallet with a browser or a connect button: MetaMask, Rabby, Valora and MiniPay's injected wallet. Twenty five Celo stablecoins are supported, including USDT, USDC, USAT, cNGN and the Mento local currencies. Earmark is not yet listed in MiniPay Discover, so MiniPay users open it in another Celo wallet for now.",
+  },
+  {
+    q: "Can it pay my school's bank account?",
+    a: "No. Earmark pays a wallet address. It guarantees the money reaches the account the group named; it does not guarantee that account belongs to an institution. If the payee is not on chain, somebody still carries the last step.",
+  },
+  {
+    q: "Do I need Telegram?",
+    a: "No. The bot is the easiest way for a group, but the dashboard opens, lists and pays drives from a browser with your own wallet, and another agent can pay a drive over x402 with no human at all.",
+  },
+  {
+    q: "What if the bot or this site goes down?",
+    a: "Your money is not affected. Funds only ever move through the verified contract on Celo, which anyone can call directly. The bot and the pages read the chain; they do not custody anything.",
+  },
+];
+
 function short(a: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
@@ -202,6 +246,20 @@ export function Landing() {
               </pre>
             </Reveal>
           </div>
+        </section>
+
+        <section id="faq" className="border-t py-16" style={{ borderColor: "var(--line)" }}>
+          <h2 className="font-display text-3xl tracking-tight md:text-4xl">Questions people ask before they pay.</h2>
+          <dl className="mt-10 grid gap-x-10 gap-y-8 md:grid-cols-2">
+            {FAQ.map((item) => (
+              <div key={item.q} className="min-w-0">
+                <dt className="font-semibold">{item.q}</dt>
+                <dd className="mt-1.5 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  {item.a}
+                </dd>
+              </div>
+            ))}
+          </dl>
         </section>
 
         {stats && (

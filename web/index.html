@@ -82,6 +82,18 @@
         </section>
 
         <section class="border-t py-12" style="border-color: var(--line)">
+          <h2 class="font-display text-3xl tracking-tight">Questions people ask before they pay</h2>
+          <dl class="mt-4 grid gap-4 text-[15px]" style="color: var(--text-muted)">
+            <div><dt class="font-semibold" style="color: var(--text)">Does Earmark ever hold my money?</dt><dd>No. A payment is one transaction from your wallet to the locked destination. The contract has no balance, so there is nothing to withdraw, freeze or sweep.</dd></div>
+            <div><dt class="font-semibold" style="color: var(--text)">Can the destination be changed after a drive opens?</dt><dd>No. It is written once at creation. There is no function to edit it, no owner and no upgrade path; the verified source shows this.</dd></div>
+            <div><dt class="font-semibold" style="color: var(--text)">What happens if a drive is full, closed, or past its date?</dt><dd>The contract refuses the payment and nothing leaves your wallet. A drive closes itself when the target is reached.</dd></div>
+            <div><dt class="font-semibold" style="color: var(--text)">Can I get a refund?</dt><dd>Not from Earmark, because it never had the money. Each contribution is a direct payment to the payee.</dd></div>
+            <div><dt class="font-semibold" style="color: var(--text)">What does it cost?</dt><dd>Earmark takes no fee. You pay Celo gas, a fraction of a cent, in the stablecoin where the wallet supports fee abstraction or in CELO otherwise.</dd></div>
+            <div><dt class="font-semibold" style="color: var(--text)">Which wallets work?</dt><dd>Any Celo wallet with a browser or connect button: MetaMask, Rabby, Valora, MiniPay's injected wallet. Earmark is not yet listed in MiniPay Discover.</dd></div>
+          </dl>
+        </section>
+
+        <section class="border-t py-12" style="border-color: var(--line)">
           <h2 class="font-display text-3xl tracking-tight">Who it is for</h2>
           <ul class="mt-4 grid gap-1 text-[15px]" style="color: var(--text-muted)">
             <li>Families and diaspora paying for one thing together: fees, a medical bill, rent.</li>
