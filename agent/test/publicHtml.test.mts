@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { drivePageHtml, escapeHtml, noLiveDriveHtml } from "../src/publicHtml.js";
+import { drivePageHtml, escapeHtml, homepageLiveSnippet, noLiveDriveHtml } from "../src/publicHtml.js";
 
 test("drive HTML names the obligation and the locked payee without JavaScript", () => {
   const html = drivePageHtml({
@@ -29,4 +29,20 @@ test("labels are escaped", () => {
 
 test("empty featured drive tells the reviewer to open a named one", () => {
   assert.match(noLiveDriveHtml(), /No named live drive/);
+});
+
+test("homepage snippet names the live drive for crawlers that never leave /", () => {
+  const html = homepageLiveSnippet({
+    id: 3,
+    label: "Term 1 fees for Chioma",
+    destination: "0x909e4e085Ea683194b8611b721b94EF9DE1e45cA",
+    tokenSymbol: "cNGN",
+    decimals: 6,
+    target: 5_000_000n,
+    raised: 0n,
+    explorer: "https://celoscan.io",
+  });
+  assert.match(html, /Term 1 fees for Chioma/);
+  assert.match(html, /0x909e4e085Ea683194b8611b721b94EF9DE1e45cA/);
+  assert.match(html, /\/live/);
 });

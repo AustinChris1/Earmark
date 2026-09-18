@@ -10,7 +10,7 @@ import { memoName } from "./format.js";
 import { x402Guard, x402Handler, x402Middleware } from "./x402.js";
 import { linkHandler, nonceHandler, sessionHandler, statusHandler } from "./verify.js";
 import { pickFeatured } from "./featured.js";
-import { drivePageHtml, noLiveDriveHtml, productHomeHtml } from "./publicHtml.js";
+import { drivePageHtml, homepageLiveSnippet, noLiveDriveHtml } from "./publicHtml.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, "../../web/dist");
@@ -135,6 +135,36 @@ app.get("/live", async (req, res, next) => {
         explorer: explorerUrl,
       }),
     );
+  } catch (e) {
+    next(e);
+  }
+});
+
+// AskBots round 2 fetched only the homepage, never /live. Put the live drive in the HTML of /.
+app.get("/", async (req, res, next) => {
+  if (!wantsHtml(req)) return next();
+  const file = path.join(webDist, "index.html");
+  if (!fs.existsSync(file)) return next();
+  try {
+    let html = fs.readFileSync(file, "utf8");
+    const featured = env.EARMARK_ADDRESS ? await livePayload() : null;
+    const token = featured ? (tokenByAddress(featured.token) ?? { symbol: "TOKEN", decimals: 18 }) : null;
+    const snippet = homepageLiveSnippet(
+      featured && token
+        ? {
+            id: featured.id,
+            label: featured.label,
+            destination: featured.destination,
+            tokenSymbol: token.symbol,
+            decimals: token.decimals,
+            target: featured.target,
+            raised: featured.raised,
+            explorer: explorerUrl,
+          }
+        : null,
+    );
+    html = html.replace("</body>", `${snippet}\n</body>`);
+    res.type("html").send(html);
   } catch (e) {
     next(e);
   }

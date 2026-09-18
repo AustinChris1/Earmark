@@ -101,6 +101,30 @@ export function drivePageHtml(d: {
   });
 }
 
+/** Injected into the SPA homepage so AskBots crawlers that never leave / still see the live drive. */
+export function homepageLiveSnippet(d: {
+  id: number;
+  label: string;
+  destination: string;
+  tokenSymbol: string;
+  decimals: number;
+  target: bigint | string;
+  raised: bigint | string;
+  explorer: string;
+} | null) {
+  if (!d) {
+    return `<section id="live-drive"><h2>Live drive</h2><p>No named open drive yet. Open one in Telegram, then see <a href="/live">/live</a>.</p></section>`;
+  }
+  const target = BigInt(d.target);
+  const raised = BigInt(d.raised);
+  return `<section id="live-drive">
+<h2>Live drive: ${escapeHtml(d.label)}</h2>
+<p>Drive #${d.id} on Celo. You are paying this named obligation, not a person in the middle.</p>
+<p><strong>Pays only to</strong> <a href="${d.explorer}/address/${d.destination}"><code>${d.destination}</code></a></p>
+<p>Token ${escapeHtml(d.tokenSymbol)}. Raised ${fmtToken(raised, d.decimals, d.tokenSymbol)}${target > 0n ? ` of ${fmtToken(target, d.decimals, d.tokenSymbol)}` : ""}. After you pay, tokens leave your wallet and arrive at that address in the same transaction. Full page: <a href="/live">/live</a>. Pay: <a href="/d/${d.id}">/d/${d.id}</a>.</p>
+</section>`;
+}
+
 export function noLiveDriveHtml() {
   return shell({
     title: "No named live drive — Earmark",
