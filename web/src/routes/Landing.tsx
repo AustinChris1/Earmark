@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { motion } from "framer-motion";
 import { animated } from "@react-spring/web";
-import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { ArrowRight, ArrowUpRight, ChevronDown } from "lucide-react";
 import { Shell } from "../components/Shell";
 import { FlowDiagram } from "../components/FlowDiagram";
 import { Reveal } from "../components/Reveal";
@@ -63,6 +63,41 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
     a: "Your money is not affected. Funds only ever move through the verified contract on Celo, which anyone can call directly. The bot and the pages read the chain; they do not custody anything.",
   },
 ];
+
+// One row of the FAQ. The answer's height animates through grid-template-rows, so it is interruptible
+// and needs no measuring; the chevron turns rather than a second icon appearing.
+function FaqItem({ q, a }: { q: string; a: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <div className="border-t" style={{ borderColor: "var(--line)" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls={id}
+        className="flex w-full items-center justify-between gap-6 rounded-lg py-4 text-left text-[15px] font-semibold"
+      >
+        <span>{q}</span>
+        <ChevronDown
+          className="h-4 w-4 shrink-0 transition-transform duration-200"
+          style={{ color: "var(--accent)", transform: open ? "rotate(180deg)" : "none" }}
+        />
+      </button>
+      <div
+        id={id}
+        className="grid transition-[grid-template-rows] duration-200"
+        style={{ gridTemplateRows: open ? "1fr" : "0fr", transitionTimingFunction: "var(--ease-out)" }}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <p className="pb-5 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            {a}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function short(a: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
@@ -250,16 +285,11 @@ export function Landing() {
 
         <section id="faq" className="border-t py-16" style={{ borderColor: "var(--line)" }}>
           <h2 className="font-display text-3xl tracking-tight md:text-4xl">Questions people ask before they pay.</h2>
-          <dl className="mt-10 grid gap-x-10 gap-y-8 md:grid-cols-2">
+          <div className="mt-8 max-w-3xl border-b" style={{ borderColor: "var(--line)" }}>
             {FAQ.map((item) => (
-              <div key={item.q} className="min-w-0">
-                <dt className="font-semibold">{item.q}</dt>
-                <dd className="mt-1.5 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                  {item.a}
-                </dd>
-              </div>
+              <FaqItem key={item.q} q={item.q} a={item.a} />
             ))}
-          </dl>
+          </div>
         </section>
 
         {stats && (
