@@ -163,7 +163,9 @@ app.get("/", async (req, res, next) => {
           }
         : null,
     );
-    html = html.replace("</body>", `${snippet}\n</body>`);
+    // Inside #root, so React replaces it on hydration; crawlers that never run JS still read it.
+    // Outside #root it would sit unstyled under the app for everyone.
+    html = html.replace("</main>", `${snippet}\n</main>`);
     res.type("html").send(html);
   } catch (e) {
     next(e);
