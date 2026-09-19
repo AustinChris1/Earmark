@@ -7,6 +7,7 @@ including the person who started the collection and including Earmark itself.
 - [How it works](./how-it-works.md), in plain language
 - [Using it](./usage.md), step by step for a collector and for a payer
 - [Architecture](./architecture.md), for anyone reading the code
+- [FAQ](./faq.md), every question people ask before they pay
 
 ## The problem it addresses
 

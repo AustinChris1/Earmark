@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { animated } from "@react-spring/web";
-import { ArrowRight, Loader2, Lock, Plus, RefreshCw, Wallet, X } from "lucide-react";
+import { ArrowRight, ChevronDown, Loader2, Lock, Plus, RefreshCw, Wallet, X } from "lucide-react";
 import { formatUnits, isAddress, parseAbi, parseUnits, type Address, type Hex } from "viem";
 import { toDataSuffix } from "@celo/attribution-tags";
 import { Shell } from "../components/Shell";
@@ -24,11 +24,27 @@ function pct(raised: bigint, target: bigint) {
   return Math.min(100, Number((raised * 100n) / target));
 }
 
+// A drive that hit its target is a success, and reads differently from one somebody shut early.
+function driveState(d: DriveSummary): "open" | "paid" | "closed" {
+  const raised = BigInt(d.raised);
+  const target = BigInt(d.target);
+  if (target > 0n && raised >= target) return "paid";
+  return d.closed ? "closed" : "open";
+}
+
 function DriveRow({ d, mine, onClose }: { d: DriveSummary; mine: boolean; onClose: (id: number) => void }) {
   const raised = BigInt(d.raised);
   const target = BigInt(d.target);
+  const state = driveState(d);
   const amount = (v: bigint) =>
     `${Number(formatUnits(v, d.token.decimals)).toLocaleString("en-US", { maximumFractionDigits: 2 })} ${d.token.symbol}`;
+
+  const pill =
+    state === "paid"
+      ? { label: "Paid in full", background: "var(--accent-soft)", color: "var(--accent)", border: "none" }
+      : state === "closed"
+        ? { label: "Closed", background: "transparent", color: "var(--text-muted)", border: "1px solid var(--line)" }
+        : { label: "Open", background: "transparent", color: "var(--accent)", border: "1px solid var(--accent)" };
 
   return (
     <div className="surface rounded-2xl p-5">
@@ -37,17 +53,15 @@ function DriveRow({ d, mine, onClose }: { d: DriveSummary; mine: boolean; onClos
           <p className="font-semibold leading-tight">{d.label}</p>
           <p className="mt-1 flex items-center gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
             <Lock className="h-3 w-3" /> pays {short(d.destination)}
+            <span aria-hidden="true">·</span>
+            {d.token.symbol}
           </p>
         </div>
         <span
-          className="shrink-0 rounded-full px-2.5 py-1 text-xs"
-          style={{
-            background: d.closed ? "transparent" : "var(--accent-soft)",
-            color: d.closed ? "var(--text-muted)" : "var(--accent)",
-            border: d.closed ? "1px solid var(--line)" : "none",
-          }}
+          className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium"
+          style={{ background: pill.background, color: pill.color, border: pill.border }}
         >
-          {d.closed ? "closed" : "open"}
+          {pill.label}
         </span>
       </div>
 
@@ -56,7 +70,7 @@ function DriveRow({ d, mine, onClose }: { d: DriveSummary; mine: boolean; onClos
           <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--line)" }}>
             <div
               className="h-full rounded-full"
-              style={{ width: `${pct(raised, target)}%`, background: d.closed ? "var(--pending)" : "var(--accent)" }}
+              style={{ width: `${pct(raised, target)}%`, background: state === "closed" ? "var(--pending)" : "var(--accent)" }}
             />
           </div>
           <div className="mt-2 flex justify-between text-sm tabular-nums">
@@ -100,6 +114,7 @@ export function AppPage() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [showNew, setShowNew] = useState(false);
+  const [showClosed, setShowClosed] = useState(false);
   const connectBtn = useLift(2);
 
   const load = useCallback(async () => {
@@ -120,14 +135,13 @@ export function AppPage() {
     void silentAccount().then((a) => a && setAccount(a));
   }, [load]);
 
-  const mine = useMemo(
-    () => (account ? drives.filter((d) => d.collector.toLowerCase() === account.toLowerCase()) : []),
-    [drives, account],
-  );
-  const others = useMemo(
-    () => (account ? drives.filter((d) => d.collector.toLowerCase() !== account.toLowerCase()) : drives),
-    [drives, account],
-  );
+  // Wiring tests never show; the rest split into yours, still open, and finished.
+  const visible = useMemo(() => drives.filter((d) => !d.test), [drives]);
+  const hiddenTests = drives.length - visible.length;
+  const isMine = (d: DriveSummary) => !!account && d.collector.toLowerCase() === account.toLowerCase();
+  const mine = useMemo(() => visible.filter(isMine), [visible, account]);
+  const open = useMemo(() => visible.filter((d) => !isMine(d) && driveState(d) === "open"), [visible, account]);
+  const finished = useMemo(() => visible.filter((d) => !isMine(d) && driveState(d) !== "open"), [visible, account]);
 
   async function onConnect() {
     if (!cfg) return;
@@ -217,7 +231,8 @@ export function AppPage() {
           <div>
             <h1 className="font-display text-4xl tracking-tight">Drives</h1>
             <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-              Everything the bot can do, from a browser.
+              Everything the bot can do, from a browser. Drives live on Celo, so this list is public and read from
+              the chain.
             </p>
           </div>
           {account ? (
@@ -293,9 +308,9 @@ export function AppPage() {
             <section className="mt-10">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold">
-                  {account && mine.length > 0 ? "Everything else" : "All drives"}{" "}
+                  Open drives{" "}
                   <span className="font-normal tabular-nums" style={{ color: "var(--text-muted)" }}>
-                    {others.length}
+                    {open.length}
                   </span>
                 </h2>
                 <button
@@ -307,18 +322,52 @@ export function AppPage() {
                   <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} /> Refresh
                 </button>
               </div>
-              {others.length === 0 ? (
+              {open.length === 0 ? (
                 <p className="surface mt-3 rounded-2xl p-6 text-sm" style={{ color: "var(--text-muted)" }}>
-                  No drives yet. Open one here, or add Earmark to a group chat and use /new.
+                  {account
+                    ? "Nothing open right now. Open one here, or add Earmark to a group chat and use /new."
+                    : "Nothing open right now. Connect a wallet to open one, or add Earmark to a group chat and use /new."}
                 </p>
               ) : (
                 <div className="mt-3 grid gap-3">
-                  {others.map((d) => (
+                  {open.map((d) => (
                     <DriveRow key={d.id} d={d} mine={false} onClose={closeDrive} />
                   ))}
                 </div>
               )}
             </section>
+
+            {finished.length > 0 && (
+              <section className="mt-10">
+                <button
+                  onClick={() => setShowClosed((v) => !v)}
+                  aria-expanded={showClosed}
+                  className="pressable inline-flex items-center gap-1.5 rounded-lg text-sm font-semibold"
+                >
+                  Finished{" "}
+                  <span className="font-normal tabular-nums" style={{ color: "var(--text-muted)" }}>
+                    {finished.length}
+                  </span>
+                  <ChevronDown
+                    className="h-4 w-4 transition-transform duration-200"
+                    style={{ color: "var(--text-muted)", transform: showClosed ? "rotate(180deg)" : "none" }}
+                  />
+                </button>
+                {showClosed && (
+                  <div className="mt-3 grid gap-3">
+                    {finished.map((d) => (
+                      <DriveRow key={d.id} d={d} mine={false} onClose={closeDrive} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {hiddenTests > 0 && (
+              <p className="mt-6 text-xs" style={{ color: "var(--text-muted)" }}>
+                {hiddenTests === 1 ? "One wiring test is hidden." : `${hiddenTests} wiring tests are hidden.`}
+              </p>
+            )}
           </>
         )}
       </main>

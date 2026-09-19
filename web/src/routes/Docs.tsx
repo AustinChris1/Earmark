@@ -9,12 +9,14 @@ import overview from "../../../docs/README.md?raw";
 import howItWorks from "../../../docs/how-it-works.md?raw";
 import usage from "../../../docs/usage.md?raw";
 import architecture from "../../../docs/architecture.md?raw";
+import faq from "../../../docs/faq.md?raw";
 
 const PAGES = [
   { slug: "", title: "Overview", blurb: "What it is, and what it can actually pay", body: overview },
   { slug: "how-it-works", title: "How it works", blurb: "The mechanism, in plain language", body: howItWorks },
   { slug: "usage", title: "Using it", blurb: "For collectors and payers, plus testing", body: usage },
   { slug: "architecture", title: "Architecture", blurb: "For anyone reading the code", body: architecture },
+  { slug: "faq", title: "FAQ", blurb: "Every question, with the honest answer", body: faq },
 ] as const;
 
 // Links between the markdown files must become routes, and the repo's own headings become anchors.

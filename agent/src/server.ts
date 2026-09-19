@@ -9,7 +9,7 @@ import { counts, getDrive, hasPlan, nextInstalment, paymentsFor, planCountFor, r
 import { memoName } from "./format.js";
 import { x402Guard, x402Handler, x402Middleware } from "./x402.js";
 import { linkHandler, nonceHandler, sessionHandler, statusHandler } from "./verify.js";
-import { pickFeatured } from "./featured.js";
+import { isTestDrive, pickFeatured } from "./featured.js";
 import { drivePageHtml, homepageLiveSnippet, noLiveDriveHtml } from "./publicHtml.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -91,6 +91,7 @@ app.get("/api/drives", async (_req, res) => {
         target: d.target.toString(),
         raised: d.raised.toString(),
         closed: d.closed,
+        test: isTestDrive(d),
       })),
     );
   } catch (e) {

@@ -55,6 +55,7 @@ export type DriveSummary = {
   target: string;
   raised: string;
   closed: boolean;
+  test?: boolean;
 };
 
 export const getDrives = () => get<DriveSummary[]>(`/api/drives`);
