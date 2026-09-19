@@ -8,12 +8,13 @@ services:
     plan: free
     region: frankfurt
     branch: main
-    # pnpm is installed explicitly: Render's Node runtime does not document pnpm detection,
-    # so relying on corepack or a lockfile sniff would be a build that works by luck.
-    # Only the agent and web workspaces are installed. Hardhat never runs here, and skipping it
-    # avoids compiling keccak and secp256k1 on the build host for no reason.
-    buildCommand: npm i -g pnpm@11.25.0 && pnpm install --frozen-lockfile --filter @earmark/agent --filter @earmark/web && pnpm --filter @earmark/web build
-    startCommand: pnpm --filter @earmark/agent start
+    # pnpm is pinned through npx rather than installed globally: Render's Node 24 image ships a
+    # pnpm under /usr/lib/node_modules on a read-only filesystem, so `npm i -g pnpm` fails with
+    # EROFS, and relying on whichever version the image carries would make allowBuilds semantics
+    # a matter of luck. Only the agent and web workspaces are installed. Hardhat never runs here,
+    # and skipping it avoids compiling keccak and secp256k1 on the build host for no reason.
+    buildCommand: npx --yes pnpm@11.25.0 install --frozen-lockfile --filter @earmark/agent --filter @earmark/web && npx --yes pnpm@11.25.0 --filter @earmark/web build
+    startCommand: npx --yes pnpm@11.25.0 --filter @earmark/agent start
     healthCheckPath: /api/health
     envVars:
       # node:sqlite is not used any more, but Node 24 is what the code is tested against.
