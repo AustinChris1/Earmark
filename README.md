@@ -2,20 +2,33 @@
 
 **A group chat pools money for one named obligation, and the agent can only pay the destination it was locked to.**
 
-Built for the [Celo Agents at Work Hackathon](https://celoplatform.notion.site/Agents-at-Work-Hackathon-3c1d5cb803de81139de7f4f3d09e55dc) (28 Aug - 14 Sep 2026).
+Built for the [Celo Agents at Work Hackathon](https://celoplatform.notion.site/Agents-at-Work-Hackathon-3c1d5cb803de81139de7f4f3d09e55dc) (28 Aug - 21 Sep 2026).
 
 Remittance and group collections break at arrival, not at FX. Money is sent to a person, and the person is where the intent dies: the school is not paid, the light is not bought, the treasurer disappears. PayAngel built a $450M business on exactly this observation, one sender at a time, off-chain. Earmark is that idea for the chat the group already uses, with many payers and an agent that has no discretion.
 
 The logo is the literal earmark: a notch cut into an ear, the oldest way of saying this one is already spoken for and cannot be reassigned.
 
+## What is live
+
+| Piece | Where |
+|---|---|
+| Contract | [`0x93316de31b4f891c56cf3b65a3f96aa6b04192ae`](https://celoscan.io/address/0x93316de31b4f891c56cf3b65a3f96aa6b04192ae) on Celo mainnet |
+| Source | [Verified on Sourcify](https://repo.sourcify.dev/42220/0x93316DE31b4f891C56cf3b65A3f96AA6b04192Ae), exact match of the deployed bytecode |
+| Agent identity | [ERC-8004 agent 9806](https://8004scan.io/agents/celo/9806) |
+| Bot | [@Earmarked_bot](https://t.me/Earmarked_bot) |
+| Site | <https://earmark-agent.onrender.com>, docs at [/docs](https://earmark-agent.onrender.com/docs), live drive at [/live](https://earmark-agent.onrender.com/live) |
+| Tokens | 25 Celo stablecoins, every address checked on chain before listing; see [usage](docs/usage.md) |
+
 ## How it works
 
-1. Someone in the family or house group runs `/new 100 USDT 0xSchoolWallet Term 1 fees for Chioma`. The agent creates a drive on Celo with the destination **locked at creation**.
-2. `/split @ada 40 @emeka 30 @chidi 30` sets each person's share.
-3. Each person runs `/pay` and gets a personal link. Opened inside MiniPay, one tap pays their share. Gas is paid in the stablecoin itself, so nobody needs CELO.
-4. A relative abroad pays their share over x402 in USAT, with no local bank account.
-5. The agent watches the chain and reads the tally back into the chat: who paid, who is outstanding, how much is left.
+1. Someone in the family or house group runs `/new 100 USDT 0xSchoolWallet Term 1 fees for Chioma`, or just describes it in a sentence. The agent creates a drive on Celo with the destination **locked at creation**.
+2. `/split @ada 40 @emeka 30 @chidi 30` sets each person's share, or `/split all` divides it evenly between everyone the bot has heard from in the group.
+3. Each person runs `/pay` and gets a personal link that works in any Celo wallet with a browser (MetaMask, Rabby, Valora, MiniPay's injected wallet). In a wallet with fee abstraction the gas comes out of the stablecoin; elsewhere it is a fraction of a cent in CELO.
+4. A relative abroad, or another agent, pays a share over x402 in USAT, with no local bank account.
+5. The agent watches the chain and reads the tally back into the chat: who paid, who is outstanding, how much is left. `/remind` pings whoever still owes.
 6. Every contribution lands at the locked destination **in the same transaction**. The contract never holds a balance.
+
+Earmark pays a wallet address, not a bank account. It guarantees the money reaches the account the group named; it does not guarantee that account belongs to an institution. It is not yet listed in MiniPay Discover, so MiniPay users open the pay page in another Celo wallet for now.
 
 ## The mechanism
 
@@ -36,23 +49,28 @@ That is the whole trust story: the destination is fixed before the first naira a
 |---|---|
 | `contracts/` | `Earmark.sol`, tests, deploy script (Hardhat + viem) |
 | `agent/` | Telegram bot, chain watcher, HTTP + x402 server |
-| `web/` | Landing page and MiniPay pay page (React, Tailwind, Framer Motion, GSAP) |
+| `web/` | Landing page, pay page, dashboard and docs (React, Tailwind, Framer Motion, GSAP) |
 | `scripts/` | Playwright screenshot check, both themes |
 | `askbots/` | Pinned AskBots 0.2.0 wrapper and the round-one submission. `pnpm askbots` |
 
 ## Celo primitives used
 
 - **Attribution tags (ERC-8021)** on every transaction, via `@celo/attribution-tags`.
-- **Fee abstraction**: gas paid in USDT/USDC/USAT through the fee adapters, so contributors never hold CELO.
-- **x402** for the diaspora leg, settled through `https://api.x402.celo.org`.
+- **Fee abstraction**: the agent's own transactions pay gas in the stablecoin through the fee adapters, and Mento tokens are their own fee currency.
+- **x402**: every open drive is a 402 endpoint at `/x402/drive/:id`, settled through `https://api.x402.celo.org` (USDT, USDC, USAT).
 - **ERC-8004** identity for the agent, registered in the Celo Identity Registry.
 - **Self**: proof of personhood on whoever opens a drive. Self Enterprise deploys a soulbound token
   contract per flow on Celo and pays the mint gas, so the gate is a single `balanceOf(wallet) >= 1`
   read. A Telegram account is bound to a wallet by a signed message before that read counts, so a
-  verified address cannot simply be claimed by someone else. With `SELF_SBT_ADDRESS` unset the gate
-  is not enforced rather than locking everyone out.
+  verified address cannot simply be claimed by someone else. Enforcement is opt-in (`SELF_ENFORCE=1`)
+  because Self does not yet accept every document; Nigerian passports show Coming Soon in the Self app.
+- **Cencori** reads a free-text `/new`. The model may only locate values that appear in the message,
+  never supply them: the address, the digits and the ticker are all checked back against what was typed.
+- **Chainstack** RPC as the primary endpoint with Forno as fallback; browsers are only ever given the public one.
 
 ## Token addresses (Celo mainnet, verified on chain)
+
+The four most used; the full list of 25, with decimals and fee currencies, is in [`agent/src/config.ts`](agent/src/config.ts).
 
 | Token | Address | Decimals | Gas adapter |
 |---|---|---|---|
@@ -84,8 +102,9 @@ Open <http://localhost:3010>. The landing page is at `/`, a funded drive is at `
 local chain rather than from fixtures.
 
 For front end work with hot reload, run `pnpm dev:web` (port 5173) alongside the agent; Vite proxies `/api`
-to 3010. Paying from the browser needs an injected wallet, so the pay button is the one part that wants
-MiniPay or a Celo wallet.
+to 3010, or set `EARMARK_API=https://earmark-agent.onrender.com` to work on the UI against the live API.
+Paying from the browser needs an injected wallet, so the pay button is the one part that wants MetaMask
+or another Celo wallet.
 
 ```bash
 pnpm test                   # contract, agent, and AskBots wrapper tests
