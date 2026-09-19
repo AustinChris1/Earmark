@@ -46,7 +46,13 @@ export function driveCard(d: DriveRow, payments: PaymentRow[], _publicUrl: strin
   } else {
     lines.push(`Raised so far: <b>${fmt(raised, token)}</b>`);
   }
-  lines.push("", `🔒 Pays only to <code>${shortAddr(d.destination)}</code>, locked when the drive opened.`);
+  // The full address, in <code> so Telegram copies it on tap, plus the explorer so it can be checked.
+  lines.push(
+    "",
+    `🔒 Pays only to this address, locked when the drive opened:`,
+    `<code>${d.destination}</code>`,
+    `<a href="https://celoscan.io/address/${d.destination}">Check it on Celoscan</a>`,
+  );
   if (d.deadline) lines.push(`Closes ${new Date(d.deadline * 1000).toUTCString()}`);
   if (d.closed) lines.push("Status: closed");
   return lines.join("\n");

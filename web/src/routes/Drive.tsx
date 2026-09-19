@@ -18,6 +18,7 @@ import {
 } from "viem";
 import { toDataSuffix } from "@celo/attribution-tags";
 import { Shell } from "../components/Shell";
+import { PayQr } from "../components/PayQr";
 import { ensureChain } from "../lib/wallet";
 import { getDrive, type Drive } from "../lib/api";
 import { useLift } from "../lib/springs";
@@ -296,6 +297,8 @@ export function DrivePage() {
                     {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
                     {busy ? "Confirm in your wallet" : "Pay now"}
                   </animated.button>
+
+                  {!window.ethereum && <PayQr />}
 
                   <AnimatePresence>
                     {message && (

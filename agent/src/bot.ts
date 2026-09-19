@@ -1,4 +1,5 @@
-import { Bot, InlineKeyboard, type Context } from "grammy";
+import { Bot, InlineKeyboard, InputFile, type Context } from "grammy";
+import QRCode from "qrcode";
 import { isAddress, parseUnits, formatUnits, getAddress, type Address } from "viem";
 import { env, TOKENS, tokenByAddress, tokenBySymbol, type TokenInfo } from "./config.js";
 import { createDriveOnchain, closeDriveOnchain } from "./chain.js";
@@ -147,6 +148,18 @@ async function requireHuman(ctx: Context): Promise<boolean> {
   return false;
 }
 
+// The link as a QR so a phone can scan it off a laptop screen; the tappable button stays underneath.
+async function replyWithPayLink(ctx: Context, text: string, url: string) {
+  const png = await QRCode.toBuffer(url, { type: "png", width: 512, margin: 2, errorCorrectionLevel: "M" }).catch(() => null);
+  const opts = { ...HTML, reply_markup: payKeyboard(url) };
+  if (!png) return ctx.reply(text, opts);
+  return ctx.replyWithPhoto(new InputFile(png, "earmark-pay.png"), {
+    caption: `${text}\nScan with your phone's wallet browser, or tap the button.`,
+    parse_mode: "HTML",
+    reply_markup: opts.reply_markup,
+  });
+}
+
 async function sendPersonalLink(ctx: Context, d: DriveRow) {
   if (!ctx.from) return;
   const name = displayName(ctx);
@@ -163,9 +176,10 @@ async function sendPersonalLink(ctx: Context, d: DriveRow) {
     }
     if (next) {
       const human = formatUnits(BigInt(next.amount), token.decimals);
-      return ctx.reply(
+      return replyWithPayLink(
+        ctx,
         `${name} — instalment <b>${next.seq} of ${total}</b>, ${fmt(next.amount, token)} (${dueLabel(next.due_at)}). ${paid} paid so far.`,
-        { ...HTML, reply_markup: payKeyboard(payLink(d.id, me, name, human)) },
+        payLink(d.id, me, name, human),
       );
     }
   }
@@ -173,10 +187,7 @@ async function sendPersonalLink(ctx: Context, d: DriveRow) {
   const share = (await sharesFor(d.id)).find((s) => s.tg_id === me || s.tg_id === name);
   const human = share ? formatUnits(BigInt(share.amount), token.decimals) : undefined;
   const hint = share ? `Your share is ${fmt(share.amount, token)}.` : "Pay any amount toward this drive.";
-  return ctx.reply(`${name} — ${hint}`, {
-    ...HTML,
-    reply_markup: payKeyboard(payLink(d.id, me, name, human)),
-  });
+  return replyWithPayLink(ctx, `${name} — ${hint}`, payLink(d.id, me, name, human));
 }
 
 async function showVerify(ctx: Context) {
