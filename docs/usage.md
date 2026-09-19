@@ -38,7 +38,7 @@ to hold CELO.
    address, and what the money is for. Answer each by replying to its message.
 3. Confirm on the summary card. The drive is opened onchain and the card is posted with
    buttons.
-4. Set shares: `/split @ada 40 @emeka 30`.
+4. Set shares: `/split @ada 40 @emeka 30`, or `/split all` to divide the target evenly between everyone the bot has heard from in the group. Anyone it missed taps **Count me in** and it splits again.
 5. Optional, spread it over time: `/plan weekly 4`, or tap **Instalments** and pick a
    preset.
 6. Watch it with `/tally`, chase with `/remind`, stop it with `/close`.
@@ -87,6 +87,7 @@ To exercise the whole product rather than a single payment, add a second person,
 |---|---|
 | `/new` | Opens a drive, guided |
 | `/split @name amount …` | Sets each person's share |
+| `/split all` | Divides the target evenly between the members the bot knows |
 | `/plan daily\|weekly\|biweekly\|monthly N` | Spreads shares over instalments |
 | `/pay` | Your personal pay link |
 | `/tally` | Who has paid and who has not |

@@ -78,6 +78,11 @@ export function escape(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// A numeric id becomes a real mention (Telegram notifies them); an @username already links on its own.
+export function mention(tgId: string, name: string): string {
+  return /^\d+$/.test(tgId) ? `<a href="tg://user?id=${tgId}">${escape(name)}</a>` : escape(name);
+}
+
 export function dueLabel(ts: number): string {
   const startOfToday = new Date().setHours(0, 0, 0, 0);
   const days = Math.round((ts * 1000 - startOfToday) / 86_400_000);

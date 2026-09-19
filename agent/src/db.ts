@@ -67,6 +67,15 @@ const SCHEMA = [
      linked_at INTEGER NOT NULL
    )`,
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)`,
+  // Telegram never lists a group's members to a bot, so this is everyone the bot has actually seen:
+  // anyone who sent it a command, tapped a button, or was announced joining.
+  `CREATE TABLE IF NOT EXISTS members (
+     chat_id TEXT NOT NULL,
+     tg_id TEXT NOT NULL,
+     name TEXT NOT NULL,
+     seen_at INTEGER NOT NULL,
+     PRIMARY KEY (chat_id, tg_id)
+   )`,
 ];
 
 export async function migrate() {
@@ -101,6 +110,8 @@ export type PaymentRow = {
 };
 
 export type ShareRow = { drive_id: number; tg_id: string; name: string; amount: string };
+
+export type MemberRow = { chat_id: string; tg_id: string; name: string; seen_at: number };
 
 export type InstalmentRow = {
   drive_id: number;
@@ -196,6 +207,22 @@ export async function setShare(s: ShareRow) {
      ON CONFLICT(drive_id, tg_id) DO UPDATE SET name = excluded.name, amount = excluded.amount`,
     [s.drive_id, s.tg_id, s.name, s.amount],
   );
+}
+
+export async function seenMember(chatId: string, tgId: string, name: string) {
+  await run(
+    `INSERT INTO members (chat_id, tg_id, name, seen_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT(chat_id, tg_id) DO UPDATE SET name = excluded.name, seen_at = excluded.seen_at`,
+    [chatId, tgId, name, Math.floor(Date.now() / 1000)],
+  );
+}
+
+export async function forgetMember(chatId: string, tgId: string) {
+  await run(`DELETE FROM members WHERE chat_id = ? AND tg_id = ?`, [chatId, tgId]);
+}
+
+export function membersFor(chatId: string) {
+  return all<MemberRow>(`SELECT * FROM members WHERE chat_id = ? ORDER BY seen_at ASC`, [chatId]);
 }
 
 export function sharesFor(driveId: number) {

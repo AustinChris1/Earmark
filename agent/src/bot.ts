@@ -3,8 +3,11 @@ import { isAddress, parseUnits, formatUnits, getAddress, type Address } from "vi
 import { env, TOKENS, tokenByAddress, tokenBySymbol, type TokenInfo } from "./config.js";
 import { createDriveOnchain, closeDriveOnchain } from "./chain.js";
 import {
+  forgetMember,
   getDrive,
   hasPlan,
+  membersFor,
+  seenMember,
   insertDrive,
   instalmentsFor,
   latestDriveForChat,
@@ -21,7 +24,8 @@ import {
   type DriveRow,
   type DueInstalment,
 } from "./db.js";
-import { driveCard, dueLabel, escape, fmt, memoTgId, planText, tallyText } from "./format.js";
+import { driveCard, dueLabel, escape, fmt, memoTgId, mention, planText, tallyText } from "./format.js";
+import { evenSplit } from "./split.js";
 import {
   CB,
   MENU,
@@ -114,7 +118,7 @@ async function openDrive(
     const d = (await getDrive(Number(id)))!;
     await ctx.api.deleteMessage(working.chat.id, working.message_id).catch(() => {});
     await ctx.reply(
-      `${driveCard(d, [], env.PUBLIC_URL)}\n\n<a href="https://celoscan.io/tx/${hash}">Onchain receipt</a>\nNext: set shares with <code>/split @ada 40 @emeka 30</code>`,
+      `${driveCard(d, [], env.PUBLIC_URL)}\n\n<a href="https://celoscan.io/tx/${hash}">Onchain receipt</a>\nNext: set shares with <code>/split @ada 40 @emeka 30</code>, or <code>/split all</code> to divide it evenly`,
       { ...HTML, reply_markup: driveKeyboard(d.id) },
     );
   } catch (e) {
@@ -218,7 +222,54 @@ async function currentDrive(ctx: Context) {
   return (await openDrivesForChat(chatId(ctx)))[0] ?? (await latestDriveForChat(chatId(ctx)));
 }
 
+// Everyone the bot hears from in a group is remembered, so /split all has a roster to divide between.
+async function noteMember(ctx: Context) {
+  if (!ctx.from || ctx.from.is_bot || !ctx.chat || ctx.chat.type === "private") return;
+  await seenMember(chatId(ctx), String(ctx.from.id), displayName(ctx)).catch(() => {});
+}
+
+async function splitEvenly(ctx: Context, d: DriveRow) {
+  const token = tokenByAddress(d.token)!;
+  const target = BigInt(d.target);
+  if (target === 0n) {
+    return ctx.reply("This drive has no target to divide. Set shares by hand: /split @ada 40 @emeka 30");
+  }
+  const members = await membersFor(chatId(ctx));
+  const shares = evenSplit(target, members.length);
+  const lines: string[] = [];
+  for (const [i, m] of members.entries()) {
+    await setShare({ drive_id: d.id, tg_id: m.tg_id, name: m.name, amount: shares[i].toString() });
+    lines.push(`• ${mention(m.tg_id, m.name)} — ${fmt(shares[i], token)}`);
+  }
+  const total = await ctx.api.getChatMemberCount(ctx.chat!.id).then((n) => n - 1).catch(() => null);
+  const missing = total !== null && total > members.length ? total - members.length : 0;
+  const note = missing
+    ? `\n\nThat is the ${members.length} of ${total} people I have heard from. The other ${missing} can tap below to be counted and I will split again.`
+    : "";
+  return ctx.reply(`<b>${escape(d.label)}</b>, split evenly:\n${lines.join("\n")}${note}`, {
+    ...HTML,
+    reply_markup: driveKeyboard(d.id).row().text("Count me in", CB.join),
+  });
+}
+
 function registerHandlers(b: Bot) {
+  b.use(async (ctx, next) => {
+    await noteMember(ctx);
+    return next();
+  });
+
+  b.on("message:new_chat_members", async (ctx) => {
+    for (const u of ctx.message.new_chat_members) {
+      if (u.is_bot) continue;
+      const name = u.username ? `@${u.username}` : [u.first_name, u.last_name].filter(Boolean).join(" ");
+      await seenMember(chatId(ctx), String(u.id), name).catch(() => {});
+    }
+  });
+
+  b.on("message:left_chat_member", async (ctx) => {
+    await forgetMember(chatId(ctx), String(ctx.message.left_chat_member.id)).catch(() => {});
+  });
+
   b.command(["start", "help"], async (ctx) => {
     const inGroup = ctx.chat?.type === "group" || ctx.chat?.type === "supergroup";
     const body = [
@@ -226,7 +277,7 @@ function registerHandlers(b: Bot) {
       `The destination is locked when the drive opens, so nobody in the middle can redirect it.`,
       ``,
       `<b>Open a drive</b>  /new`,
-      `<b>Set each share</b>  /split @ada 40 @emeka 30`,
+      `<b>Set each share</b>  /split @ada 40 @emeka 30, or /split all`,
       `<b>Spread it over time</b>  /plan weekly 4`,
       `<b>Get your pay link</b>  /pay`,
       `<b>See who has paid</b>  /tally`,
@@ -363,10 +414,11 @@ function registerHandlers(b: Bot) {
     const d = await latestDriveForChat(chatId(ctx));
     if (!d || d.closed) return ctx.reply("No open drive here. Start one with /new.");
     const token = tokenByAddress(d.token)!;
+    if (/^@?(all|everyone|evenly)$/i.test((ctx.match ?? "").trim())) return splitEvenly(ctx, d);
     const pairs = [...(ctx.match ?? "").matchAll(/@(\w+)\s+([\d.]+)/g)];
     if (!pairs.length) {
       return ctx.reply(
-        `Tell me who owes what, like this:\n<code>/split @ada 40 @emeka 30</code>\n\nAmounts are in ${token.symbol}.`,
+        `Tell me who owes what, like this:\n<code>/split @ada 40 @emeka 30</code>\nor <code>/split all</code> to divide it evenly between everyone here.\n\nAmounts are in ${token.symbol}.`,
         HTML,
       );
     }
@@ -441,6 +493,14 @@ function registerHandlers(b: Bot) {
     if (action === "tally") return ctx.reply(await tallyBody(d), { ...HTML, reply_markup: refreshKeyboard(d.id) });
     if (action === "remind") return ctx.reply(await remindBody(d), { ...HTML, reply_markup: driveKeyboard(d.id) });
     if (action === "plan") return ctx.reply("How should the shares be spread?", { reply_markup: planMenuKeyboard(d.id) });
+    if (action === "join") {
+      // noteMember already recorded whoever tapped. Re-split only while nobody has paid, or paid shares would shift.
+      if (d.closed) return ctx.reply("That drive is closed.");
+      if ((await paymentsFor(d.id)).length > 0) {
+        return ctx.reply(`Counted. Someone has already paid, so ask whoever opened the drive to run /split all again.`);
+      }
+      return splitEvenly(ctx, d);
+    }
   }
 
   // Private chats get a persistent keyboard, which sends plain text; groups use the inline menu.
@@ -566,7 +626,7 @@ async function remindBody(d: DriveRow): Promise<string> {
     const firstPerMember = new Map<string, (typeof outstanding)[number]>();
     for (const r of outstanding) if (!firstPerMember.has(r.tg_id)) firstPerMember.set(r.tg_id, r);
     const lines = [...firstPerMember.values()].map(
-      (r) => `• ${escape(r.name)} — ${fmt(r.amount, token)}, instalment ${r.seq} (${dueLabel(r.due_at)})`,
+      (r) => `• ${mention(r.tg_id, r.name)} — ${fmt(r.amount, token)}, instalment ${r.seq} (${dueLabel(r.due_at)})`,
     );
     return `Still outstanding on <b>${escape(d.label)}</b>:\n${lines.join("\n")}\n\nTap “Pay my share” for your link.`;
   }
@@ -576,8 +636,8 @@ async function remindBody(d: DriveRow): Promise<string> {
   );
   const outstanding = (await sharesFor(d.id)).filter((s) => !paid.has(s.tg_id));
   if (!outstanding.length) return `Everyone with a share has paid toward <b>${escape(d.label)}</b>.`;
-  const names = outstanding.map((s) => `• ${escape(s.name)} — ${fmt(s.amount, token)}`).join("\n");
-  return `Still outstanding on <b>${escape(d.label)}</b>:\n${names}`;
+  const names = outstanding.map((s) => `• ${mention(s.tg_id, s.name)} — ${fmt(s.amount, token)}`).join("\n");
+  return `Still outstanding on <b>${escape(d.label)}</b>:\n${names}\n\nTap “Pay my share” for your link.`;
 }
 
 export function startBot(): Bot | null {
@@ -591,7 +651,7 @@ export function startBot(): Bot | null {
       const commands = [
         { command: "menu", description: "Show the button menu" },
         { command: "new", description: "Open a drive for a shared bill" },
-        { command: "split", description: "Set who owes what" },
+        { command: "split", description: "Set who owes what, or /split all" },
         { command: "plan", description: "Spread shares over instalments" },
         { command: "pay", description: "Get your personal pay link" },
         { command: "tally", description: "Who has paid, who has not" },

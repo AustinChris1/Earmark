@@ -11,6 +11,7 @@ export const CB = {
   confirmNew: "nw:go",
   cancelNew: "nw:no",
   dismiss: "x",
+  join: "m:join",
 };
 
 export function driveKeyboard(id: number, opts: { closed?: boolean } = {}) {
