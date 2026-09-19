@@ -43,7 +43,7 @@ ${opts.body}
 
 export function productHomeHtml() {
   return shell({
-    title: "Earmark — group bills that can only pay the locked destination",
+    title: "Earmark: group bills that can only pay the locked destination",
     canonical: `${ORIGIN}/`,
     body: `
 <h1>Earmark: money that carries its destination</h1>
@@ -76,7 +76,7 @@ export function drivePageHtml(d: {
     d.deadline > 0
       ? `Closes ${new Date(d.deadline * 1000).toISOString().slice(0, 16)} UTC`
       : "Open until the collector closes it";
-  const title = `${d.label} — Earmark drive #${d.id}`;
+  const title = `${d.label} - Earmark drive #${d.id}`;
   return shell({
     title,
     canonical: `${ORIGIN}/live`,
@@ -127,7 +127,7 @@ export function homepageLiveSnippet(d: {
 
 export function noLiveDriveHtml() {
   return shell({
-    title: "No named live drive — Earmark",
+    title: "No named live drive - Earmark",
     canonical: `${ORIGIN}/live`,
     body: `
 <h1>No named live drive yet</h1>
