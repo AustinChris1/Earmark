@@ -470,8 +470,11 @@ function registerHandlers(b: Bot) {
   b.command("verify", (ctx) => showVerify(ctx));
 
   b.command("close", async (ctx) => {
-    const d = await latestDriveForChat(chatId(ctx));
-    if (!d || d.closed) return ctx.reply("No open drive here.");
+    // "/close" closes this chat's latest drive; "/close 2" closes drive 2, from wherever it was opened.
+    const wanted = Number((ctx.match ?? "").trim());
+    const d = Number.isInteger(wanted) && wanted > 0 ? await getDrive(wanted) : await latestDriveForChat(chatId(ctx));
+    if (!d) return ctx.reply(wanted ? `There is no drive #${wanted}.` : "No open drive here.");
+    if (d.closed) return ctx.reply(`<b>${escape(d.label)}</b> is already closed.`, HTML);
     if (ctx.from && d.collector_tg && String(ctx.from.id) !== d.collector_tg) {
       return ctx.reply(`Only ${d.collector_name ?? "the collector"} can close this drive.`);
     }
@@ -658,7 +661,7 @@ export function startBot(): Bot | null {
         { command: "remind", description: "Nudge whoever is outstanding" },
         { command: "menu", description: "Show the button menu" },
         { command: "verify", description: "Prove you are a real person, once" },
-        { command: "close", description: "Stop the drive" },
+        { command: "close", description: "Close the drive, or /close <id>" },
         { command: "help", description: "What Earmark does" },
       ];
       await bot!.api.setMyCommands(commands).catch(() => {});

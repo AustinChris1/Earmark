@@ -1,12 +1,32 @@
 # Earmark
 
-**A group chat pools money for one named obligation, and the agent can only pay the destination it was locked to.**
+**A group chat collects money for one bill, and the money can only go to the wallet the group locked in.**
 
-Built for the [Celo Agents at Work Hackathon](https://celoplatform.notion.site/Agents-at-Work-Hackathon-3c1d5cb803de81139de7f4f3d09e55dc) (28 Aug - 21 Sep 2026).
+Built for the [Celo Agents at Work Hackathon](https://celoplatform.notion.site/Agents-at-Work-Hackathon-3c1d5cb803de81139de7f4f3d09e55dc) (28 Aug - 21 Sep 2026). Live on Celo mainnet.
 
-Remittance and group collections break at arrival, not at FX. Money is sent to a person, and the person is where the intent dies: the school is not paid, the light is not bought, the treasurer disappears. PayAngel built a $450M business on exactly this observation, one sender at a time, off-chain. Earmark is that idea for the chat the group already uses, with many payers and an agent that has no discretion.
+## In one minute
 
-The logo is the literal earmark: a notch cut into an ear, the oldest way of saying this one is already spoken for and cannot be reassigned.
+A family is paying a child's school fees. Today someone collects everyone's share into their own account and promises to pay the school. Sometimes they do. Sometimes the money is needed for something urgent first, or the person stops answering. The transfer worked; the bill is still unpaid.
+
+Earmark is a Telegram bot you add to that family group.
+
+1. One person types what the bill is, how much, and the school's wallet address. The address is locked. It cannot be changed afterwards, not by them, not by us.
+2. Everyone gets a link and pays their share from their own wallet.
+3. Each payment goes **straight from the payer to the school** in a single transaction. Earmark never holds it.
+4. The bot keeps score in the chat: who has paid, who has not, and it nudges the ones who have not.
+
+If the school does not have a wallet, Earmark cannot pay it. It pays wallet addresses only, and it says so.
+
+The name: to earmark money is to set it aside for one purpose. The word comes from a notch cut into an animal's ear, which cannot be undone. The logo is that notch.
+
+## Try it in two minutes
+
+1. Open [@Earmarked_bot](https://t.me/Earmarked_bot) in Telegram, or add it to a group.
+2. Send `/new` and answer three questions (amount, token, the wallet it pays), or type it in one line: `/new 2 USDT 0xYourWallet September rent`.
+3. Send `/split all`, then tap **Pay my share**. The pay page works in MetaMask, Rabby, Valora or MiniPay's built-in wallet.
+4. Send `/tally` to see who has paid. Open the Celoscan link on any payment: **To** is the locked wallet, never the Earmark contract.
+
+No Telegram? The same things work from the browser at <https://earmark-agent.onrender.com/app> with your own wallet.
 
 ## What is live
 
@@ -30,12 +50,6 @@ The logo is the literal earmark: a notch cut into an ear, the oldest way of sayi
 
 Earmark pays a wallet address, not a bank account. It guarantees the money reaches the account the group named; it does not guarantee that account belongs to an institution. It is not yet listed in MiniPay Discover, so MiniPay users open the pay page in another Celo wallet for now.
 
-## The mechanism
-
-`Earmark.sol` is deliberately small. `createDrive` records `(token, destination, collector, target, deadline, label)`. `contribute` pulls from the payer and calls `safeTransferFrom(payer -> destination)` in one call, so there is no custody, no withdrawal function, and no admin key that can redirect funds. The only privileged action is `close`, which stops further contributions and cannot move money.
-
-That is the whole trust story: the destination is fixed before the first naira arrives, and it is visible on chain to everyone in the group.
-
 ## Docs
 
 - [What Earmark is, and what it can actually pay](docs/README.md)
@@ -43,7 +57,17 @@ That is the whole trust story: the destination is fixed before the first naira a
 - [Using it, and testing it end to end](docs/usage.md)
 - [Architecture](docs/architecture.md)
 
-## Repo layout
+## For builders
+
+Everything below is for people reading the code.
+
+### The mechanism
+
+`Earmark.sol` is deliberately small. `createDrive` records `(token, destination, collector, target, deadline, label)`. `contribute` pulls from the payer and calls `safeTransferFrom(payer -> destination)` in one call, so there is no custody, no withdrawal function, and no admin key that can redirect funds. The only privileged action is `close`, which stops further contributions and cannot move money.
+
+That is the whole trust story: the destination is fixed before the first naira arrives, and it is visible on chain to everyone in the group.
+
+### Repo layout
 
 | Path | What |
 |---|---|
@@ -53,7 +77,7 @@ That is the whole trust story: the destination is fixed before the first naira a
 | `scripts/` | Playwright screenshot check, both themes |
 | `askbots/` | Pinned AskBots 0.2.0 wrapper and the round-one submission. `pnpm askbots` |
 
-## Celo primitives used
+### Celo primitives used
 
 - **Attribution tags (ERC-8021)** on every transaction, via `@celo/attribution-tags`.
 - **Fee abstraction**: the agent's own transactions pay gas in the stablecoin through the fee adapters, and Mento tokens are their own fee currency.
@@ -68,7 +92,7 @@ That is the whole trust story: the destination is fixed before the first naira a
   never supply them: the address, the digits and the ticker are all checked back against what was typed.
 - **Chainstack** RPC as the primary endpoint with Forno as fallback; browsers are only ever given the public one.
 
-## Token addresses (Celo mainnet, verified on chain)
+### Token addresses (Celo mainnet, verified on chain)
 
 The four most used; the full list of 25, with decimals and fee currencies, is in [`agent/src/config.ts`](agent/src/config.ts).
 
@@ -79,7 +103,7 @@ The four most used; the full list of 25, with decimals and fee currencies, is in
 | USAT | `0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771` | 6 | `0x0357EE22278c922e1D36cFe6b899269b161880C4` |
 | cNGN | `0xF6829D7393dAe24509eb1E52eE8e572e2E271a4f` | 6 | not a gas token |
 
-## Try it locally, no mainnet needed
+### Try it locally, no mainnet needed
 
 Four terminals, or run the first two and background them.
 
@@ -113,7 +137,7 @@ pnpm askbots                # dry-run the AskBots submission (0.2.0, spends noth
 pnpm askbots:dashboard      # gasless Google Sign-In path. Do not npx askbots (that was 0.1.1)
 ```
 
-## Going to mainnet
+### Going to mainnet
 
 ```bash
 cp .env.example .env        # fill in the values
@@ -124,7 +148,7 @@ pnpm dev:agent
 
 `ATTRIBUTION_TAG` must be set before deploying: the tag is issued at registration on celobuilders.xyz and every transaction that lacks it is invisible to the leaderboard.
 
-## Deploying
+### Deploying
 
 `render.yaml` is a Render blueprint for the agent. The plan is `free`, which works only because no
 state lives on the instance: the database is Turso (libSQL) and Render's filesystem is wiped on every

@@ -9,6 +9,13 @@ including the person who started the collection and including Earmark itself.
 - [Architecture](./architecture.md), for anyone reading the code
 - [FAQ](./faq.md), every question people ask before they pay
 
+## The name
+
+To earmark money is to set it aside for one purpose before it can be spent on anything else. The word
+comes from farming: a notch cut into an animal's ear to say this one is already spoken for, and a notch
+cannot be undone. Earmark does that to a payment. The destination is cut into the drive when it opens,
+every contribution carries it, and nobody on the way can re-mark it. The logo is the literal earmark.
+
 ## The problem it addresses
 
 Money sent home usually breaks on arrival rather than on exchange rates. It reaches

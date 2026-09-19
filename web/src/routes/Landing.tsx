@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { animated } from "@react-spring/web";
 import { ArrowRight, ArrowUpRight, ChevronDown } from "lucide-react";
 import { Shell } from "../components/Shell";
+import { Mark } from "../brand/Logo";
 import { FlowDiagram } from "../components/FlowDiagram";
 import { Reveal } from "../components/Reveal";
 import { Counter } from "../components/Counter";
@@ -273,6 +274,29 @@ export function Landing() {
 }`}</code>
               </pre>
             </Reveal>
+          </div>
+        </section>
+
+        <section className="border-t py-16" style={{ borderColor: "var(--line)" }}>
+          <div className="grid gap-8 md:grid-cols-[auto_1fr] md:items-start">
+            <div
+              className="flex h-20 w-20 items-center justify-center rounded-2xl"
+              style={{ background: "var(--brand)", color: "var(--brand-ink)" }}
+            >
+              <Mark className="h-11 w-11" />
+            </div>
+            <div className="max-w-2xl">
+              <h2 className="font-display text-3xl tracking-tight md:text-4xl">Why it is called Earmark.</h2>
+              <p className="mt-4 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                To earmark money is to set it aside for one purpose before it can be spent on anything else. The word
+                is older than banking: farmers cut a notch into an animal's ear to say this one is already spoken for,
+                and a notch cannot be undone. That is the whole product. The destination is cut into the drive when it
+                opens, every payment carries it, and nobody on the way can re-mark it.
+              </p>
+              <p className="mt-3 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                The logo is the literal earmark: an ear with the notch.
+              </p>
+            </div>
           </div>
         </section>
 
