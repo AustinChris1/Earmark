@@ -111,6 +111,15 @@ function livePayload() {
   return listDrives().then((listed) => pickFeatured(listed));
 }
 
+async function receiptsFor(driveId: number) {
+  return (await paymentsFor(driveId)).map((p) => ({
+    tx: p.tx_hash,
+    payer: p.payer,
+    amount: p.amount,
+    name: memoName(p.memo, p.payer),
+  }));
+}
+
 // AskBots reviewers often do not run JavaScript. /live must be real HTML, not the SPA shell.
 app.get("/live", async (req, res, next) => {
   if (!wantsHtml(req)) return next();
@@ -134,6 +143,7 @@ app.get("/live", async (req, res, next) => {
         deadline: Number(featured.deadline),
         closed: featured.closed,
         explorer: explorerUrl,
+        receipts: await receiptsFor(featured.id),
       }),
     );
   } catch (e) {
@@ -161,6 +171,7 @@ app.get("/", async (req, res, next) => {
             target: featured.target,
             raised: featured.raised,
             explorer: explorerUrl,
+            receipts: await receiptsFor(featured.id),
           }
         : null,
     );

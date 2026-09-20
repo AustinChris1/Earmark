@@ -18,6 +18,28 @@ export function escapeHtml(s: string) {
     .replaceAll('"', "&quot;");
 }
 
+export type Receipt = { tx: string; payer: string; amount: bigint | string; name?: string };
+
+/** The proof reviewers keep asking for: real transfers, each one a Celoscan link with From and To. */
+function receiptsHtml(receipts: Receipt[] | undefined, decimals: number, symbol: string, explorer: string) {
+  if (!receipts || receipts.length === 0) return "";
+  const rows = receipts
+    .slice(-5)
+    .reverse()
+    .map(
+      (r) =>
+        `<li>${fmtToken(r.amount, decimals, symbol)} from <code>${r.payer.slice(0, 6)}…${r.payer.slice(-4)}</code>${
+          r.name ? ` (${escapeHtml(r.name)})` : ""
+        }, <a href="${explorer}/tx/${r.tx}">transaction ${r.tx.slice(0, 10)}…</a></li>`,
+    )
+    .join("\n");
+  return `<h2>Payments so far</h2>
+<p class="muted">Each one is a single transaction from the payer straight to the locked address. Open it on Celoscan: the token transfer's To is the payee, never this contract.</p>
+<ul class="receipts">
+${rows}
+</ul>`;
+}
+
 export function fmtToken(amount: bigint | string, decimals: number, symbol: string) {
   const n = Number(formatUnits(BigInt(amount), decimals));
   return `${n.toLocaleString("en-US", { maximumFractionDigits: 2 })} ${symbol}`;
@@ -76,6 +98,8 @@ export function shell(opts: { title: string; canonical: string; body: string }) 
     dl div { display: grid; grid-template-columns: 9rem 1fr; gap: .75rem; padding: .55rem 0; border-top: 1px solid var(--line); }
     dt { color: var(--muted); }
     dd { margin: 0; word-break: break-all; }
+    .receipts { margin: .5rem 0 0; padding-left: 1.1rem; font-size: .9rem; }
+    .receipts li { margin: .3rem 0; }
     code { font-size: .85em; }
     p { margin: .75rem 0 0; }
     footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: .85rem; color: var(--muted); }
@@ -124,6 +148,7 @@ export function drivePageHtml(d: {
   deadline: number;
   closed: boolean;
   explorer: string;
+  receipts?: Receipt[];
 }) {
   const target = BigInt(d.target);
   const raised = BigInt(d.raised);
@@ -157,6 +182,7 @@ ${
   ${d.closed ? "" : `<a class="btn primary" href="/d/${d.id}">Pay this drive</a>`}
   <a class="btn quiet" href="${d.explorer}/address/${d.destination}">Payee on Celoscan</a>
 </div>
+${receiptsHtml(d.receipts, d.decimals, d.tokenSymbol, d.explorer)}
 <dl>
   <div><dt>Token</dt><dd>${escapeHtml(d.tokenSymbol)} on Celo</dd></div>
   ${target > 0n ? `<div><dt>Still needed</dt><dd>${fmtToken(remaining, d.decimals, d.tokenSymbol)}</dd></div>` : ""}
@@ -179,6 +205,7 @@ export function homepageLiveSnippet(d: {
   target: bigint | string;
   raised: bigint | string;
   explorer: string;
+  receipts?: Receipt[];
 } | null) {
   if (!d) {
     return `<section id="live-drive"><h2>Live drive</h2><p>No named open drive yet. Open one in Telegram, then see <a href="/live">/live</a>.</p></section>`;
@@ -190,6 +217,7 @@ export function homepageLiveSnippet(d: {
 <p>Drive #${d.id} on Celo. You are paying this named obligation, not a person in the middle.</p>
 <p><strong>Pays only to</strong> <a href="${d.explorer}/address/${d.destination}"><code>${d.destination}</code></a></p>
 <p>Token ${escapeHtml(d.tokenSymbol)}. Raised ${fmtToken(raised, d.decimals, d.tokenSymbol)}${target > 0n ? ` of ${fmtToken(target, d.decimals, d.tokenSymbol)}` : ""}. After you pay, tokens leave your wallet and arrive at that address in the same transaction. Full page: <a href="/live">/live</a>. Pay: <a href="/d/${d.id}">/d/${d.id}</a>.</p>
+${receiptsHtml(d.receipts, d.decimals, d.tokenSymbol, d.explorer)}
 </section>`;
 }
 

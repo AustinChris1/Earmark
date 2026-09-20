@@ -23,6 +23,26 @@ test("drive HTML names the obligation and the locked payee without JavaScript", 
   assert.doesNotMatch(html, />os</);
 });
 
+test("payments render as Celoscan transaction links, the proof reviewers ask for", () => {
+  const html = drivePageHtml({
+    id: 6,
+    label: "Food bill",
+    destination: "0xc4f8f7507f4D573830f09b73086ce3FfDC0E4787",
+    collector: "0x178977E82c4Df50D5a7465F4495170DFF9275363",
+    tokenSymbol: "cNGN",
+    decimals: 6,
+    target: 7_000_000_000n,
+    raised: 2_000_000_000n,
+    deadline: 0,
+    closed: false,
+    explorer: "https://celoscan.io",
+    receipts: [{ tx: "0x6cb0a2e8fdc422b6f630530cfe8619471dd919217b88192f43e3ebeeaf916573", payer: "0xc4f8f7507f4D573830f09b73086ce3FfDC0E4787", amount: 2_000_000_000n, name: "@thatcreator" }],
+  });
+  assert.match(html, /Payments so far/);
+  assert.match(html, /2,000 cNGN from/);
+  assert.match(html, /https:\/\/celoscan\.io\/tx\/0x6cb0a2e8/);
+});
+
 test("labels are escaped", () => {
   assert.equal(escapeHtml(`a <b> "x"`), "a &lt;b&gt; &quot;x&quot;");
 });
