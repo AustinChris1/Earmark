@@ -38,6 +38,7 @@ No Telegram? The same things work from the browser at <https://earmark-agent.onr
 | Bot | [@Earmarked_bot](https://t.me/Earmarked_bot) |
 | Site | <https://earmark-agent.onrender.com>, docs at [/docs](https://earmark-agent.onrender.com/docs), live drive at [/live](https://earmark-agent.onrender.com/live) |
 | Tokens | 25 Celo stablecoins, every address checked on chain before listing; see [usage](docs/usage.md) |
+| x402 | Drive #7 paid by an agent with no wallet UI: [settlement](https://celoscan.io/tx/0x5dbe0d9832d96f3b5e943a2de9d9af7e8759555692b5b3ddec48acbe1accb518) by Celo's facilitator, then [forwarded into the drive](https://celoscan.io/tx/0x671113b150af4f151add4b972ab64bfd75244882b2cf147fa66e7e1f565d4379). Client: `pnpm -F @earmark/agent x402:pay <id> <amount>` |
 
 ## How it works
 
