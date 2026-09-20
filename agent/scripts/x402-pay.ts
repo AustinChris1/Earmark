@@ -49,6 +49,11 @@ const paid = await fetch(url, { headers });
 console.log(`-> ${paid.status}`);
 const body = await paid.text();
 console.log(body);
+if (paid.status === 402) {
+  // A second 402 carries the facilitator's reason for refusing the signed payment.
+  const again = http.getPaymentRequiredResponse((h) => paid.headers.get(h), undefined);
+  console.log("refused:", again.error ?? "(no reason given)");
+}
 const settle = paid.headers.get("payment-response");
 if (settle) console.log("settlement:", JSON.stringify(http.getPaymentSettleResponse((h) => paid.headers.get(h))));
 process.exit(paid.ok ? 0 : 1);
