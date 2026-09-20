@@ -17,7 +17,7 @@ if (!amount || !token || !destination || !isAddress(destination) || !label) {
   process.exit(2);
 }
 const target = parseUnits(amount, token.decimals);
-const { id, hash } = await createDriveOnchain(token.address, getAddress(destination), target, 0n, label);
+const { id, hash } = await createDriveOnchain({ token: token.address, destination: getAddress(destination), target, deadline: 0n, label });
 console.log(`drive #${id} opened: ${amount} ${token.symbol} -> ${getAddress(destination)} "${label}"`);
 console.log(`tx https://celoscan.io/tx/${hash}`);
 process.exit(0);
