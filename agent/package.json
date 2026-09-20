@@ -8,7 +8,8 @@
     "start": "tsx src/index.ts",
     "register:8004": "tsx src/register8004.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/*.test.mts"
+    "test": "tsx --test test/*.test.mts",
+    "x402:pay": "tsx scripts/x402-pay.ts"
   },
   "dependencies": {
     "@celo/attribution-tags": "^0.3.0",

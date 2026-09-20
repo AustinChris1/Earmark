@@ -96,6 +96,10 @@ export async function createDriveOnchain(args: {
 // Forwards value the agent received off-band (x402) into a drive, credited to `memo`.
 export async function contributeFromAgent(id: bigint, token: Address, amount: bigint, memo: string): Promise<Hex> {
   const earmark = requireEarmark();
+  // An x402 settlement lands the exact amount, so paying gas out of the same token would leave the
+  // forward short by the fee. When there is no spare, gas comes from CELO instead.
+  const balance = await publicClient.readContract({ address: token, abi: ERC20_ABI, functionName: "balanceOf", args: [account.address] });
+  const feeCurrency = balance - amount >= amount / 10n ? agentFeeCurrency : undefined;
   const allowance = await publicClient.readContract({
     address: token,
     abi: ERC20_ABI,
@@ -109,7 +113,7 @@ export async function contributeFromAgent(id: bigint, token: Address, amount: bi
       functionName: "approve",
       args: [earmark, amount],
       dataSuffix: tagSuffix,
-      feeCurrency: agentFeeCurrency,
+      feeCurrency,
     });
     await publicClient.waitForTransactionReceipt({ hash: approveHash });
   }
@@ -119,7 +123,7 @@ export async function contributeFromAgent(id: bigint, token: Address, amount: bi
     functionName: "contribute",
     args: [id, amount, memo],
     dataSuffix: tagSuffix,
-    feeCurrency: agentFeeCurrency,
+    feeCurrency,
   });
   await publicClient.waitForTransactionReceipt({ hash });
   return hash;
