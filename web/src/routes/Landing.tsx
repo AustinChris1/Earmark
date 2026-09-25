@@ -18,6 +18,8 @@ const STEPS = [
 ];
 
 const AGENT_ID = 9806;
+// Celo Agents at Work hackathon, 28 Aug to 21 Sep 2026: Best Stablecoin Adoption.
+const HACKATHON_URL = "https://celobuilders.xyz/hackathons/agents-at-work";
 // Sourcify exact match of the deployed bytecode; the claim below is checkable there, not just stated.
 const SOURCE_URL = "https://repo.sourcify.dev/42220/0x93316DE31b4f891C56cf3b65A3f96AA6b04192Ae";
 
@@ -337,6 +339,7 @@ export function Landing() {
                 </p>
               </div>
               <div className="surface rounded-2xl px-5 py-2">
+                <ProofLink href={HACKATHON_URL} label="Award" value="Best Stablecoin Adoption, Sep 2026" />
                 <ProofLink href={`https://celoscan.io/address/${stats.earmark}`} label="Contract" value={short(stats.earmark)} />
                 <ProofLink href={SOURCE_URL} label="Source" value="verified, exact match" />
                 <ProofLink href={`https://8004scan.io/agents/celo/${AGENT_ID}`} label="ERC-8004 agent" value={`#${AGENT_ID}`} />

@@ -2,7 +2,7 @@
 
 **A group chat collects money for one bill, and the money can only go to the wallet the group locked in.**
 
-Built for the [Celo Agents at Work Hackathon](https://celoplatform.notion.site/Agents-at-Work-Hackathon-3c1d5cb803de81139de7f4f3d09e55dc) (28 Aug - 21 Sep 2026). Live on Celo mainnet.
+Built for the [Celo Agents at Work Hackathon](https://celoplatform.notion.site/Agents-at-Work-Hackathon-3c1d5cb803de81139de7f4f3d09e55dc) (28 Aug - 21 Sep 2026), where it won **Best Stablecoin Adoption**. Live on Celo mainnet.
 
 ## In one minute
 
@@ -32,6 +32,7 @@ No Telegram? The same things work from the browser at <https://earmark-agent.onr
 
 | Piece | Where |
 |---|---|
+| Award | [Best Stablecoin Adoption](https://celobuilders.xyz/hackathons/agents-at-work), Celo Agents at Work, September 2026 |
 | Contract | [`0x93316de31b4f891c56cf3b65a3f96aa6b04192ae`](https://celoscan.io/address/0x93316de31b4f891c56cf3b65a3f96aa6b04192ae) on Celo mainnet |
 | Source | [Verified on Sourcify](https://repo.sourcify.dev/42220/0x93316DE31b4f891C56cf3b65A3f96AA6b04192Ae), exact match of the deployed bytecode |
 | Agent identity | [ERC-8004 agent 9806](https://8004scan.io/agents/celo/9806) |
