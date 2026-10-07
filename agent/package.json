@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/*.test.mts",
     "x402:pay": "tsx scripts/x402-pay.ts",
-    "open-drive": "tsx scripts/open-drive.ts"
+    "open-drive": "tsx scripts/open-drive.ts",
+    "textile:quote": "tsx scripts/textile-quote.ts"
   },
   "dependencies": {
     "@celo/attribution-tags": "^0.3.0",
