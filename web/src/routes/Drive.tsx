@@ -25,12 +25,22 @@ import { useLift } from "../lib/springs";
 
 const EARMARK_ABI = parseAbi(["function contribute(uint256 id, uint256 amount, string memo)"]);
 const ERC20_ABI = parseAbi([
+  "function transfer(address to, uint256 amount) returns (bool)",
   "function approve(address spender, uint256 amount) returns (bool)",
   "function allowance(address owner, address spender) view returns (uint256)",
   "function balanceOf(address owner) view returns (uint256)",
 ]);
 
-type Stage = "idle" | "approving" | "paying" | "done" | "error";
+type Stage = "idle" | "approving" | "paying" | "swapping" | "done" | "error";
+
+// Local coins with a live Textile FX corridor: these drives can also be paid in dollars.
+const CORRIDOR_LOCAL = ["cNGN", "wARS", "wBRL"];
+type PayIn = "local" | "USDT" | "USAT";
+type CorridorQuote = { quote: string; maxPay: string; maxPayHuman: string; payToken: Address; payDecimals: number; pay: string; sendTo: Address; wantLocal: string };
+type CorridorStatus = { status: string; swap_tx: string | null; contribute_tx: string | null; refund_tx: string | null; local_amount: string | null; note: string | null; pay_amount: string };
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const money = (v: string) => Number(v).toLocaleString("en-US", { maximumFractionDigits: 4 });
 
 export function DrivePage() {
   const { id } = useParams();
@@ -41,6 +51,10 @@ export function DrivePage() {
   const [message, setMessage] = useState("");
   const [txHash, setTxHash] = useState<Hex | null>(null);
   const [copied, setCopied] = useState(false);
+  const [payIn, setPayIn] = useState<PayIn>("local");
+  const [cq, setCq] = useState<CorridorQuote | null>(null);
+  const [cqError, setCqError] = useState("");
+  const [refundHash, setRefundHash] = useState<Hex | null>(null);
 
   const query = new URLSearchParams(location.search);
   const tgId = query.get("u") ?? "";
@@ -85,6 +99,110 @@ export function DrivePage() {
   const target = drive ? BigInt(drive.target) : 0n;
   const remaining = target > raised ? target - raised : 0n;
   const pct = target > 0n ? Math.min(100, Number((raised * 1000n) / target) / 10) : 0;
+
+  const corridor = !!drive && CORRIDOR_LOCAL.includes(drive.token.symbol);
+
+  // A dollar payer sees, before paying, the most they will send for the local amount they typed.
+  useEffect(() => {
+    if (!drive || !corridor || payIn === "local") {
+      setCq(null);
+      setCqError("");
+      return;
+    }
+    const want = amount || (remaining > 0n ? formatUnits(remaining, drive.token.decimals) : "");
+    if (!want || Number(want) <= 0) return;
+    let live = true;
+    const t = setTimeout(() => {
+      fetch(`/api/drive/${drive.id}/corridor-quote?pay=${payIn}&amount=${encodeURIComponent(want)}`)
+        .then(async (r) => ({ ok: r.ok, body: await r.json() }))
+        .then(({ ok, body }) => {
+          if (!live) return;
+          if (ok) {
+            setCq(body as CorridorQuote);
+            setCqError("");
+          } else {
+            setCq(null);
+            setCqError(body.error ?? "No price right now.");
+          }
+        })
+        .catch(() => live && setCqError("No price right now."));
+    }, 350);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [drive, corridor, payIn, amount, remaining]);
+
+  async function payCorridor() {
+    if (!drive || !chain || !cq) return;
+    if (!window.ethereum) {
+      setStage("error");
+      setMessage("No wallet here. Open this link in MiniPay, or in the browser inside MetaMask or another Celo wallet.");
+      return;
+    }
+    try {
+      const [raw] = (await window.ethereum.request({ method: "eth_requestAccounts" })) as string[];
+      const account = getAddress(raw);
+      await ensureChain({ chainId: drive.chainId, rpcUrl: drive.rpcUrl, explorer: drive.explorer });
+      const pub = createPublicClient({ chain, transport: http(drive.rpcUrl) });
+      const wallet = createWalletClient({ chain, account, transport: custom(window.ethereum) });
+      const dataSuffix: Hex | undefined = drive.tag ? toDataSuffix(drive.tag) : undefined;
+      const maxPay = BigInt(cq.maxPay);
+      const balance = await pub.readContract({ address: cq.payToken, abi: ERC20_ABI, functionName: "balanceOf", args: [account] });
+      if (balance < maxPay) {
+        throw new Error(`This needs up to ${cq.maxPayHuman} ${cq.pay}, and your wallet has ${formatUnits(balance, cq.payDecimals)}.`);
+      }
+
+      setStage("paying");
+      setMessage(`Confirm sending ${money(cq.maxPayHuman)} ${cq.pay}. Whatever the swap does not use comes back to you.`);
+      const payTx = await wallet.writeContract({
+        address: cq.payToken,
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [cq.sendTo, maxPay],
+        dataSuffix,
+      } as never);
+      await pub.waitForTransactionReceipt({ hash: payTx });
+
+      setStage("swapping");
+      setMessage(`Received. Swapping to ${drive.token.symbol} on Textile FX, then paying the drive.`);
+      const sent = await fetch("/api/corridor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ driveId: String(drive.id), payTx, wantLocal: cq.wantLocal, name: tgName, u: tgId }),
+      });
+      const created = await sent.json();
+      if (!sent.ok) throw new Error(created.error ?? "Earmark could not record that payment.");
+
+      for (let i = 0; i < 90; i++) {
+        await sleep(2000);
+        const st = (await (await fetch(`/api/corridor/${created.id}`)).json()) as CorridorStatus;
+        if (st.status === "contributed") {
+          setTxHash(st.contribute_tx as Hex);
+          setRefundHash((st.refund_tx as Hex) ?? null);
+          setStage("done");
+          setMessage(
+            `Paid. ${fmt(st.local_amount ?? "0")} landed at the destination.${st.refund_tx ? " The unused dollars were returned to your wallet." : ""}`,
+          );
+          setAmount("");
+          refresh();
+          return;
+        }
+        if (st.status === "refunded" || st.status === "failed") {
+          setRefundHash((st.refund_tx as Hex) ?? null);
+          setStage("error");
+          setMessage(st.status === "refunded" ? `${st.note ?? "The payment was not swapped."} Your money was returned.` : `${st.note} Reply to the bot and it will be sorted by hand.`);
+          return;
+        }
+      }
+      setStage("error");
+      setMessage("Still working on it. The tally in your group will show it when it lands.");
+    } catch (e) {
+      setStage("error");
+      const err = e as { shortMessage?: string; message?: string };
+      setMessage(err.shortMessage ?? err.message ?? "Something went wrong.");
+    }
+  }
 
   const still = useReducedMotion();
   const payBtn = useLift(2);
@@ -164,7 +282,7 @@ export function DrivePage() {
     }
   }
 
-  const busy = stage === "approving" || stage === "paying";
+  const busy = stage === "approving" || stage === "paying" || stage === "swapping";
 
   async function copyDestination() {
     if (!drive) return;
@@ -245,9 +363,10 @@ export function DrivePage() {
 
               <p className="mt-4 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
                 You are paying <span style={{ color: "var(--text)" }}>{drive.label}</span>
-                {target > 0n ? `, ${fmt(remaining)} still needed of ${fmt(target)}` : ""}. After you confirm, the
-                tokens leave your wallet and arrive at the address above in the same transaction. Earmark never
-                holds the money and nobody can redirect it.
+                {target > 0n ? `, ${fmt(remaining)} still needed of ${fmt(target)}` : ""}.{" "}
+                {corridor && payIn !== "local"
+                  ? `Paying in dollars, Earmark swaps them to ${drive.token.symbol} and pays the address above; nobody can redirect it.`
+                  : "After you confirm, the tokens leave your wallet and arrive at the address above in the same transaction. Earmark never holds the money and nobody can redirect it."}
               </p>
 
               {target > 0n && (
@@ -268,6 +387,29 @@ export function DrivePage() {
                 </p>
               ) : (
                 <div className="mt-6">
+                  {corridor && (
+                    <div className="mb-4">
+                      <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                        Pay in
+                      </p>
+                      <div role="radiogroup" aria-label="Pay in" className="mt-2 inline-flex rounded-xl p-1" style={{ background: "var(--bg-sunken)" }}>
+                        {(["local", "USDT", "USAT"] as PayIn[]).map((p) => (
+                          <button
+                            key={p}
+                            type="button"
+                            role="radio"
+                            aria-checked={payIn === p}
+                            onClick={() => setPayIn(p)}
+                            className="pressable rounded-lg px-3 py-1.5 text-sm font-medium"
+                            style={payIn === p ? { background: "var(--bg-raised)", color: "var(--text)", boxShadow: "0 1px 2px rgb(0 0 0 / 0.08)" } : { color: "var(--text-muted)" }}
+                          >
+                            {p === "local" ? drive.token.symbol : p === "USAT" ? "USA₮" : p}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <label htmlFor="amt" className="text-sm" style={{ color: "var(--text-muted)" }}>
                     {drive.you
                       ? `Instalment ${drive.you.seq} of ${drive.you.count}${tgName ? ` for ${tgName}` : ""}`
@@ -287,15 +429,34 @@ export function DrivePage() {
                     </span>
                   </div>
 
+                  {corridor && payIn !== "local" && (
+                    <div className="mt-3 rounded-xl p-3 text-sm leading-relaxed" style={{ background: "var(--accent-soft)" }}>
+                      {cq ? (
+                        <>
+                          <p>
+                            You send at most <strong className="tabular-nums">{money(cq.maxPayHuman)} {cq.pay === "USAT" ? "USA₮" : cq.pay}</strong>; the
+                            destination receives <strong className="tabular-nums">{fmt(cq.wantLocal)}</strong>.
+                          </p>
+                          <p className="mt-1" style={{ color: "var(--text-muted)" }}>
+                            Earmark swaps it on Textile FX for about {money(cq.quote)} {cq.pay === "USAT" ? "USA₮" : cq.pay} and returns what is not used. Your
+                            dollars sit with Earmark only for the seconds the swap takes; if it cannot swap at this price, they come straight back.
+                          </p>
+                        </>
+                      ) : (
+                        <p style={{ color: cqError ? "var(--danger)" : "var(--text-muted)" }}>{cqError || "Getting a price…"}</p>
+                      )}
+                    </div>
+                  )}
+
                   <animated.button
                     {...payBtn.bind}
-                    onClick={pay}
+                    onClick={corridor && payIn !== "local" ? payCorridor : pay}
                     disabled={busy}
                     className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-[15px] font-semibold disabled:opacity-60"
                     style={{ ...payBtn.style, background: "var(--brand)", color: "var(--brand-ink)" }}
                   >
                     {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
-                    {busy ? "Confirm in your wallet" : "Pay now"}
+                    {stage === "swapping" ? "Swapping and paying" : busy ? "Confirm in your wallet" : "Pay now"}
                   </animated.button>
 
                   {!window.ethereum && <PayQr />}
@@ -317,6 +478,17 @@ export function DrivePage() {
                     )}
                   </AnimatePresence>
 
+                  {refundHash && (
+                    <a
+                      href={`${drive.explorer}/tx/${refundHash}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mr-4 mt-2 inline-flex items-center gap-1 text-sm underline underline-offset-4"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      Refund transaction <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
                   {txHash && (
                     <a
                       href={`${drive.explorer}/tx/${txHash}`}

@@ -100,6 +100,11 @@ input::placeholder {
 }
 
 /* Text inputs: a border that reads at rest and a ring that reads on focus, so the outline can go. */
+/* An input inside a field draws its focus on the field, not a second ring of its own. */
+.field input:focus-visible {
+  outline: none;
+}
+
 @utility field {
   width: 100%;
   border: 1px solid var(--line);
