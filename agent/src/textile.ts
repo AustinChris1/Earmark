@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { concat, type Address, type Hex } from "viem";
-import { account, agentFeeCurrency, ERC20_ABI, publicClient, tagSuffix, walletClient } from "./chain.js";
+import { account, ERC20_ABI, publicClient, tagSuffix, walletClient } from "./chain.js";
 import { CELO_CHAIN_ID } from "./config.js";
 
 /**
@@ -180,7 +180,7 @@ async function send(tx: UnsignedTx): Promise<Hex> {
     to: tx.to,
     data: tagged(tx.data),
     value: BigInt(tx.value),
-    feeCurrency: agentFeeCurrency,
+    // Gas in CELO: the dollars in the agent wallet belong to the payer until the swap.
   } as never);
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success") throw new TextileError(`Transaction ${hash} reverted`);

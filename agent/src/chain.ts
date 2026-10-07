@@ -93,13 +93,34 @@ export async function createDriveOnchain(args: {
   return { id: log.args.id, hash };
 }
 
+const ERC20_TRANSFER_ABI = parseAbi(["function transfer(address to, uint256 amount) returns (bool)"]);
+
+/** Sends tokens the agent is holding for someone back to them. Gas in CELO, so the refund is exact. */
+export async function refundFromAgent(token: Address, to: Address, amount: bigint): Promise<Hex> {
+  const hash = await walletClient.writeContract({
+    address: token,
+    abi: ERC20_TRANSFER_ABI,
+    functionName: "transfer",
+    args: [to, amount],
+    dataSuffix: tagSuffix,
+  });
+  await publicClient.waitForTransactionReceipt({ hash });
+  return hash;
+}
+
 // Forwards value the agent received off-band (x402) into a drive, credited to `memo`.
-export async function contributeFromAgent(id: bigint, token: Address, amount: bigint, memo: string): Promise<Hex> {
+export async function contributeFromAgent(
+  id: bigint,
+  token: Address,
+  amount: bigint,
+  memo: string,
+  opts: { celoGas?: boolean } = {},
+): Promise<Hex> {
   const earmark = requireEarmark();
   // An x402 settlement lands the exact amount, so paying gas out of the same token would leave the
   // forward short by the fee. When there is no spare, gas comes from CELO instead.
   const balance = await publicClient.readContract({ address: token, abi: ERC20_ABI, functionName: "balanceOf", args: [account.address] });
-  const feeCurrency = balance - amount >= amount / 10n ? agentFeeCurrency : undefined;
+  const feeCurrency = !opts.celoGas && balance - amount >= amount / 10n ? agentFeeCurrency : undefined;
   const allowance = await publicClient.readContract({
     address: token,
     abi: ERC20_ABI,

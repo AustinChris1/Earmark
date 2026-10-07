@@ -67,6 +67,25 @@ const SCHEMA = [
      linked_at INTEGER NOT NULL
    )`,
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)`,
+  // Dollars received for a cross-currency drive, followed from arrival to the drive or back to the payer.
+  `CREATE TABLE IF NOT EXISTS corridor_intents (
+     id TEXT PRIMARY KEY,
+     drive_id INTEGER NOT NULL,
+     payer TEXT NOT NULL,
+     pay_token TEXT NOT NULL,
+     pay_amount TEXT NOT NULL,
+     pay_tx TEXT NOT NULL UNIQUE,
+     want_local TEXT NOT NULL,
+     memo TEXT NOT NULL,
+     status TEXT NOT NULL,
+     swap_tx TEXT,
+     contribute_tx TEXT,
+     refund_tx TEXT,
+     local_amount TEXT,
+     note TEXT,
+     created_at INTEGER NOT NULL,
+     updated_at INTEGER NOT NULL
+   )`,
   // Telegram never lists a group's members to a bot, so this is everyone the bot has actually seen:
   // anyone who sent it a command, tapped a button, or was announced joining.
   `CREATE TABLE IF NOT EXISTS members (
@@ -371,6 +390,56 @@ export async function markForwarded(id: string, tx: string) {
 
 export function getIntent(id: string) {
   return one<X402Intent>(`SELECT * FROM x402_intents WHERE id = ?`, [id]);
+}
+
+export type CorridorRow = {
+  id: string;
+  drive_id: number;
+  payer: string;
+  pay_token: string;
+  pay_amount: string;
+  pay_tx: string;
+  want_local: string;
+  memo: string;
+  status: string;
+  swap_tx: string | null;
+  contribute_tx: string | null;
+  refund_tx: string | null;
+  local_amount: string | null;
+  note: string | null;
+  created_at: number;
+  updated_at: number;
+};
+
+/** Returns false when this payment transaction was already recorded, so a resubmit never pays twice. */
+export async function addCorridorIntent(i: Omit<CorridorRow, "status" | "swap_tx" | "contribute_tx" | "refund_tx" | "local_amount" | "note" | "created_at" | "updated_at">) {
+  const changed = await run(
+    `INSERT OR IGNORE INTO corridor_intents (id, drive_id, payer, pay_token, pay_amount, pay_tx, want_local, memo, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'received', ?, ?)`,
+    [i.id, i.drive_id, i.payer, i.pay_token, i.pay_amount, i.pay_tx.toLowerCase(), i.want_local, i.memo, now(), now()],
+  );
+  return changed > 0;
+}
+
+const CORRIDOR_FIELDS = new Set(["swap_tx", "contribute_tx", "refund_tx", "local_amount", "note"]);
+
+export async function setCorridorStatus(id: string, status: string, fields: Record<string, string> = {}) {
+  const keys = Object.keys(fields).filter((k) => CORRIDOR_FIELDS.has(k));
+  const sets = ["status = ?", "updated_at = ?", ...keys.map((k) => `${k} = ?`)].join(", ");
+  await run(`UPDATE corridor_intents SET ${sets} WHERE id = ?`, [status, now(), ...keys.map((k) => fields[k]), id]);
+}
+
+export function getCorridorIntent(id: string) {
+  return one<CorridorRow>(`SELECT * FROM corridor_intents WHERE id = ?`, [id]);
+}
+
+export function corridorByPayTx(payTx: string) {
+  return one<CorridorRow>(`SELECT * FROM corridor_intents WHERE pay_tx = ?`, [payTx.toLowerCase()]);
+}
+
+/** Intents that arrived but never finished, e.g. because the process restarted mid-way. */
+export function unsettledCorridorIntents() {
+  return all<CorridorRow>(`SELECT * FROM corridor_intents WHERE status = 'received' ORDER BY created_at`);
 }
 
 export async function counts(): Promise<{ payments: number; payers: number }> {

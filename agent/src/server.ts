@@ -10,6 +10,7 @@ import { memoName } from "./format.js";
 import { x402Guard, x402Handler, x402Middleware } from "./x402.js";
 import { linkHandler, nonceHandler, sessionHandler, statusHandler } from "./verify.js";
 import { isTestDrive, pickFeatured } from "./featured.js";
+import { corridorQuoteHandler, corridorStatusHandler, corridorSubmitHandler } from "./corridorService.js";
 import { drivePageHtml, homepageLiveSnippet, noLiveDriveHtml } from "./publicHtml.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -202,6 +203,10 @@ app.get("/api/stats", async (_req, res) => {
     earmark: env.EARMARK_ADDRESS,
   });
 });
+
+app.get("/api/drive/:id/corridor-quote", corridorQuoteHandler);
+app.post("/api/corridor", corridorSubmitHandler);
+app.get("/api/corridor/:id", corridorStatusHandler);
 
 app.get("/api/drive/:id", async (req, res) => {
   const id = Number(req.params.id);
