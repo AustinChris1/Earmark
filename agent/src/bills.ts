@@ -53,26 +53,25 @@ export type BillDeps = {
   token: Address;
   pay(bill: Bill, max: bigint): Promise<BillResult>;
   refund(to: Address, amount: bigint): Promise<Hex>;
-  balance(): Promise<bigint>;
+  /**
+   * After a bill was not delivered, where the money is: still here because AbaPay never used the
+   * signed authorisation ("intact"), back because AbaPay refunded it ("returned"), or out with
+   * AbaPay ("waiting"). The wallet balance cannot answer this: other drives' money sits in it too.
+   */
+  afterFailure(result: BillResult): Promise<"intact" | "returned" | "waiting">;
   setStatus(driveId: number, status: string, fields?: Record<string, string>): Promise<void>;
 };
 
 export type BillOutcome =
   | { status: "paid"; result: BillResult; refunds: { payer: Address; amount: bigint; tx: Hex }[] }
   | { status: "refunded"; reason: string; refunds: { payer: Address; amount: bigint; tx: Hex }[] }
-  | { status: "failed"; reason: string };
+  | { status: "awaiting_refund"; reason: string };
 
 /** Pays a full bill drive, then returns any change; on failure returns the whole pool. */
 export async function settleBill(driveId: number, bill: Bill, raised: bigint, payments: Share[], deps: BillDeps): Promise<BillOutcome> {
   await deps.setStatus(driveId, "paying");
 
-  const giveBack = async (pool: bigint) => {
-    const refunds: { payer: Address; amount: bigint; tx: Hex }[] = [];
-    for (const s of proRata(payments, pool, deps.agent)) {
-      refunds.push({ ...s, tx: await deps.refund(s.payer, s.amount) });
-    }
-    return refunds;
-  };
+  const giveBack = (pool: bigint) => returnShares(payments, pool, deps);
 
   let result: BillResult;
   try {
@@ -89,6 +88,7 @@ export async function settleBill(driveId: number, bill: Bill, raised: bigint, pa
     const change = raised - result.quote.amount;
     const refunds = change > 0n ? await giveBack(change) : [];
     await deps.setStatus(driveId, "paid", {
+      paid_amount: result.quote.amount.toString(),
       settle_tx: result.settleTx ?? "",
       purchased_code: result.purchasedCode ?? "",
       units: result.units ?? "",
@@ -97,15 +97,29 @@ export async function settleBill(driveId: number, bill: Bill, raised: bigint, pa
     return { status: "paid", result, refunds };
   }
 
-  // Settled but not vended: AbaPay refunds the agent. Return what has actually come back, no more.
-  const back = await deps.balance();
-  const pool = back < raised ? back : raised;
-  const reason = `AbaPay could not vend the bill (${result.status}).`;
-  if (pool < raised) {
-    await deps.setStatus(driveId, "failed", { note: `${reason} Waiting on AbaPay's refund before paying people back.`, request_id: result.requestId ?? "" });
-    return { status: "failed", reason };
+  // Not delivered. People are paid back only once the money is provably here, never out of other
+  // drives' money while AbaPay still has it.
+  const reason = `AbaPay could not deliver the bill (${result.status}).`;
+  if ((await deps.afterFailure(result)) === "waiting") {
+    await deps.setStatus(driveId, "awaiting_refund", {
+      note: `${reason} Waiting on AbaPay's refund before paying people back.`,
+      paid_amount: result.quote.amount.toString(),
+      settle_tx: result.settleTx ?? "",
+      request_id: result.requestId ?? "",
+      auth: result.authorization ? JSON.stringify(result.authorization) : "",
+    });
+    return { status: "awaiting_refund", reason };
   }
-  const refunds = await giveBack(pool);
+  const refunds = await giveBack(raised);
   await deps.setStatus(driveId, "refunded", { note: reason, request_id: result.requestId ?? "" });
   return { status: "refunded", reason, refunds };
+}
+
+/** Pays `pool` back across the people who paid, in proportion. */
+export async function returnShares(payments: Share[], pool: bigint, deps: Pick<BillDeps, "agent" | "refund">) {
+  const refunds: { payer: Address; amount: bigint; tx: Hex }[] = [];
+  for (const s of proRata(payments, pool, deps.agent)) {
+    refunds.push({ ...s, tx: await deps.refund(s.payer, s.amount) });
+  }
+  return refunds;
 }

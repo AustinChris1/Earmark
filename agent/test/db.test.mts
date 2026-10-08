@@ -3,6 +3,7 @@ import "./setup-env.mts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  addCorridorIntent,
   addIntent,
   drivesWithPlans,
   dueInstalments,
@@ -18,7 +19,9 @@ import {
   nextInstalment,
   pendingIntents,
   planCountFor,
+  realPayerFor,
   reconcileInstalments,
+  setCorridorStatus,
   rekeyMember,
   replacePlan,
   setMeta,
@@ -123,7 +126,7 @@ test("instalment plan survives a round trip through the database", async () => {
 test("x402 intents are recorded and settle once", async () => {
   await migrate();
   const id = "intent-test-1";
-  await addIntent({ id, drive_id: DRIVE, token: USDT, amount: u("5"), payer_name: "uncle" });
+  await addIntent({ id, drive_id: DRIVE, token: USDT, amount: u("5"), payer_name: "uncle", payer: null, nonce: null });
   assert.ok((await pendingIntents()).some((i) => i.id === id), "intent is pending");
   await markForwarded(id, "0xforwarded");
   assert.equal((await getIntent(id))?.forwarded_tx, "0xforwarded");
@@ -136,4 +139,17 @@ test("meta round trips", async () => {
   assert.equal(await getMeta("last_block"), "12345");
   await setMeta("last_block", "99999");
   assert.equal(await getMeta("last_block"), "99999", "meta upserts");
+});
+
+test("a payment the agent forwarded is credited to whoever really sent it", async () => {
+  await migrate();
+  const ada = "0x00000000000000000000000000000000000000Ad";
+  const emeka = "0x00000000000000000000000000000000000000E1";
+  await addIntent({ id: "intent-real", drive_id: DRIVE, token: USDT, amount: u("1"), payer_name: "ada", payer: ada, nonce: `0x${"11".repeat(32)}` });
+  await markForwarded("intent-real", "0xfwd1");
+  assert.equal(await realPayerFor("0xfwd1"), ada);
+  await addCorridorIntent({ id: "swap-real", drive_id: DRIVE, payer: emeka, pay_token: USDT, pay_amount: u("1"), pay_tx: `0x${"ab".repeat(32)}`, want_local: u("1"), memo: "" });
+  await setCorridorStatus("swap-real", "contributed", { contribute_tx: "0xfwd2" });
+  assert.equal(await realPayerFor("0xfwd2"), emeka);
+  assert.equal(await realPayerFor("0xnobody"), undefined);
 });

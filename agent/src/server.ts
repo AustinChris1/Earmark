@@ -1,10 +1,10 @@
-import { formatUnits } from "viem";
+import { formatUnits, isHex, type Hex } from "viem";
 import express from "express";
 import path from "node:path";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { chainId, env, explorerUrl, publicRpcUrl, TOKENS, tokenByAddress } from "./config.js";
+import { chainId, env, explorerUrl, publicRpcUrl, TOKENS, tokenByAddress, tokenBySymbol } from "./config.js";
 import { account, driveCount, listDrives, readDrive, readTokenInfo } from "./chain.js";
 import { counts, getDrive, hasPlan, nextInstalment, paymentsFor, planCountFor, reconcileInstalments } from "./db.js";
 import { memoName } from "./format.js";
@@ -14,7 +14,9 @@ import { isTestDrive, pickFeatured } from "./featured.js";
 import { offrampUrl, rampCountry } from "./ripio.js";
 import { getBill } from "./db.js";
 import { maskNumber } from "./bills.js";
-import { providerLabel } from "./billService.js";
+import { PROVIDERS } from "./abapay.js";
+import { attachBill, attachMessage, BILL_COINS, billReceipt, checkBillInput, priceBill, providerLabel, type BillCoin } from "./billService.js";
+import { payOptions } from "./corridor.js";
 import { corridorQuoteHandler, corridorStatusHandler, corridorSubmitHandler } from "./corridorService.js";
 import { drivePageHtml, homepageLiveSnippet, noLiveDriveHtml } from "./publicHtml.js";
 
@@ -209,6 +211,66 @@ app.get("/api/stats", async (_req, res) => {
   });
 });
 
+// Bill drives from the website: the providers, a live price, attaching the bill to a drive the person
+// just opened from their own wallet, and the receipt for that same wallet.
+app.get("/api/bills/providers", (_req, res) =>
+  res.json(Object.entries(PROVIDERS).map(([key, p]) => ({ key, label: p.label, category: p.category }))),
+);
+
+app.get("/api/bills/quote", async (req, res) => {
+  try {
+    const coin = BILL_COINS.find((c) => c === req.query.coin) ?? "USAT";
+    const naira = Number(req.query.naira);
+    const input = checkBillInput(String(req.query.provider ?? ""), String(req.query.number ?? ""), naira);
+    if (!input.ok) return res.status(400).json({ error: input.error });
+    const t = tokenBySymbol(coin)!;
+    const q = await priceBill(input.provider, input.number, naira, coin);
+    res.json({
+      coin,
+      token: t.address,
+      decimals: t.decimals,
+      quoted: q.quoted.toString(),
+      target: q.target.toString(),
+      targetHuman: formatUnits(q.target, t.decimals),
+      label: q.label,
+      payee: account.address,
+      number: input.number,
+      // The exact text the opener signs once the drive exists, with its id in place of {id}.
+      sign: attachMessage(0, input.provider, input.number, naira).replace("#0", "#{id}"),
+    });
+  } catch (e) {
+    res.status(400).json({ error: (e as Error).message });
+  }
+});
+
+app.post("/api/bills", async (req, res) => {
+  try {
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    if (!isHex(b.signature)) return res.status(400).json({ error: "Sign the message in your wallet." });
+    await attachBill({
+      driveId: Number(b.driveId),
+      provider: String(b.provider ?? ""),
+      number: String(b.number ?? ""),
+      naira: Number(b.naira),
+      coin: String(b.coin ?? "") as BillCoin,
+      signature: b.signature as Hex,
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: (e as Error).message });
+  }
+});
+
+app.post("/api/drive/:id/receipt", async (req, res) => {
+  try {
+    const sig = (req.body ?? {}).signature;
+    if (!isHex(sig)) return res.status(400).json({ error: "Sign the message in your wallet." });
+    res.json(await billReceipt(Number(req.params.id), sig as Hex));
+  } catch (e) {
+    res.status(400).json({ error: (e as Error).message });
+  }
+});
+
 app.get("/api/drive/:id/corridor-quote", corridorQuoteHandler);
 app.post("/api/corridor", corridorSubmitHandler);
 app.get("/api/corridor/:id", corridorStatusHandler);
@@ -222,6 +284,8 @@ app.get("/api/drive/:id", async (req, res) => {
       return res.status(404).json({ error: "No such drive." });
     }
     const local = await getDrive(id);
+    const bill = await getBill(id);
+    const toAgent = onchain.destination.toLowerCase() === account.address.toLowerCase();
     const u = typeof req.query.u === "string" ? req.query.u : "";
     let you = null as null | { seq: number; count: number; paid: number; amount: string; dueAt: number };
     if (u && await hasPlan(id)) {
@@ -248,19 +312,23 @@ app.get("/api/drive/:id", async (req, res) => {
       explorer: explorerUrl,
       chat: local ? { collectorName: local.collector_name } : null,
       // A bill drive: the provider, a masked number, and how the payment went. The electricity token is
-      // only ever posted to the group that paid for it, never served here.
-      bill: await getBill(id).then((b) =>
-        b
-          ? {
-              provider: providerLabel(b),
-              category: b.category,
-              number: maskNumber(b.billers_code),
-              naira: b.naira_amount,
-              status: b.status,
-              settleTx: b.settle_tx || null,
-            }
-          : null,
-      ),
+      // only posted to the group that paid for it, or shown to the wallet that opened the drive.
+      bill: bill
+        ? {
+            provider: providerLabel(bill),
+            category: bill.category,
+            number: maskNumber(bill.billers_code),
+            naira: bill.naira_amount,
+            status: bill.status,
+            settleTx: bill.settle_tx || null,
+            // Opened from a wallet on the website, not by the bot in a group: the opener signs to see the receipt.
+            openedOnWeb: onchain.collector.toLowerCase() !== account.address.toLowerCase(),
+          }
+        : null,
+      // A drive that pays Earmark's wallet with no bill behind it: nothing would ever pay it out.
+      unattached: toAgent && !bill,
+      // Other coins this drive can be paid in; Earmark swaps them into the drive's coin on Textile.
+      payOptions: payOptions(tokenByAddress(onchain.token)),
       // Ripio serves this coin: the page builds the payer's on-ramp link with their own wallet, and
       // the payee gets an off-ramp link for what the drive has paid them.
       ramp: (() => {

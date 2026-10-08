@@ -1,4 +1,4 @@
-import { getAddress, type Address } from "viem";
+import { getAddress, type Address, type Hex } from "viem";
 import { x402Client } from "@x402/core/client";
 import { x402HTTPClient } from "@x402/core/http";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
@@ -115,6 +115,8 @@ export type BillResult = {
   settleTx: string | null;
   requestId: string | null;
   quote: BillQuote;
+  /** The EIP-3009 authorisation the agent signed: used on chain means AbaPay took the money. */
+  authorization: { nonce: Hex; validBefore: number; fromBlock?: number } | null;
 };
 
 /**
@@ -132,6 +134,7 @@ export async function payBill(bill: Bill, symbol: "USAT" | "USDT", maxAmount: bi
     throw new Error(`The bill now costs ${quote.amount} and the drive raised ${maxAmount}; nothing was paid.`);
   }
   const signed = await http.createPaymentPayload(required);
+  const auth = (signed.payload as { authorization?: { nonce?: Hex; validBefore?: string } }).authorization;
   const paid = await post(payload, http.encodePaymentSignatureHeader(signed));
   const result = (await paid.json().catch(() => ({}))) as {
     success?: boolean;
@@ -150,5 +153,6 @@ export async function payBill(bill: Bill, symbol: "USAT" | "USDT", maxAmount: bi
     settleTx: result.tx_hash ?? null,
     requestId: result.request_id ?? null,
     quote,
+    authorization: auth?.nonce ? { nonce: auth.nonce, validBefore: Number(auth.validBefore ?? 0) } : null,
   };
 }

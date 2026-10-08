@@ -6,6 +6,7 @@ import { startWatcher } from "./watcher.js";
 import { startScheduler } from "./scheduler.js";
 import { startX402Sweeper } from "./x402.js";
 import { resumeCorridor } from "./corridorService.js";
+import { startBillSweeper } from "./billService.js";
 import { migrate } from "./db.js";
 
 console.log(
@@ -20,6 +21,7 @@ if (env.EARMARK_ADDRESS) {
   startWatcher();
   startX402Sweeper();
   void resumeCorridor();
+  startBillSweeper();
 } else {
   console.log("EARMARK_ADDRESS not set; chain watcher and x402 forwarding disabled");
 }

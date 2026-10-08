@@ -44,7 +44,7 @@ function deps(over: Partial<BillDeps> = {}) {
       log.push(`refund ${to === ADA ? "Ada" : "Emeka"} ${amount}`);
       return tx(++n + 100);
     },
-    balance: async () => 3_941_929n,
+    afterFailure: async () => "intact",
     setStatus: async (_id, s) => void log.push(`status ${s}`),
     ...over,
   };
@@ -66,11 +66,24 @@ test("if AbaPay's price moved past the pool, nothing is paid and everyone gets t
   assert.deepEqual(log, ["status paying", "refund Ada 1970965", "refund Emeka 1970964", "status refunded"]);
 });
 
-test("settled but not vended: people are only paid back once AbaPay's refund has actually arrived", async () => {
-  const failed = { ok: false, status: "FAILED_VENDING", purchasedCode: null, units: null, settleTx: tx(1), requestId: "req_2", quote: { asset: USAT, amount: 3_864_636n, payTo: AGENT } } as BillResult;
-  const waiting = deps({ pay: async () => failed, balance: async () => 0n });
-  assert.equal((await settleBill(9, bill, 3_941_929n, payments, waiting.d)).status, "failed");
-  assert.ok(!waiting.log.some((l) => l.startsWith("refund")));
-  const back = deps({ pay: async () => failed });
-  assert.equal((await settleBill(9, bill, 3_941_929n, payments, back.d)).status, "refunded");
+test("not delivered: people are paid back only once the money is provably back", async () => {
+  const failed = {
+    ok: false,
+    status: "FAILED_VENDING",
+    purchasedCode: null,
+    units: null,
+    settleTx: tx(1),
+    requestId: "req_2",
+    quote: { asset: USAT, amount: 3_864_636n, payTo: AGENT },
+    authorization: { nonce: tx(7), validBefore: 0 },
+  } as BillResult;
+  const waiting = deps({ pay: async () => failed, afterFailure: async () => "waiting" });
+  assert.equal((await settleBill(9, bill, 3_941_929n, payments, waiting.d)).status, "awaiting_refund");
+  assert.ok(!waiting.log.some((l) => l.startsWith("refund")), "nobody is paid out of other drives' money");
+  assert.ok(waiting.log.includes("status awaiting_refund"));
+  for (const state of ["returned", "intact"] as const) {
+    const back = deps({ pay: async () => failed, afterFailure: async () => state });
+    assert.equal((await settleBill(9, bill, 3_941_929n, payments, back.d)).status, "refunded");
+    assert.deepEqual(back.log.filter((l) => l.startsWith("refund")), ["refund Ada 1970965", "refund Emeka 1970964"]);
+  }
 });

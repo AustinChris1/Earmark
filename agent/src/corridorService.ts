@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { RequestHandler } from "express";
 import { decodeEventLog, formatUnits, getAddress, isHex, parseAbi, parseUnits, type Address, type Hex } from "viem";
-import { tokenByAddress, tokenBySymbol } from "./config.js";
+import { tokenByAddress, tokenBySymbol, type TokenInfo } from "./config.js";
 import { account, contributeFromAgent, publicClient, readDrive, refundFromAgent } from "./chain.js";
 import { cancel, execute, preview, requestFirm, type FirmQuote } from "./textile.js";
-import { isCorridorLocal, payToken, settle, withHeadroom, type CorridorDeps, type CorridorIntent, type IntentStatus } from "./corridor.js";
+import { PAY_COINS, routeFor, settle, withHeadroom, type CorridorDeps, type CorridorIntent, type IntentStatus } from "./corridor.js";
 import { addCorridorIntent, getCorridorIntent, setCorridorStatus, unsettledCorridorIntents, type CorridorRow } from "./db.js";
 
 const USDT = tokenBySymbol("USDT")!;
@@ -28,22 +28,24 @@ const deps: CorridorDeps<FirmQuote> = {
 };
 
 /**
- * What a payer would send for a local amount, with the headroom included. The unused part comes back
- * after the swap, so this is the most they spend, not the price.
+ * What a payer would send in `pay` for `want` of the drive's coin, with the headroom included. The
+ * unused part comes back after the swap, so this is the most they spend, not the price.
  */
-export async function corridorQuote(local: Address, wantLocal: bigint, pay: "USDT" | "USAT") {
-  const toLocal = await preview(USDT.address, local, { buyAmount: wantLocal });
-  let usdtNeeded = toLocal.takerPays;
-  let payAmount = usdtNeeded;
-  if (pay === "USAT") {
-    // USA₮ has no direct corridor; price the hop into the USDT the second swap needs.
-    const hop = await preview(USAT.address, USDT.address, { buyAmount: usdtNeeded });
-    payAmount = hop.takerPays;
+export async function corridorQuote(drive: TokenInfo, want: bigint, pay: TokenInfo) {
+  const route = routeFor(pay, drive);
+  if (!route) throw new Error(`Earmark cannot swap ${pay.symbol} into ${drive.symbol}.`);
+  let payAmount: bigint;
+  if (route === "direct") {
+    payAmount = (await preview(pay.address, drive.address, { buyAmount: want })).takerPays;
+  } else {
+    // Two swaps: price the USDT the second one needs, then what buys that USDT.
+    const usdtNeeded = (await preview(USDT.address, drive.address, { buyAmount: want })).takerPays;
+    payAmount = (await preview(pay.address, USDT.address, { buyAmount: usdtNeeded })).takerPays;
   }
-  return { usdtNeeded, payAmount, maxPay: withHeadroom(payAmount) };
+  return { route, payAmount, maxPay: withHeadroom(payAmount) };
 }
 
-const ALLOWED_PAY = new Set([USDT.address.toLowerCase(), USAT.address.toLowerCase()]);
+const ALLOWED_PAY = new Set(PAY_COINS.map((s) => tokenBySymbol(s)!.address.toLowerCase()));
 
 /** Reads what a payment transaction actually sent to the agent; trusts nothing the client says about amounts. */
 async function receivedIn(txHash: Hex) {
@@ -65,7 +67,7 @@ async function receivedIn(txHash: Hex) {
       if ((e as Error).message.startsWith("A payment")) throw e;
     }
   }
-  if (!token || !payer || amount === 0n) throw new Error("That transaction did not send USDT or USA₮ to Earmark.");
+  if (!token || !payer || amount === 0n) throw new Error(`That transaction did not send ${PAY_COINS.join(", ")} to Earmark.`);
   return { token, payer, amount };
 }
 
@@ -108,16 +110,18 @@ export const corridorQuoteHandler: RequestHandler = async (req, res) => {
     if (!/^\d+$/.test(driveId)) return res.status(400).json({ error: "Bad drive." });
     const drive = await readDrive(BigInt(driveId));
     const local = tokenByAddress(drive.token);
-    if (!isCorridorLocal(local)) return res.status(400).json({ error: "This drive is not in a coin Earmark can convert into." });
-    const pay = payToken(String(req.query.pay ?? "USDT"));
-    if (!pay) return res.status(400).json({ error: "Pay in USDT or USA₮." });
+    const pay = tokenBySymbol(String(req.query.pay ?? "USDT"));
+    if (!local || !pay || !routeFor(pay, local)) {
+      return res.status(400).json({ error: `This drive cannot be paid in ${pay?.symbol ?? "that coin"}.` });
+    }
     const raw = String(req.query.amount ?? "");
-    const wantLocal = parseUnits(raw, local!.decimals);
+    const wantLocal = parseUnits(raw, local.decimals);
     if (wantLocal <= 0n) return res.status(400).json({ error: "Enter an amount." });
-    const q = await corridorQuote(drive.token, wantLocal, pay.symbol as "USDT" | "USAT");
+    const q = await corridorQuote(local, wantLocal, pay);
     res.json({
       driveId: Number(driveId),
-      local: local!.symbol,
+      local: local.symbol,
+      route: q.route,
       wantLocal: wantLocal.toString(),
       pay: pay.symbol,
       payToken: pay.address,

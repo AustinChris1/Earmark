@@ -2,10 +2,11 @@ import { randomUUID } from "node:crypto";
 import type { RequestHandler, Request, Response } from "express";
 import { paymentMiddlewareFromConfig } from "@x402/express";
 import { HTTPFacilitatorClient, type HTTPRequestContext } from "@x402/core/server";
+import { decodePaymentSignatureHeader } from "@x402/core/http";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
-import { formatUnits, parseUnits, type Address } from "viem";
+import { formatUnits, getAddress, isAddress, isHex, parseAbi, parseUnits, type Address, type Hex } from "viem";
 import { env, tokenByAddress, X402_FACILITATOR, X402_NETWORK } from "./config.js";
-import { account, contributeFromAgent, publicClient, readDrive, ERC20_ABI } from "./chain.js";
+import { account, contributeFromAgent, publicClient, readDrive } from "./chain.js";
 import { addIntent, getIntent, markForwarded, pendingIntents } from "./db.js";
 
 const facilitator = new HTTPFacilitatorClient({
@@ -83,6 +84,21 @@ export function x402Middleware(): RequestHandler {
   ]);
 }
 
+/** The wallet that signed this x402 payment, and the EIP-3009 nonce that identifies it on chain. */
+export function signedBy(header: string | undefined): { payer: Address | null; nonce: Hex | null } {
+  if (!header) return { payer: null, nonce: null };
+  try {
+    const p = decodePaymentSignatureHeader(header) as { payload?: { authorization?: { from?: string; nonce?: string } } };
+    const a = p.payload?.authorization;
+    return {
+      payer: a?.from && isAddress(a.from) ? getAddress(a.from) : null,
+      nonce: a?.nonce && isHex(a.nonce) && a.nonce.length === 66 ? (a.nonce as Hex) : null,
+    };
+  } catch {
+    return { payer: null, nonce: null };
+  }
+}
+
 // Runs only once the middleware has accepted payment; records the intent and lets the sweeper forward it.
 export const x402Handler: RequestHandler = async (req: Request, res: Response) => {
   try {
@@ -90,7 +106,8 @@ export const x402Handler: RequestHandler = async (req: Request, res: Response) =
     const { id, drive, token, amount } = await quote(req.path, typeof raw === "string" ? raw : undefined);
     const payerName = typeof req.query.name === "string" && req.query.name ? req.query.name : "diaspora";
     const intentId = randomUUID();
-    await addIntent({ id: intentId, drive_id: id, token: drive.token, amount: amount.toString(), payer_name: payerName });
+    const { payer, nonce } = signedBy(req.header("payment-signature") ?? req.header("x-payment"));
+    await addIntent({ id: intentId, drive_id: id, token: drive.token, amount: amount.toString(), payer_name: payerName, payer, nonce });
     const forwarded = await forwardIntent(intentId).catch(() => null);
     res.json({
       ok: true,
@@ -109,18 +126,27 @@ export const x402Handler: RequestHandler = async (req: Request, res: Response) =
   }
 };
 
-// Forwards one recorded intent if the agent actually holds the funds. Idempotent: a forwarded intent is skipped.
+const EIP3009_ABI = parseAbi(["function authorizationState(address authorizer, bytes32 nonce) view returns (bool)"]);
+
+/**
+ * Forwards one recorded intent once its own payment has settled. Idempotent: a forwarded intent is skipped.
+ *
+ * "The agent holds enough" is not proof: bill drives and swaps keep other people's money in the same
+ * wallet, so an x402 payment that never settled could otherwise be paid out of theirs. The token
+ * itself says whether this exact authorisation was used.
+ */
 async function forwardIntent(id: string): Promise<string | null> {
   const intent = await getIntent(id);
   if (!intent || intent.forwarded_tx) return null;
+  if (!intent.payer || !intent.nonce) return null;
   const amount = BigInt(intent.amount);
-  const balance = await publicClient.readContract({
+  const settled = await publicClient.readContract({
     address: intent.token as Address,
-    abi: ERC20_ABI,
-    functionName: "balanceOf",
-    args: [account.address],
+    abi: EIP3009_ABI,
+    functionName: "authorizationState",
+    args: [intent.payer as Address, intent.nonce as Hex],
   });
-  if (balance < amount) return null;
+  if (!settled) return null;
   const hash = await contributeFromAgent(BigInt(intent.drive_id), intent.token as Address, amount, `x402:${intent.payer_name}`);
   await markForwarded(id, hash);
   return hash;

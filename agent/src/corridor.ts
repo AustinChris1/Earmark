@@ -1,32 +1,51 @@
 import type { Address, Hex } from "viem";
-import { tokenBySymbol, type TokenInfo } from "./config.js";
+import { tokenByAddress, tokenBySymbol, type TokenInfo } from "./config.js";
 
 /**
- * Cross-currency drives. A drive is opened in the payee's local coin (cNGN, wARS, wBRL); someone
- * abroad pays in dollars. The agent receives the dollars, swaps them on Textile FX, and contributes
- * the local coin to the drive, so the payee only ever receives the coin the drive names and the
- * destination is still the one locked at creation.
+ * Paying a drive in a coin it was not opened in. The payer sends what they hold (pesos as wARS,
+ * reais as wBRL, naira as cNGN, or dollars); the agent swaps it on Textile FX into the drive's coin
+ * and contributes that, so the payee only ever receives the coin the drive names and the destination
+ * is still the one locked at creation. An aunt in Buenos Aires can chip into a Lagos light bill.
  *
- * This is the one place Earmark holds money: the dollars sit in the agent wallet for the seconds
- * the swap takes. The payer is shown the most they will spend; if the market moves past it, or any
- * step fails before the drive is paid, the dollars go back to the address they came from.
+ * The money sits in the agent wallet for the seconds the swap takes. The payer is shown the most
+ * they will spend; if the market moves past it, or any step fails before the drive is paid, it goes
+ * back to the address it came from.
  */
 
-/** Local coins with a live Textile corridor against USDT on Celo. */
-export const CORRIDOR_LOCAL = ["cNGN", "wARS", "wBRL"] as const;
-/** Dollar coins a payer can send. USA₮ has no direct corridor, so it is swapped to USDT first. */
-export const CORRIDOR_PAY = ["USDT", "USAT"] as const;
+/** Textile's live corridors on Celo, one direction each. Anything else goes through USDT. */
+const DIRECT = new Set([
+  "USDT>cNGN", "cNGN>USDT",
+  "USDT>wARS", "wARS>USDT",
+  "USDT>wBRL", "wBRL>USDT",
+  "USDC>USDT", "USDT>USDC",
+  // USA₮ only goes one way: there is no corridor into it, so a USA₮ drive can only be paid in USA₮.
+  "USAT>USDT",
+]);
+
+/** Coins a payer can send to be swapped. */
+export const PAY_COINS = ["USDT", "USAT", "cNGN", "wARS", "wBRL"] as const;
 
 /** Headroom over the quoted price that the payer is asked to send; the unused part is refunded. */
 export const HEADROOM_BPS = 100n;
 
-export function isCorridorLocal(token: TokenInfo | undefined): boolean {
-  return !!token && (CORRIDOR_LOCAL as readonly string[]).includes(token.symbol);
+const symbolOf = (a: Address) => tokenByAddress(a)?.symbol ?? "";
+
+export function isDirect(sell: Address, buy: Address): boolean {
+  return DIRECT.has(`${symbolOf(sell)}>${symbolOf(buy)}`);
 }
 
-export function payToken(symbol: string): TokenInfo | undefined {
-  const t = tokenBySymbol(symbol);
-  return t && (CORRIDOR_PAY as readonly string[]).includes(t.symbol) ? t : undefined;
+/** How Earmark turns `pay` into the drive's coin: one swap, two via USDT, or not at all. */
+export function routeFor(pay: TokenInfo | undefined, drive: TokenInfo | undefined): "direct" | "via-usdt" | null {
+  if (!pay || !drive || pay.symbol === drive.symbol) return null;
+  if (!(PAY_COINS as readonly string[]).includes(pay.symbol)) return null;
+  if (DIRECT.has(`${pay.symbol}>${drive.symbol}`)) return "direct";
+  if (drive.symbol !== "USDT" && DIRECT.has(`${pay.symbol}>USDT`) && DIRECT.has(`USDT>${drive.symbol}`)) return "via-usdt";
+  return null;
+}
+
+/** The coins, other than its own, that a drive in `drive` can be paid in. */
+export function payOptions(drive: TokenInfo | undefined): string[] {
+  return PAY_COINS.filter((p) => routeFor(tokenBySymbol(p), drive));
 }
 
 export function withHeadroom(amount: bigint): bigint {
@@ -94,6 +113,9 @@ export async function settle<Q extends Firm>(intent: CorridorIntent, deps: Corri
   };
 
   const drive = await deps.readDrive(intent.drive_id);
+  if (!routeFor(tokenByAddress(heldToken), tokenByAddress(drive.token))) {
+    return giveBack("Earmark cannot swap that coin into this drive's coin.");
+  }
   if (drive.closed) return giveBack("The drive closed before the payment could be swapped.");
   const want = localToBuy(intent.want_local, drive.target, drive.raised);
   if (want === 0n) return giveBack("The drive is already full.");
@@ -104,10 +126,10 @@ export async function settle<Q extends Firm>(intent: CorridorIntent, deps: Corri
   let bought: { swapHash: Hex; received: bigint } | undefined;
 
   try {
-    // USA₮ has no corridor to local coins, so it becomes USDT first.
-    if (heldToken.toLowerCase() === deps.usat.toLowerCase()) {
-      const hop = await deps.firmExactIn(deps.usat, deps.usdt, held);
-      const { received } = await deps.execute(hop, deps.usat, deps.usdt);
+    // No direct corridor (USA₮ into naira, pesos into naira): all of it becomes USDT first.
+    if (!isDirect(heldToken, drive.token)) {
+      const hop = await deps.firmExactIn(heldToken, deps.usdt, held);
+      const { received } = await deps.execute(hop, heldToken, deps.usdt);
       heldToken = deps.usdt;
       held = received;
     }

@@ -115,8 +115,27 @@ const SCHEMA = [
    )`,
 ];
 
+// Columns added after a table first shipped. SQLite has no ADD COLUMN IF NOT EXISTS, so a column
+// that is already there is the expected error on every start after the first.
+const COLUMNS = [
+  // The coin a bill drive collects and pays AbaPay in: USA₮, or USD₮ so other currencies can swap in.
+  `ALTER TABLE bills ADD COLUMN token TEXT NOT NULL DEFAULT 'USAT'`,
+  // What AbaPay actually took, so its refund can be recognised if the bill is not delivered.
+  `ALTER TABLE bills ADD COLUMN paid_amount TEXT`,
+  // The authorisation the agent signed for AbaPay, as JSON, to tell later whether the money left.
+  `ALTER TABLE bills ADD COLUMN auth TEXT`,
+  // Who signed an x402 payment, and the authorisation nonce that proves it settled on chain.
+  `ALTER TABLE x402_intents ADD COLUMN payer TEXT`,
+  `ALTER TABLE x402_intents ADD COLUMN nonce TEXT`,
+];
+
 export async function migrate() {
   for (const sql of SCHEMA) await db.execute(sql);
+  for (const sql of COLUMNS) {
+    await db.execute(sql).catch((e: Error) => {
+      if (!/duplicate column/i.test(e.message)) throw e;
+    });
+  }
 }
 
 export type DriveRow = {
@@ -170,6 +189,10 @@ export type X402Intent = {
   amount: string;
   payer_name: string;
   forwarded_tx: string | null;
+  /** The wallet that signed the x402 payment; null on intents recorded before this was kept. */
+  payer: string | null;
+  /** The EIP-3009 authorisation nonce; once the token marks it used, the money has arrived. */
+  nonce: string | null;
   created_at: number;
 };
 
@@ -393,8 +416,8 @@ export async function markNudged(driveId: number, tgId: string, seq: number, ts:
 
 export async function addIntent(i: Omit<X402Intent, "forwarded_tx" | "created_at">) {
   await run(
-    `INSERT OR IGNORE INTO x402_intents (id, drive_id, token, amount, payer_name, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-    [i.id, i.drive_id, i.token, i.amount, i.payer_name, now()],
+    `INSERT OR IGNORE INTO x402_intents (id, drive_id, token, amount, payer_name, payer, nonce, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [i.id, i.drive_id, i.token, i.amount, i.payer_name, i.payer, i.nonce, now()],
   );
 }
 
@@ -424,23 +447,44 @@ export type BillRow = {
   units: string | null;
   request_id: string | null;
   note: string | null;
+  /** "USAT" or "USDT": what the drive collects and what AbaPay is paid in. */
+  token: string;
+  paid_amount: string | null;
+  auth: string | null;
   created_at: number;
   updated_at: number;
 };
 
-export async function insertBill(b: Pick<BillRow, "drive_id" | "category" | "service_id" | "network" | "billers_code" | "naira_amount" | "quoted">) {
+export async function insertBill(
+  b: Pick<BillRow, "drive_id" | "category" | "service_id" | "network" | "billers_code" | "naira_amount" | "quoted" | "token">,
+) {
   await run(
-    `INSERT INTO bills (drive_id, category, service_id, network, billers_code, naira_amount, quoted, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'collecting', ?, ?)`,
-    [b.drive_id, b.category, b.service_id, b.network, b.billers_code, b.naira_amount, b.quoted, now(), now()],
+    `INSERT INTO bills (drive_id, category, service_id, network, billers_code, naira_amount, quoted, token, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'collecting', ?, ?)`,
+    [b.drive_id, b.category, b.service_id, b.network, b.billers_code, b.naira_amount, b.quoted, b.token, now(), now()],
   );
+}
+
+export function billsWithStatus(status: string) {
+  return all<BillRow>(`SELECT * FROM bills WHERE status = ? ORDER BY drive_id`, [status]);
+}
+
+/**
+ * Who really paid a contribution the agent made on someone's behalf: a swapped payment or an x402
+ * payment. Without this, change from a bill drive could not go back to the person who sent it.
+ */
+export async function realPayerFor(txHash: string): Promise<string | undefined> {
+  const swapped = await one<{ payer: string }>(`SELECT payer FROM corridor_intents WHERE contribute_tx = ?`, [txHash]);
+  if (swapped) return swapped.payer;
+  const x402 = await one<{ payer: string | null }>(`SELECT payer FROM x402_intents WHERE forwarded_tx = ?`, [txHash]);
+  return x402?.payer ?? undefined;
 }
 
 export function getBill(driveId: number) {
   return one<BillRow>(`SELECT * FROM bills WHERE drive_id = ?`, [driveId]);
 }
 
-const BILL_FIELDS = new Set(["settle_tx", "purchased_code", "units", "request_id", "note"]);
+const BILL_FIELDS = new Set(["settle_tx", "purchased_code", "units", "request_id", "note", "paid_amount", "auth"]);
 
 export async function setBillStatus(driveId: number, status: string, fields: Record<string, string> = {}) {
   const keys = Object.keys(fields).filter((k) => BILL_FIELDS.has(k));
