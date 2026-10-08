@@ -383,12 +383,37 @@ export function DrivePage() {
                 </div>
               </div>
 
+              {drive.bill && (
+                <div className="mt-4 rounded-xl p-4 text-sm leading-relaxed" style={{ border: "1px solid var(--line)" }}>
+                  <p className="font-semibold">
+                    {drive.bill.category === "ELECTRICITY" ? "⚡" : "📱"} Earmark pays {drive.bill.provider} for {drive.bill.number}, ₦
+                    {drive.bill.naira.toLocaleString("en-US")}
+                  </p>
+                  <p className="mt-1" style={{ color: "var(--text-muted)" }}>
+                    {drive.bill.status === "paid"
+                      ? "Paid. The token was posted in the group that collected for it."
+                      : drive.bill.status === "collecting"
+                        ? "The address above is Earmark's own wallet: the money waits there until the drive is full, then Earmark pays the bill through AbaPay and posts the receipt in the group. Anything unused goes back to the people who paid, and if the bill cannot be paid, everyone gets their share back."
+                        : drive.bill.status === "paying"
+                          ? "Full. Earmark is paying the bill now."
+                          : "This bill was not paid, and the money went back to the people who sent it."}
+                  </p>
+                  {drive.bill.settleTx && (
+                    <a href={`${drive.explorer}/tx/${drive.bill.settleTx}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 underline underline-offset-4" style={{ color: "var(--accent)" }}>
+                      Payment to AbaPay <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                </div>
+              )}
+
               <p className="mt-4 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
                 You are paying <span style={{ color: "var(--text)" }}>{drive.label}</span>
                 {target > 0n ? `, ${fmt(remaining)} still needed of ${fmt(target)}` : ""}.{" "}
-                {corridor && payIn !== "local"
-                  ? `Paying in dollars, Earmark swaps them to ${drive.token.symbol} and pays the address above; nobody can redirect it.`
-                  : "After you confirm, the tokens leave your wallet and arrive at the address above in the same transaction. Earmark never holds the money and nobody can redirect it."}
+                {drive.bill
+                  ? "After you confirm, your share goes to Earmark's wallet, which pays the bill when the drive is full."
+                  : corridor && payIn !== "local"
+                    ? `Paying in dollars, Earmark swaps them to ${drive.token.symbol} and pays the address above; nobody can redirect it.`
+                    : "After you confirm, the tokens leave your wallet and arrive at the address above in the same transaction. Earmark never holds the money and nobody can redirect it."}
               </p>
 
               {target > 0n && (

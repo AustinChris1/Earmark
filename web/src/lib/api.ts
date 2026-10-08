@@ -25,6 +25,8 @@ export type Drive = {
   chat: { collectorName: string | null } | null;
   /** Present when Ripio ramps this coin: the country it serves, and the payee's cash-out link. */
   ramp: { country: string; offramp: string } | null;
+  /** Present on a bill drive: Earmark pays this provider itself when the drive fills. */
+  bill: { provider: string; category: string; number: string; naira: number; status: string; settleTx: string | null } | null;
   payments: Payment[];
 };
 

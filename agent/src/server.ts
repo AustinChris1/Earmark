@@ -12,6 +12,9 @@ import { x402Guard, x402Handler, x402Middleware } from "./x402.js";
 import { linkHandler, nonceHandler, sessionHandler, statusHandler } from "./verify.js";
 import { isTestDrive, pickFeatured } from "./featured.js";
 import { offrampUrl, rampCountry } from "./ripio.js";
+import { getBill } from "./db.js";
+import { maskNumber } from "./bills.js";
+import { providerLabel } from "./billService.js";
 import { corridorQuoteHandler, corridorStatusHandler, corridorSubmitHandler } from "./corridorService.js";
 import { drivePageHtml, homepageLiveSnippet, noLiveDriveHtml } from "./publicHtml.js";
 
@@ -244,6 +247,20 @@ app.get("/api/drive/:id", async (req, res) => {
       rpcUrl: publicRpcUrl,
       explorer: explorerUrl,
       chat: local ? { collectorName: local.collector_name } : null,
+      // A bill drive: the provider, a masked number, and how the payment went. The electricity token is
+      // only ever posted to the group that paid for it, never served here.
+      bill: await getBill(id).then((b) =>
+        b
+          ? {
+              provider: providerLabel(b),
+              category: b.category,
+              number: maskNumber(b.billers_code),
+              naira: b.naira_amount,
+              status: b.status,
+              settleTx: b.settle_tx || null,
+            }
+          : null,
+      ),
       // Ripio serves this coin: the page builds the payer's on-ramp link with their own wallet, and
       // the payee gets an off-ramp link for what the drive has paid them.
       ramp: (() => {

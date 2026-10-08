@@ -3,6 +3,7 @@ import { env, isLocal } from "./config.js";
 import { getDrive, getMeta, insertPayment, markClosed, reconcileInstalments, setMeta } from "./db.js";
 import { memoName } from "./format.js";
 import { announceContribution } from "./bot.js";
+import { maybeSettleBill } from "./billService.js";
 
 const CHUNK = 2000n;
 const POLL_MS = 12_000;
@@ -45,6 +46,7 @@ export function startWatcher(startBlock?: bigint) {
           if (isNew && await getDrive(driveId)) {
             await announceContribution(driveId, memoName(note, payer), amount, log.transactionHash).catch(console.error);
           }
+          if (isNew) void maybeSettleBill(driveId);
         }
         const closed = await publicClient.getContractEvents({
           address: earmark,

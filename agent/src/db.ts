@@ -67,6 +67,24 @@ const SCHEMA = [
      linked_at INTEGER NOT NULL
    )`,
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)`,
+  // A bill drive: what the agent will pay through AbaPay once the drive fills, and how that went.
+  `CREATE TABLE IF NOT EXISTS bills (
+     drive_id INTEGER PRIMARY KEY,
+     category TEXT NOT NULL,
+     service_id TEXT NOT NULL,
+     network TEXT NOT NULL,
+     billers_code TEXT NOT NULL,
+     naira_amount INTEGER NOT NULL,
+     quoted TEXT NOT NULL,
+     status TEXT NOT NULL,
+     settle_tx TEXT,
+     purchased_code TEXT,
+     units TEXT,
+     request_id TEXT,
+     note TEXT,
+     created_at INTEGER NOT NULL,
+     updated_at INTEGER NOT NULL
+   )`,
   // Dollars received for a cross-currency drive, followed from arrival to the drive or back to the payer.
   `CREATE TABLE IF NOT EXISTS corridor_intents (
      id TEXT PRIMARY KEY,
@@ -390,6 +408,44 @@ export async function markForwarded(id: string, tx: string) {
 
 export function getIntent(id: string) {
   return one<X402Intent>(`SELECT * FROM x402_intents WHERE id = ?`, [id]);
+}
+
+export type BillRow = {
+  drive_id: number;
+  category: string;
+  service_id: string;
+  network: string;
+  billers_code: string;
+  naira_amount: number;
+  quoted: string;
+  status: string;
+  settle_tx: string | null;
+  purchased_code: string | null;
+  units: string | null;
+  request_id: string | null;
+  note: string | null;
+  created_at: number;
+  updated_at: number;
+};
+
+export async function insertBill(b: Pick<BillRow, "drive_id" | "category" | "service_id" | "network" | "billers_code" | "naira_amount" | "quoted">) {
+  await run(
+    `INSERT INTO bills (drive_id, category, service_id, network, billers_code, naira_amount, quoted, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'collecting', ?, ?)`,
+    [b.drive_id, b.category, b.service_id, b.network, b.billers_code, b.naira_amount, b.quoted, now(), now()],
+  );
+}
+
+export function getBill(driveId: number) {
+  return one<BillRow>(`SELECT * FROM bills WHERE drive_id = ?`, [driveId]);
+}
+
+const BILL_FIELDS = new Set(["settle_tx", "purchased_code", "units", "request_id", "note"]);
+
+export async function setBillStatus(driveId: number, status: string, fields: Record<string, string> = {}) {
+  const keys = Object.keys(fields).filter((k) => BILL_FIELDS.has(k));
+  const sets = ["status = ?", "updated_at = ?", ...keys.map((k) => `${k} = ?`)].join(", ");
+  await run(`UPDATE bills SET ${sets} WHERE drive_id = ?`, [status, now(), ...keys.map((k) => fields[k]), driveId]);
 }
 
 export type CorridorRow = {

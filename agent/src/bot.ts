@@ -2,10 +2,15 @@ import { Bot, InlineKeyboard, InputFile, type Context } from "grammy";
 import QRCode from "qrcode";
 import { isAddress, parseUnits, formatUnits, getAddress, type Address } from "viem";
 import { env, TOKENS, tokenByAddress, tokenBySymbol, type TokenInfo } from "./config.js";
-import { createDriveOnchain, closeDriveOnchain } from "./chain.js";
+import { account, createDriveOnchain, closeDriveOnchain } from "./chain.js";
+import { PROVIDERS, quoteBill } from "./abapay.js";
+import { billTarget, maskNumber, type BillOutcome } from "./bills.js";
+import { onBillSettled, providerLabel } from "./billService.js";
 import {
   forgetMember,
   getDrive,
+  insertBill,
+  type BillRow,
   hasPlan,
   membersFor,
   seenMember,
@@ -94,7 +99,7 @@ async function showDrive(ctx: Context, d: DriveRow, header = "") {
 async function openDrive(
   ctx: Context,
   args: { token: TokenInfo; destination: Address; target: bigint; label: string },
-) {
+): Promise<number | undefined> {
   if (ctx.from && !(await requireHuman(ctx))) return;
   const working = await ctx.reply(`Opening “${args.label}” on Celo…`);
   try {
@@ -123,11 +128,69 @@ async function openDrive(
       `${driveCard(d, [], env.PUBLIC_URL)}\n\n<a href="https://celoscan.io/tx/${hash}">Onchain receipt</a>\nNext: set shares with <code>/split @ada 40 @emeka 30</code>, or <code>/split all</code> to divide it evenly`,
       { ...HTML, reply_markup: driveKeyboard(d.id) },
     );
+    return d.id;
   } catch (e) {
     await ctx.api
       .editMessageText(working.chat.id, working.message_id, `Could not open the drive: ${(e as Error).message}`)
       .catch(() => {});
   }
+}
+
+const BILL_HELP = [
+  "<b>Pay a bill together.</b> Earmark collects the shares and pays the provider itself when the drive is full.",
+  "",
+  "<code>/bill ikeja 45012345678 15000</code>  electricity, meter number, naira",
+  "<code>/bill mtn 08031234567 2000</code>  airtime, phone number, naira",
+  "",
+  `Providers: ${Object.keys(PROVIDERS).join(", ")}`,
+].join("\n");
+
+async function openBillDrive(ctx: Context, providerKey: string, number: string, nairaRaw: string) {
+  const p = PROVIDERS[providerKey.toLowerCase()];
+  const naira = Number(nairaRaw.replace(/[,_]/g, ""));
+  if (!p || !/^\d{6,15}$/.test(number) || !Number.isFinite(naira) || naira < 100) return ctx.reply(BILL_HELP, HTML);
+  const usat = tokenBySymbol("USAT")!;
+  const bill = { category: p.category, serviceID: p.serviceID, network: p.network, billersCode: number, nairaAmount: naira };
+  let quoted: bigint;
+  try {
+    quoted = (await quoteBill(bill, "USAT")).amount;
+  } catch (e) {
+    return ctx.reply(`AbaPay could not price that bill: ${escape((e as Error).message)}`, HTML);
+  }
+  const target = billTarget(quoted);
+  // The label is public on chain, so the meter or phone number is masked there.
+  const label = `${p.label} ${maskNumber(number)} N${naira.toLocaleString("en-US")}`.slice(0, 80);
+  const id = await openDrive(ctx, { token: usat, destination: account.address, target, label });
+  if (!id) return;
+  await insertBill({ drive_id: id, category: p.category, service_id: p.serviceID, network: p.network, billers_code: number, naira_amount: naira, quoted: quoted.toString() });
+  await ctx.reply(
+    [
+      `⚡ This is a <b>bill drive</b>. When it reaches <b>${fmt(target, usat)}</b>, Earmark pays ${p.label} for <code>${number}</code> (₦${naira.toLocaleString("en-US")}) through AbaPay and posts ${p.category === "ELECTRICITY" ? "the token" : "the receipt"} here.`,
+      "",
+      `The money waits in Earmark's wallet until the bill is paid. The 2% on top covers the rate moving; whatever is not used goes back to the people who paid, and if the bill cannot be paid, everyone gets their share back.`,
+    ].join("\n"),
+    HTML,
+  );
+}
+
+async function announceBill(driveId: number, row: BillRow, outcome: BillOutcome) {
+  const d = await getDrive(driveId);
+  if (!d || !bot) return;
+  const usat = tokenBySymbol("USAT")!;
+  const what = `${providerLabel(row)} for <code>${row.billers_code}</code>, ₦${row.naira_amount.toLocaleString("en-US")}`;
+  let text: string;
+  if (outcome.status === "paid") {
+    const r = outcome.result;
+    text = `${row.category === "ELECTRICITY" ? "⚡" : "📱"} <b>Paid.</b> ${what}.`;
+    if (r.purchasedCode) text += `\nToken: <code>${escape(r.purchasedCode)}</code>${r.units ? ` (${escape(r.units)} units)` : ""}`;
+    if (r.settleTx) text += `\n<a href="https://celoscan.io/tx/${r.settleTx}">Payment to AbaPay</a>`;
+    if (outcome.refunds.length) text += `\nUnused ${fmt(outcome.refunds.reduce((a, x) => a + x.amount, 0n), usat)} went back to ${outcome.refunds.length} ${outcome.refunds.length === 1 ? "person" : "people"}.`;
+  } else if (outcome.status === "refunded") {
+    text = `Could not pay ${what}: ${escape(outcome.reason)}\nEveryone's share went back to the wallet it came from.`;
+  } else {
+    text = `AbaPay took the payment for ${what} but could not deliver it: ${escape(outcome.reason)}\nEarmark pays everyone back as soon as AbaPay's refund arrives.`;
+  }
+  await bot.api.sendMessage(d.chat_id, text, HTML);
 }
 
 // Only a verified human may open a drive, so a fake obligation cannot be spun up anonymously.
@@ -451,6 +514,12 @@ function registerHandlers(b: Bot) {
     });
   });
 
+  b.command("bill", async (ctx) => {
+    const [provider, number, naira] = (ctx.match ?? "").trim().split(/\s+/);
+    if (!provider || !number || !naira) return ctx.reply(BILL_HELP, HTML);
+    return openBillDrive(ctx, provider, number, naira);
+  });
+
   b.command("plan", async (ctx) => {
     const d = await latestDriveForChat(chatId(ctx));
     if (!d || d.closed) return ctx.reply("No open drive here. Start one with /new.");
@@ -659,6 +728,7 @@ export function startBot(): Bot | null {
   if (!env.TELEGRAM_BOT_TOKEN) return null;
   bot = new Bot(env.TELEGRAM_BOT_TOKEN);
   registerHandlers(bot);
+  onBillSettled(announceBill);
   bot.catch((err) => console.error("bot:", err.error));
   void bot.start({
     onStart: async (me) => {
@@ -667,6 +737,7 @@ export function startBot(): Bot | null {
         { command: "menu", description: "Show the button menu" },
         { command: "new", description: "Open a drive for a shared bill" },
         { command: "split", description: "Set who owes what, or /split all" },
+        { command: "bill", description: "Pay electricity or airtime together" },
         { command: "plan", description: "Spread shares over instalments" },
         { command: "pay", description: "Get your personal pay link" },
         { command: "tally", description: "Who has paid, who has not" },
