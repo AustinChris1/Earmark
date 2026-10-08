@@ -11,7 +11,8 @@
     "test": "tsx --test test/*.test.mts",
     "x402:pay": "tsx scripts/x402-pay.ts",
     "open-drive": "tsx scripts/open-drive.ts",
-    "textile:quote": "tsx scripts/textile-quote.ts"
+    "textile:quote": "tsx scripts/textile-quote.ts",
+    "abapay:quote": "tsx scripts/abapay-quote.ts"
   },
   "dependencies": {
     "@celo/attribution-tags": "^0.3.0",
