@@ -243,6 +243,11 @@ export function Landing() {
                 no withdraw, no owner and no upgrade path, so nobody can redirect a drive. The contract never holds a
                 balance, so there is nothing to run away with.
               </p>
+              <p className="mt-3 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                One exception, said plainly: a bill drive, for a Nigerian bill or a phone top-up abroad, is locked to
+                Earmark's own wallet. It holds the pool until the drive is full, pays the provider, and sends any change
+                back to the people who paid. If the bill cannot be paid, everyone gets their share back.
+              </p>
               <a
                 href={SOURCE_URL}
                 target="_blank"

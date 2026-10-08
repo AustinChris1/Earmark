@@ -13,7 +13,7 @@ const registration = {
   type: "Agent",
   name: env.AGENT_NAME,
   description:
-    "Earmark pools a group obligation (school fees, a shared meter, rent) from a family or house chat and can only pay the locked destination. Nothing is ever custodied. Runs on Celo with cNGN, USDT and USAT over x402.",
+    "Earmark collects a family or house chat's shares for one named bill on Celo. An ordinary drive pays a destination locked when it opens: each share goes straight from the payer to that address and Earmark never holds it. A bill drive (Nigerian electricity or airtime, or a phone top-up in 140+ countries) collects into the agent wallet until it is full, then the agent pays the provider itself through AbaPay over x402 and returns any change. Shares can be paid in USA₮, USD₮, cNGN, wARS or wBRL; Textile FX swaps them into the drive's coin, and Ripio ramps pesos and reais in and out.",
   image: `${env.PUBLIC_URL}/icon.svg`,
   endpoints: [
     { type: "web", url: env.PUBLIC_URL },
@@ -29,6 +29,14 @@ const agentURI = `data:application/json;base64,${Buffer.from(JSON.stringify(regi
 
 async function main() {
   const existing = process.env.ERC8004_AGENT_ID;
+  if (process.argv.includes("--print")) {
+    console.log(JSON.stringify(registration, null, 2));
+    return;
+  }
+  // Without an id this mints a second identity; that has to be asked for, never a typo away.
+  if (!existing && !process.argv.includes("--new")) {
+    throw new Error("ERC8004_AGENT_ID is not set. Set it to update the existing agent, or pass --new to register another.");
+  }
   if (existing) {
     const hash = await walletClient.writeContract({
       address: ERC8004_IDENTITY_REGISTRY,
