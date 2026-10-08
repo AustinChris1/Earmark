@@ -409,8 +409,8 @@ export function DrivePage() {
               {drive.bill && (
                 <div className="mt-4 rounded-xl p-4 text-sm leading-relaxed" style={{ border: "1px solid var(--line)" }}>
                   <p className="font-semibold">
-                    {drive.bill.category === "ELECTRICITY" ? "⚡" : "📱"} Earmark pays {drive.bill.provider} for {drive.bill.number}, ₦
-                    {drive.bill.naira.toLocaleString("en-US")}
+                    {drive.bill.category === "ELECTRICITY" ? "⚡" : drive.bill.category === "INTERNATIONAL" ? "🌍" : "📱"} Earmark pays{" "}
+                    {drive.bill.provider} for {drive.bill.number}, {drive.bill.amountLabel}
                   </p>
                   <p className="mt-1" style={{ color: "var(--text-muted)" }}>
                     {drive.bill.status === "paid"

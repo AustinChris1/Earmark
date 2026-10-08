@@ -17,7 +17,7 @@ Earmark is a Telegram bot you add to that family group.
 
 If the school does not have a wallet, Earmark cannot pay it. It pays wallet addresses only, and it says so.
 
-**Bills Earmark pays itself.** For Nigerian electricity and airtime there is no wallet to lock, so Earmark pays the provider. The group collects into Earmark's wallet, and when the drive is full the agent pays the bill through [AbaPay](https://agents.abapays.com) over x402 and posts the meter token or receipt in the chat. Unused headroom goes back to the people who paid, and if the bill cannot be paid, everyone gets their share back. This is the one kind of drive where Earmark holds the money, and only until the bill is paid.
+**Bills Earmark pays itself.** For Nigerian electricity and airtime, and for phone top-ups in 140+ countries (Claro, Movistar and Personal in Argentina; Claro, TIM and Vivo in Brazil), there is no wallet to lock, so Earmark pays the provider. The group collects into Earmark's wallet, and when the drive is full the agent pays the bill through [AbaPay](https://agents.abapays.com) over x402 and posts the meter token or receipt in the chat. Unused headroom goes back to the people who paid, and if the bill cannot be paid, everyone gets their share back. This is the one kind of drive where Earmark holds the money, and only until the bill is paid.
 
 **Pay in your own money.** A relative in Buenos Aires or São Paulo pays in pesos (wARS) or reais (wBRL), someone in Lagos in naira (cNGN), anyone else in USD₮ or USA₮. Earmark swaps it on [Textile FX](https://textilecredit.com) into the coin the drive collects, and returns whatever the swap did not use. No pesos on chain yet? The pay page links straight into [Ripio](https://ramp.ripio.com) to buy them.
 
@@ -26,7 +26,7 @@ The name: to earmark money is to set it aside for one purpose. The word comes fr
 ## Try it in two minutes
 
 1. Open [@Earmarked_bot](https://t.me/Earmarked_bot) in Telegram, or add it to a group, and send `/menu`. Everything is buttons; no commands to remember.
-2. Tap **➕ New drive**, pick a coin, reply with the amount and the wallet it pays. Or tap **⚡ Pay a bill**, pick electricity or airtime, the provider, the number and the amount.
+2. Tap **➕ New drive**, pick a coin, reply with the amount and the wallet it pays. Or tap **⚡ Pay a Nigerian Bill** (electricity or airtime: provider, number, amount), or **🌍 Airtime abroad** (country, network, number, top-up). Anything Earmark cannot pay itself goes to a drive locked to a trusted person's wallet, with a Ripio link for them to cash out.
 3. Tap **➗ Split evenly**, then **Pay my share**. The pay page works in MetaMask, Rabby, Valora or MiniPay's built-in wallet, and offers pesos, reais, naira or dollars where the drive can swap them.
 4. Tap **Who has paid**. Open the Celoscan link on any payment: **To** is the locked wallet, never the Earmark contract.
 
@@ -43,7 +43,7 @@ No Telegram? All of it, bill drives included, works from the browser at <https:/
 | Bot | [@Earmarked_bot](https://t.me/Earmarked_bot) |
 | Site | <https://earmark-agent.onrender.com>, docs at [/docs](https://earmark-agent.onrender.com/docs), live drive at [/live](https://earmark-agent.onrender.com/live) |
 | Tokens | 25 Celo stablecoins, every address checked on chain before listing; see [usage](docs/usage.md) |
-| Bill payments | Nigerian electricity and airtime through [AbaPay](https://agents.abapays.com) over x402, settled in USA₮ or USD₮ |
+| Bill payments | Nigerian electricity and airtime, and airtime in 140+ countries, through [AbaPay](https://agents.abapays.com) over x402, settled in USA₮ or USD₮ |
 | FX | [Textile FX](https://textilecredit.com) RFQ swaps: wARS, wBRL, cNGN, USD₮ and USA₮ into whatever coin a drive collects |
 | x402 | Drive #7 paid by an agent with no wallet UI: [settlement](https://celoscan.io/tx/0x5dbe0d9832d96f3b5e943a2de9d9af7e8759555692b5b3ddec48acbe1accb518) by Celo's facilitator, then [forwarded into the drive](https://celoscan.io/tx/0x671113b150af4f151add4b972ab64bfd75244882b2cf147fa66e7e1f565d4379). Client: `pnpm -F @earmark/agent x402:pay <id> <amount>` |
 

@@ -13,8 +13,15 @@ import {
   getBillQuote,
   getConfig,
   getDrives,
+  getIntlCountries,
+  getIntlOperators,
+  getIntlPlans,
+  type BillChoice,
   type BillProvider,
   type BillQuote,
+  type IntlCountry,
+  type IntlOperator,
+  type IntlPlan,
   type DriveSummary,
 } from "../lib/api";
 import { chainFor, connect, publicFor, silentAccount, walletFor, type Config } from "../lib/wallet";
@@ -26,7 +33,7 @@ const EARMARK_ABI = parseAbi([
   "event DriveCreated(uint256 indexed id, address indexed collector, address indexed destination, address token, uint256 target, uint64 deadline, string label)",
 ]);
 
-type BillDraft = { quote: BillQuote; provider: string; naira: number };
+type BillDraft = { quote: BillQuote; choice: BillChoice };
 
 function short(a: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
@@ -254,7 +261,7 @@ export function AppPage() {
     if (!cfg || !account) return;
     setBusy("Sign to attach the bill");
     const signature = await walletFor(cfg, account).signMessage({ account, message: p.quote.sign.replace("{id}", String(p.id)) });
-    await attachBill({ driveId: p.id, provider: p.provider, number: p.quote.number, naira: p.naira, coin: p.quote.coin, signature });
+    await attachBill({ ...p.choice, driveId: p.id, number: p.quote.number, coin: p.quote.coin, signature });
     setUnattached(null);
     navigate(`/d/${p.id}`);
   }
@@ -611,15 +618,25 @@ function Segmented<T extends string>({ label, value, options, onChange }: { labe
   );
 }
 
+type BillKind = "ELECTRICITY" | "AIRTIME" | "ABROAD";
+
 function BillDriveForm({ onSubmit }: { onSubmit: (b: BillDraft) => void }) {
   const [providers, setProviders] = useState<BillProvider[]>([]);
-  const [category, setCategory] = useState<"ELECTRICITY" | "AIRTIME">("ELECTRICITY");
+  const [category, setCategory] = useState<BillKind>("ELECTRICITY");
   const [provider, setProvider] = useState("");
   const [number, setNumber] = useState("");
   const [naira, setNaira] = useState("");
   const [coin, setCoin] = useState<"USAT" | "USDT">("USAT");
   const [quote, setQuote] = useState<BillQuote | null>(null);
   const [quoteError, setQuoteError] = useState("");
+  // Abroad: AbaPay's live catalogue, one level at a time.
+  const [countries, setCountries] = useState<IntlCountry[]>([]);
+  const [country, setCountry] = useState("AR");
+  const [operators, setOperators] = useState<IntlOperator[]>([]);
+  const [operator, setOperator] = useState("");
+  const [plans, setPlans] = useState<IntlPlan[]>([]);
+  const [plan, setPlan] = useState("");
+  const abroad = category === "ABROAD";
 
   useEffect(() => {
     getBillProviders()
@@ -627,20 +644,59 @@ function BillDriveForm({ onSubmit }: { onSubmit: (b: BillDraft) => void }) {
       .catch(() => setQuoteError("Could not load the providers. Refresh to try again."));
   }, []);
 
+  useEffect(() => {
+    if (!abroad || countries.length) return;
+    getIntlCountries()
+      .then(setCountries)
+      .catch(() => setQuoteError("Could not load the countries. Refresh to try again."));
+  }, [abroad]);
+
+  useEffect(() => {
+    if (!abroad || !country) return;
+    setOperators([]);
+    setOperator("");
+    getIntlOperators(country)
+      .then((o) => {
+        setOperators(o);
+        setOperator(o[0]?.id ?? "");
+      })
+      .catch(() => setQuoteError("Could not load that country's networks."));
+  }, [abroad, country]);
+
+  useEffect(() => {
+    if (!abroad || !operator) return;
+    setPlans([]);
+    setPlan("");
+    getIntlPlans(operator)
+      .then((p) => {
+        setPlans(p);
+        setPlan(p[0]?.code ?? "");
+      })
+      .catch(() => setQuoteError("Could not load that network's top-ups."));
+  }, [abroad, operator]);
+
   const list = providers.filter((p) => p.category === category);
   useEffect(() => {
-    if (!list.some((p) => p.key === provider)) setProvider(list[0]?.key ?? "");
+    if (!abroad && !list.some((p) => p.key === provider)) setProvider(list[0]?.key ?? "");
   }, [category, providers]);
+
+  const choice: BillChoice | null = abroad
+    ? country && operator && plan
+      ? { country, operator, plan }
+      : null
+    : provider && Number.isInteger(Number(naira)) && Number(naira) >= 100
+      ? { provider, naira: Number(naira) }
+      : null;
+  const choiceKey = JSON.stringify(choice);
 
   // A live price from AbaPay once the bill is complete enough to price.
   useEffect(() => {
     setQuote(null);
     setQuoteError("");
-    const n = Number(naira);
-    if (!provider || number.replace(/\D/g, "").length < 6 || !Number.isInteger(n) || n < 100) return;
+    if (!choice || number.replace(/\D/g, "").length < 6) return;
     let live = true;
     const t = setTimeout(() => {
-      getBillQuote({ provider, number, naira: n, coin })
+      getBillQuote({ ...choice, number, coin })
         .then((q) => live && setQuote(q))
         .catch((e: Error) => live && setQuoteError(e.message));
     }, 450);
@@ -648,10 +704,12 @@ function BillDriveForm({ onSubmit }: { onSubmit: (b: BillDraft) => void }) {
       live = false;
       clearTimeout(t);
     };
-  }, [provider, number, naira, coin]);
+  }, [choiceKey, number, coin]);
 
+  const here = countries.find((c) => c.code === country);
   const what = category === "ELECTRICITY" ? "Prepaid meter number" : "Phone number to top up";
-  const chosen = list.find((p) => p.key === provider);
+  const chosenLabel = abroad ? operators.find((o) => o.id === operator)?.name : list.find((p) => p.key === provider)?.label;
+  const shortName = (name: string) => (here && name.startsWith(`${here.name} `) ? name.slice(here.name.length + 1) : name);
 
   return (
     <>
@@ -663,53 +721,112 @@ function BillDriveForm({ onSubmit }: { onSubmit: (b: BillDraft) => void }) {
           label="Kind of bill"
           value={category}
           options={[
-            ["ELECTRICITY", "⚡ Electricity"],
-            ["AIRTIME", "📱 Airtime"],
+            ["ELECTRICITY", "⚡ Nigerian electricity"],
+            ["AIRTIME", "📱 Nigerian airtime"],
+            ["ABROAD", "🌍 Airtime abroad"],
           ]}
-          onChange={setCategory}
+          onChange={(v) => {
+            setCategory(v);
+            setNumber("");
+          }}
         />
-        <select className="field" aria-label="Provider" value={provider} onChange={(e) => setProvider(e.target.value)}>
-          {list.map((p) => (
-            <option key={p.key} value={p.key}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-        <input
-          className="field tabular-nums"
-          inputMode="numeric"
-          aria-label={what}
-          placeholder={category === "ELECTRICITY" ? "Meter number, e.g. 45012345678" : "Phone number, e.g. 08031234567"}
-          autoComplete="off"
-          value={number}
-          onChange={(e) => setNumber(e.target.value)}
-        />
-        <div>
-          <div className="field flex items-center gap-2 py-0">
-            <span style={{ color: "var(--text-muted)" }}>₦</span>
+
+        {abroad ? (
+          <>
+            <select className="field" aria-label="Country" value={country} onChange={(e) => setCountry(e.target.value)}>
+              {countries.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <select className="field" aria-label="Network" value={operator} onChange={(e) => setOperator(e.target.value)} disabled={!operators.length}>
+              {operators.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {shortName(o.name)}
+                </option>
+              ))}
+            </select>
+            <div className="field flex items-center gap-2 py-0">
+              <span className="tabular-nums" style={{ color: "var(--text-muted)" }}>
+                +{here?.prefix ?? ""}
+              </span>
+              <input
+                className="w-full bg-transparent py-3 tabular-nums outline-none"
+                inputMode="tel"
+                aria-label="Phone number to top up"
+                placeholder={`${here?.name ?? "Phone"} number`}
+                autoComplete="off"
+                value={number}
+                onChange={(e) => setNumber(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {plans.slice(0, 9).map((p) => (
+                <button
+                  key={p.code}
+                  type="button"
+                  onClick={() => setPlan(p.code)}
+                  className="pressable rounded-full px-3 py-1 text-sm tabular-nums"
+                  style={plan === p.code ? { background: "var(--accent)", color: "var(--accent-ink)" } : { border: "1px solid var(--line)" }}
+                >
+                  {Number(p.amount).toLocaleString("en-US", { maximumFractionDigits: 2 })} {p.currency}
+                </button>
+              ))}
+              {operator && !plans.length && (
+                <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+                  Loading top-ups…
+                </span>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <select className="field" aria-label="Provider" value={provider} onChange={(e) => setProvider(e.target.value)}>
+              {list.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
             <input
-              className="w-full bg-transparent py-3 tabular-nums outline-none"
+              className="field tabular-nums"
               inputMode="numeric"
-              aria-label="Amount in naira"
-              placeholder="Amount in naira"
-              value={naira}
-              onChange={(e) => setNaira(e.target.value.replace(/[^\d]/g, ""))}
+              aria-label={what}
+              placeholder={category === "ELECTRICITY" ? "Meter number, e.g. 45012345678" : "Phone number, e.g. 08031234567"}
+              autoComplete="off"
+              value={number}
+              onChange={(e) => setNumber(e.target.value)}
             />
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {PRESETS[category].map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setNaira(String(n))}
-                className="pressable rounded-full px-3 py-1 text-sm tabular-nums"
-                style={Number(naira) === n ? { background: "var(--accent)", color: "var(--accent-ink)" } : { border: "1px solid var(--line)" }}
-              >
-                ₦{n.toLocaleString("en-US")}
-              </button>
-            ))}
-          </div>
-        </div>
+            <div>
+              <div className="field flex items-center gap-2 py-0">
+                <span style={{ color: "var(--text-muted)" }}>₦</span>
+                <input
+                  className="w-full bg-transparent py-3 tabular-nums outline-none"
+                  inputMode="numeric"
+                  aria-label="Amount in naira"
+                  placeholder="Amount in naira"
+                  value={naira}
+                  onChange={(e) => setNaira(e.target.value.replace(/[^\d]/g, ""))}
+                />
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {PRESETS[category as "ELECTRICITY" | "AIRTIME"].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setNaira(String(n))}
+                    className="pressable rounded-full px-3 py-1 text-sm tabular-nums"
+                    style={Number(naira) === n ? { background: "var(--accent)", color: "var(--accent-ink)" } : { border: "1px solid var(--line)" }}
+                  >
+                    ₦{n.toLocaleString("en-US")}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
         <div>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             The drive collects
@@ -739,7 +856,8 @@ function BillDriveForm({ onSubmit }: { onSubmit: (b: BillDraft) => void }) {
               <strong className="tabular-nums">
                 {Number(quote.targetHuman).toLocaleString("en-US", { maximumFractionDigits: 4 })} {coinName(quote.coin)}
               </strong>
-              : AbaPay's price for {chosen?.label ?? "the bill"} now, plus 2% in case the rate moves. Anything unused goes back to whoever paid.
+              : AbaPay's price for {quote.amountLabel} of {chosenLabel ?? "the bill"} now, plus 2% in case the rate moves. Anything unused goes back
+              to whoever paid.
             </p>
           ) : (
             <p style={{ color: quoteError ? "var(--danger)" : "var(--text-muted)" }}>
@@ -749,8 +867,8 @@ function BillDriveForm({ onSubmit }: { onSubmit: (b: BillDraft) => void }) {
         </div>
 
         <button
-          disabled={!quote}
-          onClick={() => quote && onSubmit({ quote, provider, naira: Number(naira) })}
+          disabled={!quote || !choice}
+          onClick={() => quote && choice && onSubmit({ quote, choice })}
           className="pressable rounded-xl py-3 text-[15px] font-semibold disabled:opacity-50"
           style={{ background: "var(--accent)", color: "var(--accent-ink)" }}
         >

@@ -31,6 +31,8 @@ export type Drive = {
     category: string;
     number: string;
     naira: number;
+    /** "₦15,000", or "2,000 ARS" for a top-up abroad. */
+    amountLabel: string;
     status: string;
     settleTx: string | null;
     /** Opened from a wallet on the website: that wallet signs to see the token. */
@@ -60,6 +62,7 @@ export type BillQuote = {
   label: string;
   payee: Address;
   number: string;
+  amountLabel: string;
   /** What the opener signs once the drive exists, with its id in place of {id}. */
   sign: string;
 };
@@ -74,10 +77,20 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 }
 
 export const getBillProviders = () => get<BillProvider[]>(`/api/bills/providers`);
-export const getBillQuote = (q: { provider: string; number: string; naira: number; coin: string }) =>
-  get<BillQuote>(`/api/bills/quote?${new URLSearchParams({ ...q, naira: String(q.naira) })}`);
-export const attachBill = (b: { driveId: number; provider: string; number: string; naira: number; coin: string; signature: string }) =>
+/** A Nigerian bill names a provider and naira; a top-up abroad names a country, network and plan. */
+export type BillChoice = { provider: string; naira: number } | { country: string; operator: string; plan: string };
+
+export const getBillQuote = (q: BillChoice & { number: string; coin: string }) =>
+  get<BillQuote>(`/api/bills/quote?${new URLSearchParams(Object.entries(q).map(([k, v]) => [k, String(v)]))}`);
+export const attachBill = (b: BillChoice & { driveId: number; number: string; coin: string; signature: string }) =>
   post<{ ok: true }>(`/api/bills`, b);
+
+export type IntlCountry = { code: string; name: string; currency: string; prefix: string };
+export type IntlOperator = { id: string; name: string };
+export type IntlPlan = { code: string; name: string; amount: string; currency: string; naira: number };
+export const getIntlCountries = () => get<IntlCountry[]>(`/api/bills/intl`);
+export const getIntlOperators = (country: string) => get<IntlOperator[]>(`/api/bills/intl?country=${encodeURIComponent(country)}`);
+export const getIntlPlans = (operator: string) => get<IntlPlan[]>(`/api/bills/intl?operator=${encodeURIComponent(operator)}`);
 export const getBillReceipt = (driveId: number, signature: string) => post<BillReceipt>(`/api/drive/${driveId}/receipt`, { signature });
 
 export type Stats = {
