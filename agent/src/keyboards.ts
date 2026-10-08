@@ -84,7 +84,12 @@ export function newTokenKeyboard(all = false) {
   });
   if (symbols.length % 3) kb.row();
   if (!all) kb.text("More coins", CB.newMoreTokens).row();
-  return kb.text("⚡ It is a bill: light or airtime", CB.billStart).row().text("Cancel", CB.cancelNew);
+  return kb
+    .text("⚡ It is a Nigerian bill", CB.billStart)
+    .row()
+    .text("🌍 It is airtime abroad", "ab:start")
+    .row()
+    .text("Cancel", CB.cancelNew);
 }
 
 export function billCategoryKeyboard() {
@@ -92,7 +97,58 @@ export function billCategoryKeyboard() {
     .text("⚡ Electricity", CB.billCategory("E"))
     .text("📱 Airtime", CB.billCategory("A"))
     .row()
+    .text("🌍 Bill outside Nigeria?", "bl:out")
+    .row()
     .text("Cancel", CB.billCancel);
+}
+
+export function outsideNigeriaKeyboard() {
+  return new InlineKeyboard()
+    .text("🌍 Top up a phone abroad", "ab:start")
+    .row()
+    .text("➕ Drive to a trusted person", "m:new")
+    .row()
+    .text("Dismiss", CB.dismiss);
+}
+
+// Where the group's people abroad most likely are; any other country is typed.
+const COUNTRIES: [string, string][] = [
+  ["AR", "🇦🇷 Argentina"],
+  ["BR", "🇧🇷 Brazil"],
+  ["MX", "🇲🇽 Mexico"],
+  ["CO", "🇨🇴 Colombia"],
+  ["GH", "🇬🇭 Ghana"],
+  ["KE", "🇰🇪 Kenya"],
+  ["ZA", "🇿🇦 South Africa"],
+  ["GB", "🇬🇧 UK"],
+  ["US", "🇺🇸 USA"],
+];
+
+export function abroadCountryKeyboard() {
+  const kb = new InlineKeyboard();
+  COUNTRIES.forEach(([code, label], i) => {
+    kb.text(label, `ab:c:${code}`);
+    if (i % 3 === 2) kb.row();
+  });
+  return kb.text("Another country", "ab:c:other").row().text("Cancel", "ab:no");
+}
+
+export function abroadOperatorKeyboard(operators: { id: string; name: string }[]) {
+  const kb = new InlineKeyboard();
+  operators.slice(0, 12).forEach((o, i) => {
+    kb.text(o.name, `ab:o:${o.id}`);
+    if (i % 2 === 1) kb.row();
+  });
+  return kb.row().text("Cancel", "ab:no");
+}
+
+export function abroadPlanKeyboard(plans: { code: string; label: string }[]) {
+  const kb = new InlineKeyboard();
+  plans.forEach((p, i) => {
+    kb.text(p.label, `ab:p:${p.code}`);
+    if (i % 3 === 2) kb.row();
+  });
+  return kb.row().text("Cancel", "ab:no");
 }
 
 export function billProviderKeyboard(category: BillCategory) {
@@ -135,7 +191,8 @@ export function billConfirmKeyboard() {
 
 export const MENU = {
   new: "➕ New drive",
-  bill: "⚡ Pay a bill",
+  bill: "⚡ Pay a Nigerian Bill",
+  abroad: "🌍 Airtime abroad",
   split: "➗ Split evenly",
   pay: "💳 Pay my share",
   tally: "🧾 Who has paid",
@@ -149,6 +206,8 @@ export function menuKeyboard() {
   return new InlineKeyboard()
     .text(MENU.new, "m:new")
     .text(MENU.bill, "m:bill")
+    .row()
+    .text(MENU.abroad, "m:abroad")
     .row()
     .text(MENU.pay, "m:pay")
     .text(MENU.split, "m:split")
@@ -168,6 +227,7 @@ export function replyMenu() {
   return {
     keyboard: [
       [{ text: MENU.new }, { text: MENU.bill }],
+      [{ text: MENU.abroad }],
       [{ text: MENU.pay }, { text: MENU.split }],
       [{ text: MENU.tally }, { text: MENU.remind }],
       [{ text: MENU.plan }, { text: MENU.verify }],
