@@ -3,9 +3,9 @@ import QRCode from "qrcode";
 import { isAddress, parseUnits, formatUnits, getAddress, type Address } from "viem";
 import { env, TOKENS, tokenByAddress, tokenBySymbol, type TokenInfo } from "./config.js";
 import { account, createDriveOnchain, closeDriveOnchain } from "./chain.js";
-import { PROVIDERS, quoteBill } from "./abapay.js";
-import { billTarget, maskNumber, type BillOutcome } from "./bills.js";
-import { onBillSettled, providerLabel } from "./billService.js";
+import { PROVIDERS, type BillCategory } from "./abapay.js";
+import type { BillOutcome } from "./bills.js";
+import { BILL_COINS, checkBillInput, onBillSettled, priceBill, providerLabel, type BillCoin } from "./billService.js";
 import {
   forgetMember,
   getDrive,
@@ -36,8 +36,16 @@ import { offrampUrl } from "./ripio.js";
 import {
   CB,
   MENU,
+  billAmountKeyboard,
+  billCategoryKeyboard,
+  billCoinKeyboard,
+  billConfirmKeyboard,
+  billProviderKeyboard,
+  coinName,
+  confirmCloseKeyboard,
   confirmNewKeyboard,
   driveKeyboard,
+  newTokenKeyboard,
   menuKeyboard,
   payKeyboard,
   planMenuKeyboard,
@@ -53,7 +61,7 @@ const CADENCE: Record<string, number> = { daily: 1, weekly: 7, biweekly: 14, for
 
 // A half finished setup is not worth persisting: losing it on a restart just means asking again.
 type Pending = {
-  step: "amount" | "destination" | "label";
+  step: "token" | "amount" | "destination" | "label";
   promptId: number;
   amount?: bigint;
   token?: TokenInfo;
@@ -125,7 +133,7 @@ async function openDrive(
     const d = (await getDrive(Number(id)))!;
     await ctx.api.deleteMessage(working.chat.id, working.message_id).catch(() => {});
     await ctx.reply(
-      `${driveCard(d, [], env.PUBLIC_URL)}\n\n<a href="https://celoscan.io/tx/${hash}">Onchain receipt</a>\nNext: set shares with <code>/split @ada 40 @emeka 30</code>, or <code>/split all</code> to divide it evenly`,
+      `${driveCard(d, [], env.PUBLIC_URL)}\n\n<a href="https://celoscan.io/tx/${hash}">Onchain receipt</a>\nNext: tap <b>Split evenly</b> to divide it between everyone here, or type <code>/split @ada 40 @emeka 30</code> for set amounts.`,
       { ...HTML, reply_markup: driveKeyboard(d.id) },
     );
     return d.id;
@@ -136,47 +144,130 @@ async function openDrive(
   }
 }
 
-const BILL_HELP = [
-  "<b>Pay a bill together.</b> Earmark collects the shares and pays the provider itself when the drive is full.",
-  "",
-  "<code>/bill ikeja 45012345678 15000</code>  electricity, meter number, naira",
-  "<code>/bill mtn 08031234567 2000</code>  airtime, phone number, naira",
-  "",
-  `Providers: ${Object.keys(PROVIDERS).join(", ")}`,
-].join("\n");
+// A bill being set up with buttons, one per person per chat. Like `pending`, not worth persisting.
+type BillDraft = {
+  step: "category" | "provider" | "number" | "amount" | "coin" | "confirm";
+  category?: BillCategory;
+  provider?: string;
+  number?: string;
+  naira?: number;
+  coin?: BillCoin;
+  promptId?: number;
+};
+const billDrafts = new Map<string, BillDraft>();
 
-async function openBillDrive(ctx: Context, providerKey: string, number: string, nairaRaw: string) {
-  const p = PROVIDERS[providerKey.toLowerCase()];
-  const naira = Number(nairaRaw.replace(/[,_]/g, ""));
-  if (!p || !/^\d{6,15}$/.test(number) || !Number.isFinite(naira) || naira < 100) return ctx.reply(BILL_HELP, HTML);
-  const usat = tokenBySymbol("USAT")!;
-  const bill = { category: p.category, serviceID: p.serviceID, network: p.network, billersCode: number, nairaAmount: naira };
-  let quoted: bigint;
+const naira = (n: number) => `₦${n.toLocaleString("en-US")}`;
+
+async function startBillWizard(ctx: Context) {
+  if (!ctx.from) return;
+  if (!(await requireHuman(ctx))) return;
+  pending.delete(pkey(chatId(ctx), ctx.from.id));
+  billDrafts.set(pkey(chatId(ctx), ctx.from.id), { step: "category" });
+  return ctx.reply(
+    "<b>Pay a bill together.</b>\nEarmark collects everyone's share and pays the provider itself when the drive is full.\n\nWhat kind of bill?",
+    { ...HTML, reply_markup: billCategoryKeyboard() },
+  );
+}
+
+async function askBillNumber(ctx: Context, draft: BillDraft) {
+  const p = PROVIDERS[draft.provider!];
+  const what = p.category === "ELECTRICITY" ? "prepaid meter number" : "phone number to top up";
+  const prompt = await ask(ctx, `<b>${escape(p.label)}</b>\nReply with the ${what}.`);
+  draft.step = "number";
+  draft.promptId = prompt.message_id;
+}
+
+async function showBillConfirm(ctx: Context, draft: BillDraft) {
+  const p = PROVIDERS[draft.provider!];
+  const coin = tokenBySymbol(draft.coin!)!;
+  const working = await ctx.reply("Getting AbaPay's price…");
   try {
-    quoted = (await quoteBill(bill, "USAT")).amount;
+    const q = await priceBill(p, draft.number!, draft.naira!, draft.coin!);
+    await ctx.api.deleteMessage(working.chat.id, working.message_id).catch(() => {});
+    draft.step = "confirm";
+    const lines = [
+      `<b>Ready to open</b>`,
+      ``,
+      `${escape(p.label)} for <code>${draft.number}</code>, ${naira(draft.naira!)}`,
+      `The drive collects <b>${fmt(q.target, coin)}</b>: AbaPay's price now, plus 2% in case the rate moves. Anything unused goes back to whoever paid.`,
+    ];
+    if (draft.coin === "USDT") lines.push(`People can pay in USD₮, USA₮, pesos (wARS), reais (wBRL) or naira (cNGN); Earmark swaps it.`);
+    lines.push(``, `Opening the drive cannot be undone.`);
+    return ctx.reply(lines.join("\n"), { ...HTML, reply_markup: billConfirmKeyboard() });
+  } catch (e) {
+    billDrafts.delete(pkey(chatId(ctx), ctx.from!.id));
+    return ctx.api
+      .editMessageText(working.chat.id, working.message_id, `AbaPay could not price that bill: ${(e as Error).message}`)
+      .catch(() => {});
+  }
+}
+
+// One place that opens a bill drive, for the buttons and for the typed /bill shortcut.
+async function createBillDrive(ctx: Context, providerKey: string, number: string, amount: number, coinSymbol: BillCoin) {
+  const input = checkBillInput(providerKey, number, amount);
+  if (!input.ok) return ctx.reply(input.error);
+  const coin = tokenBySymbol(coinSymbol)!;
+  let q: Awaited<ReturnType<typeof priceBill>>;
+  try {
+    q = await priceBill(input.provider, input.number, amount, coinSymbol);
   } catch (e) {
     return ctx.reply(`AbaPay could not price that bill: ${escape((e as Error).message)}`, HTML);
   }
-  const target = billTarget(quoted);
-  // The label is public on chain, so the meter or phone number is masked there.
-  const label = `${p.label} ${maskNumber(number)} N${naira.toLocaleString("en-US")}`.slice(0, 80);
-  const id = await openDrive(ctx, { token: usat, destination: account.address, target, label });
+  const p = input.provider;
+  const id = await openDrive(ctx, { token: coin, destination: account.address, target: q.target, label: q.label });
   if (!id) return;
-  await insertBill({ drive_id: id, category: p.category, service_id: p.serviceID, network: p.network, billers_code: number, naira_amount: naira, quoted: quoted.toString() });
-  await ctx.reply(
-    [
-      `⚡ This is a <b>bill drive</b>. When it reaches <b>${fmt(target, usat)}</b>, Earmark pays ${p.label} for <code>${number}</code> (₦${naira.toLocaleString("en-US")}) through AbaPay and posts ${p.category === "ELECTRICITY" ? "the token" : "the receipt"} here.`,
-      "",
-      `The money waits in Earmark's wallet until the bill is paid. The 2% on top covers the rate moving; whatever is not used goes back to the people who paid, and if the bill cannot be paid, everyone gets their share back.`,
-    ].join("\n"),
-    HTML,
-  );
+  await insertBill({
+    drive_id: id,
+    category: p.category,
+    service_id: p.serviceID,
+    network: p.network,
+    billers_code: input.number,
+    naira_amount: amount,
+    quoted: q.quoted.toString(),
+    token: coinSymbol,
+  });
+  const lines = [
+    `⚡ This is a <b>bill drive</b>. When it reaches <b>${fmt(q.target, coin)}</b>, Earmark pays ${escape(p.label)} for <code>${input.number}</code> (${naira(amount)}) through AbaPay and posts ${p.category === "ELECTRICITY" ? "the token" : "the receipt"} here.`,
+    "",
+    `The money waits in Earmark's wallet until the bill is paid. Whatever is not used goes back to the people who paid, and if the bill cannot be paid, everyone gets their share back.`,
+  ];
+  if (coinSymbol === "USDT") lines.push("", `Paying from abroad? Open your pay link and choose pesos, reais or naira; Earmark swaps it on Textile FX.`);
+  await ctx.reply(lines.join("\n"), HTML);
+}
+
+// Free-text answers to the bill flow: the meter or phone number, or an amount that is not a preset.
+async function billReply(ctx: Context, key: string, draft: BillDraft, text: string) {
+  if (draft.step === "number") {
+    const n = text.replace(/[\s-]/g, "");
+    if (!/^\d{6,15}$/.test(n)) {
+      const again = await ask(ctx, "That should be digits only, like <code>08031234567</code> or <code>45012345678</code>. Try again.");
+      draft.promptId = again.message_id;
+      return;
+    }
+    draft.number = n;
+    draft.step = "amount";
+    draft.promptId = undefined;
+    return ctx.reply("How much, in naira?", { reply_markup: billAmountKeyboard(PROVIDERS[draft.provider!].category) });
+  }
+  if (draft.step === "amount") {
+    const n = Number(text.replace(/[₦,\s]/g, ""));
+    if (!Number.isInteger(n) || n < 100) {
+      const again = await ask(ctx, "A whole number of naira, ₦100 or more. For example <code>15000</code>.");
+      draft.promptId = again.message_id;
+      return;
+    }
+    draft.naira = n;
+    draft.step = "coin";
+    draft.promptId = undefined;
+    return ctx.reply("Which coin should the drive collect?", { reply_markup: billCoinKeyboard() });
+  }
+  billDrafts.delete(key);
 }
 
 async function announceBill(driveId: number, row: BillRow, outcome: BillOutcome) {
   const d = await getDrive(driveId);
   if (!d || !bot) return;
-  const usat = tokenBySymbol("USAT")!;
+  const usat = tokenBySymbol(row.token)!;
   const what = `${providerLabel(row)} for <code>${row.billers_code}</code>, ₦${row.naira_amount.toLocaleString("en-US")}`;
   let text: string;
   if (outcome.status === "paid") {
@@ -188,7 +279,7 @@ async function announceBill(driveId: number, row: BillRow, outcome: BillOutcome)
   } else if (outcome.status === "refunded") {
     text = `Could not pay ${what}: ${escape(outcome.reason)}\nEveryone's share went back to the wallet it came from.`;
   } else {
-    text = `AbaPay took the payment for ${what} but could not deliver it: ${escape(outcome.reason)}\nEarmark pays everyone back as soon as AbaPay's refund arrives.`;
+    text = `AbaPay took the payment for ${what} but could not deliver it: ${escape(outcome.reason)}\nEarmark pays everyone back as soon as AbaPay's refund arrives, and will say so here.`;
   }
   await bot.api.sendMessage(d.chat_id, text, HTML);
 }
@@ -274,15 +365,40 @@ async function showVerify(ctx: Context) {
 async function startNewWizard(ctx: Context) {
   if (!ctx.from) return;
   if (!(await requireHuman(ctx))) return;
+  billDrafts.delete(pkey(chatId(ctx), ctx.from.id));
+  pending.set(pkey(chatId(ctx), ctx.from.id), { step: "token", promptId: 0 });
+  return ctx.reply("<b>New drive.</b> Which coin should it collect?", { ...HTML, reply_markup: newTokenKeyboard() });
+}
+
+async function askAmount(ctx: Context, token: TokenInfo) {
   const prompt = await ask(
     ctx,
-    `<b>New drive, step 1 of 3.</b>
-Reply with the total and the token.
-For example: <code>450 USDT</code>
-
-Tokens: ${Object.keys(TOKENS).join(", ")}`,
+    `<b>Step 1 of 3.</b>\nHow much in total, in ${coinName(token.symbol)}? Reply with a number, for example <code>450</code>.`,
   );
-  pending.set(pkey(chatId(ctx), ctx.from.id), { step: "amount", promptId: prompt.message_id });
+  pending.set(pkey(chatId(ctx), ctx.from!.id), { step: "amount", promptId: prompt.message_id, token });
+}
+
+async function closeDrive(ctx: Context, d: DriveRow) {
+  if (d.closed) return ctx.reply(`<b>${escape(d.label)}</b> is already closed.`, HTML);
+  if (ctx.from && d.collector_tg && String(ctx.from.id) !== d.collector_tg) {
+    return ctx.reply(`Only ${d.collector_name ?? "the collector"} can close this drive.`);
+  }
+  try {
+    const hash = await closeDriveOnchain(BigInt(d.id));
+    await markClosed(d.id);
+    return ctx.reply(`Closed <b>${escape(d.label)}</b>.\n<a href="https://celoscan.io/tx/${hash}">Onchain receipt</a>`, HTML);
+  } catch (e) {
+    return ctx.reply(`Could not close: ${(e as Error).message}`);
+  }
+}
+
+// Re-splitting after someone has paid would move the shares under them.
+async function splitIfUnpaid(ctx: Context, d: DriveRow) {
+  if (d.closed) return ctx.reply("That drive is closed.");
+  if ((await paymentsFor(d.id)).length > 0) {
+    return ctx.reply("Someone has already paid, so the shares stay as they are. Type /split all to divide it again anyway.");
+  }
+  return splitEvenly(ctx, d);
 }
 
 async function showMenu(ctx: Context) {
@@ -351,13 +467,13 @@ function registerHandlers(b: Bot) {
       `<b>Earmark</b> collects a shared bill in this chat and pays it straight to the place it is owed.`,
       `The destination is locked when the drive opens, so nobody in the middle can redirect it.`,
       ``,
-      `<b>Open a drive</b>  /new`,
-      `<b>Set each share</b>  /split @ada 40 @emeka 30, or /split all`,
-      `<b>Spread it over time</b>  /plan weekly 4`,
-      `<b>Get your pay link</b>  /pay`,
-      `<b>See who has paid</b>  /tally`,
+      `Everything works from the buttons:`,
+      `${MENU.new}: pick a coin, say how much, paste where it goes`,
+      `${MENU.bill}: electricity or airtime; Earmark pays the provider itself`,
+      `${MENU.split}, ${MENU.pay}, ${MENU.tally}, ${MENU.remind}`,
       ``,
-      `Tokens: ${Object.keys(TOKENS).join(", ")}`,
+      `People abroad can pay in their own money: pesos, reais, naira or dollars.`,
+      `The same works in a browser: ${env.PUBLIC_URL}/app`,
     ].join("\n");
 
     if (!inGroup) {
@@ -424,13 +540,17 @@ function registerHandlers(b: Bot) {
   b.on("message:text", async (ctx, next) => {
     if (!ctx.from || !ctx.message.reply_to_message) return next();
     const key = pkey(chatId(ctx), ctx.from.id);
+    const draft = billDrafts.get(key);
+    if (draft?.promptId && ctx.message.reply_to_message.message_id === draft.promptId) {
+      return billReply(ctx, key, draft, ctx.message.text.trim());
+    }
     const p = pending.get(key);
     if (!p || ctx.message.reply_to_message.message_id !== p.promptId) return next();
     const text = ctx.message.text.trim();
 
     if (p.step === "amount") {
-      const [amountStr, symbolRaw] = text.split(/\s+/);
-      const token = symbolRaw ? tokenBySymbol(symbolRaw) : undefined;
+      const [amountStr, symbolRaw] = text.replace(/,/g, "").split(/\s+/);
+      const token = p.token ?? (symbolRaw ? tokenBySymbol(symbolRaw) : undefined);
       if (!token) {
         const again = await ask(ctx, `I did not recognise that token. Try <code>450 USDT</code>.`);
         pending.set(key, { ...p, promptId: again.message_id });
@@ -440,7 +560,7 @@ function registerHandlers(b: Bot) {
       try {
         target = parseUnits(amountStr, token.decimals);
       } catch {
-        const again = await ask(ctx, `The amount must be a number. Try <code>450 USDT</code>.`);
+        const again = await ask(ctx, `The amount must be a number. Try <code>450</code>.`);
         pending.set(key, { ...p, promptId: again.message_id });
         return;
       }
@@ -515,9 +635,13 @@ function registerHandlers(b: Bot) {
   });
 
   b.command("bill", async (ctx) => {
-    const [provider, number, naira] = (ctx.match ?? "").trim().split(/\s+/);
-    if (!provider || !number || !naira) return ctx.reply(BILL_HELP, HTML);
-    return openBillDrive(ctx, provider, number, naira);
+    // "/bill" alone walks through it with buttons; "/bill mtn 08031234567 2000 [usdt]" is the shortcut.
+    const [provider, number, amount, coinRaw] = (ctx.match ?? "").trim().split(/\s+/);
+    if (!provider || !number || !amount) return startBillWizard(ctx);
+    const coin = BILL_COINS.find((c) => c === (coinRaw ?? "USAT").toUpperCase());
+    if (!coin) return ctx.reply("A bill drive collects USAT or USDT.");
+    if (!(await requireHuman(ctx))) return;
+    return createBillDrive(ctx, provider, number, Number(amount.replace(/[₦,_]/g, "")), coin);
   });
 
   b.command("plan", async (ctx) => {
@@ -555,36 +679,22 @@ function registerHandlers(b: Bot) {
     const wanted = Number((ctx.match ?? "").trim());
     const d = Number.isInteger(wanted) && wanted > 0 ? await getDrive(wanted) : await latestDriveForChat(chatId(ctx));
     if (!d) return ctx.reply(wanted ? `There is no drive #${wanted}.` : "No open drive here.");
-    if (d.closed) return ctx.reply(`<b>${escape(d.label)}</b> is already closed.`, HTML);
-    if (ctx.from && d.collector_tg && String(ctx.from.id) !== d.collector_tg) {
-      return ctx.reply(`Only ${d.collector_name ?? "the collector"} can close this drive.`);
-    }
-    try {
-      const hash = await closeDriveOnchain(BigInt(d.id));
-      await markClosed(d.id);
-      return ctx.reply(`Closed <b>${escape(d.label)}</b>.\n<a href="https://celoscan.io/tx/${hash}">Onchain receipt</a>`, HTML);
-    } catch (e) {
-      return ctx.reply(`Could not close: ${(e as Error).message}`);
-    }
+    return closeDrive(ctx, d);
   });
 
   async function runMenuAction(ctx: Context, action: string) {
     if (action === "new") return startNewWizard(ctx);
+    if (action === "bill") return startBillWizard(ctx);
     if (action === "verify") return showVerify(ctx);
     const d = await currentDrive(ctx);
     if (!d) return ctx.reply("No drive in this chat yet. Tap New drive to open one.");
+    if (action === "split") return splitIfUnpaid(ctx, d);
     if (action === "pay") return sendPersonalLink(ctx, d);
     if (action === "tally") return ctx.reply(await tallyBody(d), { ...HTML, reply_markup: refreshKeyboard(d.id) });
     if (action === "remind") return ctx.reply(await remindBody(d), { ...HTML, reply_markup: driveKeyboard(d.id) });
     if (action === "plan") return ctx.reply("How should the shares be spread?", { reply_markup: planMenuKeyboard(d.id) });
-    if (action === "join") {
-      // noteMember already recorded whoever tapped. Re-split only while nobody has paid, or paid shares would shift.
-      if (d.closed) return ctx.reply("That drive is closed.");
-      if ((await paymentsFor(d.id)).length > 0) {
-        return ctx.reply(`Counted. Someone has already paid, so ask whoever opened the drive to run /split all again.`);
-      }
-      return splitEvenly(ctx, d);
-    }
+    // noteMember already recorded whoever tapped; split again while nobody has paid.
+    if (action === "join") return splitIfUnpaid(ctx, d);
   }
 
   // Private chats get a persistent keyboard, which sends plain text; groups use the inline menu.
@@ -625,6 +735,78 @@ function registerHandlers(b: Bot) {
       return runMenuAction(ctx, data.slice(2));
     }
 
+    if (data === CB.newMoreTokens) {
+      await ctx.answerCallbackQuery();
+      return ctx.editMessageReplyMarkup({ reply_markup: newTokenKeyboard(true) }).catch(() => {});
+    }
+
+    if (data.startsWith("nw:t:")) {
+      if (!ctx.from) return;
+      const p = pending.get(pkey(chatId(ctx), ctx.from.id));
+      const token = tokenBySymbol(data.slice(5));
+      if (!p || p.step !== "token" || !token) {
+        return ctx.answerCallbackQuery({ text: "Tap New drive to start your own.", show_alert: true });
+      }
+      await ctx.answerCallbackQuery();
+      await ctx.deleteMessage().catch(() => {});
+      return askAmount(ctx, token);
+    }
+
+    if (data.startsWith("bl:")) {
+      if (!ctx.from) return;
+      const key = pkey(chatId(ctx), ctx.from.id);
+      const [, act, arg] = data.split(":");
+      if (act === "start") {
+        await ctx.answerCallbackQuery();
+        await ctx.deleteMessage().catch(() => {});
+        return startBillWizard(ctx);
+      }
+      if (act === "no") {
+        billDrafts.delete(key);
+        await ctx.answerCallbackQuery({ text: "Cancelled" });
+        return ctx.deleteMessage().catch(() => {});
+      }
+      const draft = billDrafts.get(key);
+      if (!draft) return ctx.answerCallbackQuery({ text: "Tap ⚡ Pay a bill to set up your own.", show_alert: true });
+      await ctx.answerCallbackQuery();
+      if (act === "cat" && draft.step === "category") {
+        draft.category = arg === "E" ? "ELECTRICITY" : "AIRTIME";
+        draft.step = "provider";
+        return ctx
+          .editMessageText(draft.category === "ELECTRICITY" ? "Which electricity company?" : "Which network?", {
+            reply_markup: billProviderKeyboard(draft.category),
+          })
+          .catch(() => {});
+      }
+      if (act === "p" && draft.step === "provider" && PROVIDERS[arg]) {
+        draft.provider = arg;
+        await ctx.deleteMessage().catch(() => {});
+        return askBillNumber(ctx, draft);
+      }
+      if (act === "n" && draft.step === "amount") {
+        if (arg === "other") {
+          await ctx.deleteMessage().catch(() => {});
+          const prompt = await ask(ctx, "Reply with the amount in naira, for example <code>15000</code>.");
+          draft.promptId = prompt.message_id;
+          return;
+        }
+        draft.naira = Number(arg);
+        draft.step = "coin";
+        return ctx.editMessageText("Which coin should the drive collect?", { reply_markup: billCoinKeyboard() }).catch(() => {});
+      }
+      if (act === "t" && draft.step === "coin" && BILL_COINS.includes(arg as BillCoin)) {
+        draft.coin = arg as BillCoin;
+        await ctx.deleteMessage().catch(() => {});
+        return showBillConfirm(ctx, draft);
+      }
+      if (act === "go" && draft.step === "confirm") {
+        billDrafts.delete(key);
+        await ctx.deleteMessage().catch(() => {});
+        return createBillDrive(ctx, draft.provider!, draft.number!, draft.naira!, draft.coin!);
+      }
+      return;
+    }
+
     const [kind, idRaw, a, bArg] = data.split(":");
     const id = Number(idRaw);
     const d = Number.isInteger(id) ? await getDrive(id) : undefined;
@@ -649,6 +831,25 @@ function registerHandlers(b: Bot) {
     if (kind === "pm") {
       await ctx.answerCallbackQuery();
       return ctx.reply("How should the shares be spread?", { reply_markup: planMenuKeyboard(d.id) });
+    }
+    if (kind === "se") {
+      await ctx.answerCallbackQuery();
+      return splitIfUnpaid(ctx, d);
+    }
+    if (kind === "cl") {
+      if (ctx.from && d.collector_tg && String(ctx.from.id) !== d.collector_tg) {
+        return ctx.answerCallbackQuery({ text: `Only ${d.collector_name ?? "the collector"} can close this drive.`, show_alert: true });
+      }
+      await ctx.answerCallbackQuery();
+      return ctx.reply(`Close <b>${escape(d.label)}</b>? Nobody can pay into it after this.`, {
+        ...HTML,
+        reply_markup: confirmCloseKeyboard(d.id),
+      });
+    }
+    if (kind === "cy") {
+      await ctx.answerCallbackQuery();
+      await ctx.deleteMessage().catch(() => {});
+      return closeDrive(ctx, d);
     }
     if (kind === "pl") {
       await ctx.answerCallbackQuery();
