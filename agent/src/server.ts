@@ -15,7 +15,21 @@ import { offrampUrl, rampCountry } from "./ripio.js";
 import { getBill } from "./db.js";
 import { maskNumber } from "./bills.js";
 import { PROVIDERS } from "./abapay.js";
-import { attachBill, attachMessage, BILL_COINS, billReceipt, checkBillInput, priceBill, providerLabel, type BillCoin } from "./billService.js";
+import {
+  attachBill,
+  attachIntlMessage,
+  attachMessage,
+  BILL_COINS,
+  billAmount,
+  billReceipt,
+  checkBillInput,
+  foreignAmount,
+  priceBill,
+  priceIntlBill,
+  providerLabel,
+  type BillCoin,
+} from "./billService.js";
+import { intlCountries, intlOperators, intlPlans } from "./abapayIntl.js";
 import { payOptions } from "./corridor.js";
 import { corridorQuoteHandler, corridorStatusHandler, corridorSubmitHandler } from "./corridorService.js";
 import { drivePageHtml, homepageLiveSnippet, noLiveDriveHtml } from "./publicHtml.js";
@@ -217,9 +231,40 @@ app.get("/api/bills/providers", (_req, res) =>
   res.json(Object.entries(PROVIDERS).map(([key, p]) => ({ key, label: p.label, category: p.category }))),
 );
 
+// AbaPay's international catalogue, a level at a time: countries, then a country's networks, then
+// a network's fixed-price top-ups.
+app.get("/api/bills/intl", async (req, res) => {
+  try {
+    const { country, operator } = req.query as Record<string, string | undefined>;
+    if (operator) return res.json(await intlPlans(operator));
+    if (country) return res.json(await intlOperators(country));
+    res.json(await intlCountries());
+  } catch (e) {
+    res.status(502).json({ error: (e as Error).message });
+  }
+});
+
 app.get("/api/bills/quote", async (req, res) => {
   try {
     const coin = BILL_COINS.find((c) => c === req.query.coin) ?? "USAT";
+    if (req.query.country) {
+      const { country, operator, plan, number } = req.query as Record<string, string>;
+      const t = tokenBySymbol(coin)!;
+      const q = await priceIntlBill(country, operator, plan, number ?? "", coin);
+      return res.json({
+        coin,
+        token: t.address,
+        decimals: t.decimals,
+        quoted: q.quoted.toString(),
+        target: q.target.toString(),
+        targetHuman: formatUnits(q.target, t.decimals),
+        label: q.label,
+        payee: account.address,
+        number: q.number,
+        amountLabel: foreignAmount(q.plan),
+        sign: attachIntlMessage(0, q.operator.name, q.number, q.plan).replace("#0", "#{id}"),
+      });
+    }
     const naira = Number(req.query.naira);
     const input = checkBillInput(String(req.query.provider ?? ""), String(req.query.number ?? ""), naira);
     if (!input.ok) return res.status(400).json({ error: input.error });
@@ -235,6 +280,7 @@ app.get("/api/bills/quote", async (req, res) => {
       label: q.label,
       payee: account.address,
       number: input.number,
+      amountLabel: `₦${naira.toLocaleString("en-US")}`,
       // The exact text the opener signs once the drive exists, with its id in place of {id}.
       sign: attachMessage(0, input.provider, input.number, naira).replace("#0", "#{id}"),
     });
@@ -247,14 +293,17 @@ app.post("/api/bills", async (req, res) => {
   try {
     const b = (req.body ?? {}) as Record<string, unknown>;
     if (!isHex(b.signature)) return res.status(400).json({ error: "Sign the message in your wallet." });
-    await attachBill({
+    const common = {
       driveId: Number(b.driveId),
-      provider: String(b.provider ?? ""),
       number: String(b.number ?? ""),
-      naira: Number(b.naira),
       coin: String(b.coin ?? "") as BillCoin,
       signature: b.signature as Hex,
-    });
+    };
+    await attachBill(
+      b.country
+        ? { ...common, country: String(b.country), operator: String(b.operator ?? ""), plan: String(b.plan ?? "") }
+        : { ...common, provider: String(b.provider ?? ""), naira: Number(b.naira) },
+    );
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ error: (e as Error).message });
@@ -319,6 +368,7 @@ app.get("/api/drive/:id", async (req, res) => {
             category: bill.category,
             number: maskNumber(bill.billers_code),
             naira: bill.naira_amount,
+            amountLabel: billAmount(bill),
             status: bill.status,
             settleTx: bill.settle_tx || null,
             // Opened from a wallet on the website, not by the bot in a group: the opener signs to see the receipt.

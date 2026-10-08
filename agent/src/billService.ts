@@ -1,7 +1,8 @@
 import { getAddress, parseAbi, verifyMessage, type Address, type Hex } from "viem";
 import { env, tokenBySymbol } from "./config.js";
 import { account, publicClient, readDrive, refundFromAgent } from "./chain.js";
-import { payBill, PROVIDERS, quoteBill, type Bill, type BillResult } from "./abapay.js";
+import { payBill, PROVIDERS, quoteBill, type Bill, type BillResult, type IntlBill } from "./abapay.js";
+import { intlCountry, intlNumber, intlOperators, intlPlans, type IntlPlan } from "./abapayIntl.js";
 import { billTarget, maskNumber, returnShares, settleBill, type BillOutcome, type Share } from "./bills.js";
 import { billsWithStatus, getBill, insertBill, paymentsFor, realPayerFor, setBillStatus, type BillRow } from "./db.js";
 
@@ -18,11 +19,27 @@ export function billOf(row: BillRow): Bill {
     network: row.network,
     billersCode: row.billers_code,
     nairaAmount: row.naira_amount,
+    ...(row.intl ? { intl: JSON.parse(row.intl) as IntlBill } : {}),
   };
 }
 
-export function providerLabel(row: Pick<BillRow, "service_id" | "category">): string {
+export function providerLabel(row: Pick<BillRow, "service_id" | "category" | "intl">): string {
+  if (row.intl) return `${(JSON.parse(row.intl) as IntlBill).operatorName} airtime`;
   return Object.values(PROVIDERS).find((p) => p.serviceID === row.service_id)?.label ?? row.service_id;
+}
+
+/** "2,000 ARS" for a plan abroad. */
+export function foreignAmount(p: Pick<IntlPlan, "amount" | "currency">): string {
+  return `${Number(p.amount).toLocaleString("en-US", { maximumFractionDigits: 2 })} ${p.currency}`;
+}
+
+/** What the bill is worth, in the money it is paid in: "₦15,000", or "2,000 ARS" abroad. */
+export function billAmount(row: Pick<BillRow, "naira_amount" | "intl">): string {
+  if (row.intl) {
+    const i = JSON.parse(row.intl) as IntlBill;
+    return foreignAmount({ amount: i.foreignAmount, currency: i.currency });
+  }
+  return `₦${row.naira_amount.toLocaleString("en-US")}`;
 }
 
 /** Checks what someone entered for a bill, the same way for the bot and the website. */
@@ -53,6 +70,60 @@ export async function priceBill(p: Provider, number: string, naira: number, coin
   return { bill, quoted, target: billTarget(quoted), label: billLabel(p, number, naira) };
 }
 
+/**
+ * A top-up abroad, checked against AbaPay's live catalogue: the country, operator and plan must all
+ * still be offered, and the number must belong to that country. The price comes from the plan.
+ */
+export async function intlBillFor(countryCode: string, operatorId: string, planCode: string, numberRaw: string) {
+  const country = await intlCountry(countryCode);
+  if (!country) throw new Error("Pick a country.");
+  const operator = (await intlOperators(country.code)).find((o) => o.id === operatorId);
+  if (!operator) throw new Error(`Pick a network in ${country.name}.`);
+  const plan = (await intlPlans(operator.id)).find((p) => p.code === planCode);
+  if (!plan) throw new Error("That top-up is no longer offered. Pick another.");
+  const number = intlNumber(country.prefix, numberRaw);
+  if (!number) throw new Error(`That does not look like a phone number in ${country.name} (+${country.prefix}…).`);
+  const bill: Bill = {
+    category: "INTERNATIONAL",
+    serviceID: "foreign-airtime",
+    network: operator.name.toUpperCase(),
+    billersCode: number,
+    nairaAmount: plan.naira,
+    intl: {
+      countryCode: country.code,
+      operatorId: operator.id,
+      operatorName: operator.name,
+      variationCode: plan.code,
+      foreignAmount: plan.amount,
+      currency: plan.currency,
+    },
+  };
+  const label = `${operator.name} ${maskNumber(number)} ${foreignAmount(plan)}`.slice(0, 80);
+  return { bill, country, operator, plan, number, label };
+}
+
+/** AbaPay's live price for a top-up abroad, and the drive target. Nothing is paid. */
+export async function priceIntlBill(countryCode: string, operatorId: string, planCode: string, numberRaw: string, coin: BillCoin) {
+  const r = await intlBillFor(countryCode, operatorId, planCode, numberRaw);
+  const quoted = (await quoteBill(r.bill, coin)).amount;
+  return { ...r, quoted, target: billTarget(quoted) };
+}
+
+/** The bills-table row for a priced bill, Nigerian or abroad. */
+export function billRow(driveId: number, bill: Bill, quoted: bigint, coin: BillCoin) {
+  return {
+    drive_id: driveId,
+    category: bill.category,
+    service_id: bill.serviceID,
+    network: bill.network,
+    billers_code: bill.billersCode,
+    naira_amount: bill.nairaAmount,
+    quoted: quoted.toString(),
+    token: coin,
+    intl: bill.intl ? JSON.stringify(bill.intl) : null,
+  };
+}
+
 // --- Bill drives opened on the website ----------------------------------------------------------
 // The website opens the drive from the person's own wallet, with Earmark as the locked payee. These
 // signed messages make sure only that person can say which bill it pays, and see its receipt.
@@ -61,13 +132,18 @@ export function attachMessage(driveId: number, p: Provider, number: string, nair
   return `Earmark: when drive #${driveId} is full, pay ${p.label} for ${number}, N${naira.toLocaleString("en-US")}.`;
 }
 
+export function attachIntlMessage(driveId: number, operatorName: string, number: string, plan: Pick<IntlPlan, "amount" | "currency">): string {
+  return `Earmark: when drive #${driveId} is full, top up ${operatorName} +${number} with ${foreignAmount(plan)}.`;
+}
+
 export function receiptMessage(driveId: number): string {
   return `Earmark: show me the receipt for drive #${driveId}.`;
 }
 
-export async function attachBill(a: { driveId: number; provider: string; number: string; naira: number; coin: string; signature: Hex }) {
-  const input = checkBillInput(a.provider, a.number, a.naira);
-  if (!input.ok) throw new Error(input.error);
+type AttachNigerian = { provider: string; naira: number };
+type AttachAbroad = { country: string; operator: string; plan: string };
+
+export async function attachBill(a: { driveId: number; number: string; coin: string; signature: Hex } & (AttachNigerian | AttachAbroad)) {
   const coin = BILL_COINS.find((c) => c === a.coin);
   if (!coin) throw new Error("A bill drive collects USA₮ or USD₮.");
   if (await getBill(a.driveId)) throw new Error("That drive already pays a bill.");
@@ -77,24 +153,24 @@ export async function attachBill(a: { driveId: number; provider: string; number:
   }
   if (d.token.toLowerCase() !== tokenBySymbol(coin)!.address.toLowerCase()) throw new Error(`That drive does not collect ${coin}.`);
   if (d.closed || d.raised > 0n) throw new Error("A bill can only be attached to a new, empty drive.");
-  const signed = await verifyMessage({
-    address: d.collector,
-    message: attachMessage(a.driveId, input.provider, input.number, a.naira),
-    signature: a.signature,
-  });
+
+  let bill: Bill;
+  let message: string;
+  if ("country" in a) {
+    const r = await intlBillFor(a.country, a.operator, a.plan, a.number);
+    bill = r.bill;
+    message = attachIntlMessage(a.driveId, r.operator.name, r.number, r.plan);
+  } else {
+    const input = checkBillInput(a.provider, a.number, a.naira);
+    if (!input.ok) throw new Error(input.error);
+    bill = (await priceBill(input.provider, input.number, a.naira, coin)).bill;
+    message = attachMessage(a.driveId, input.provider, input.number, a.naira);
+  }
+  const signed = await verifyMessage({ address: d.collector, message, signature: a.signature });
   if (!signed) throw new Error("Only the wallet that opened the drive can attach its bill.");
-  const { quoted } = await priceBill(input.provider, input.number, a.naira, coin);
+  const quoted = (await quoteBill(bill, coin)).amount;
   if (d.target < quoted) throw new Error("The bill now costs more than this drive collects. Open it again for the new price.");
-  await insertBill({
-    drive_id: a.driveId,
-    category: input.provider.category,
-    service_id: input.provider.serviceID,
-    network: input.provider.network,
-    billers_code: input.number,
-    naira_amount: a.naira,
-    quoted: quoted.toString(),
-    token: coin,
-  });
+  await insertBill(billRow(a.driveId, bill, quoted, coin));
 }
 
 /** The token or receipt, for the wallet that opened a website bill drive. */

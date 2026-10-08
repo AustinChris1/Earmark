@@ -124,6 +124,8 @@ const COLUMNS = [
   `ALTER TABLE bills ADD COLUMN paid_amount TEXT`,
   // The authorisation the agent signed for AbaPay, as JSON, to tell later whether the money left.
   `ALTER TABLE bills ADD COLUMN auth TEXT`,
+  // A top-up abroad: country, operator and plan, as JSON. Null for a Nigerian bill.
+  `ALTER TABLE bills ADD COLUMN intl TEXT`,
   // Who signed an x402 payment, and the authorisation nonce that proves it settled on chain.
   `ALTER TABLE x402_intents ADD COLUMN payer TEXT`,
   `ALTER TABLE x402_intents ADD COLUMN nonce TEXT`,
@@ -451,17 +453,20 @@ export type BillRow = {
   token: string;
   paid_amount: string | null;
   auth: string | null;
+  intl: string | null;
   created_at: number;
   updated_at: number;
 };
 
 export async function insertBill(
-  b: Pick<BillRow, "drive_id" | "category" | "service_id" | "network" | "billers_code" | "naira_amount" | "quoted" | "token">,
+  b: Pick<BillRow, "drive_id" | "category" | "service_id" | "network" | "billers_code" | "naira_amount" | "quoted" | "token"> & {
+    intl?: string | null;
+  },
 ) {
   await run(
-    `INSERT INTO bills (drive_id, category, service_id, network, billers_code, naira_amount, quoted, token, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'collecting', ?, ?)`,
-    [b.drive_id, b.category, b.service_id, b.network, b.billers_code, b.naira_amount, b.quoted, b.token, now(), now()],
+    `INSERT INTO bills (drive_id, category, service_id, network, billers_code, naira_amount, quoted, token, intl, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'collecting', ?, ?)`,
+    [b.drive_id, b.category, b.service_id, b.network, b.billers_code, b.naira_amount, b.quoted, b.token, b.intl ?? null, now(), now()],
   );
 }
 

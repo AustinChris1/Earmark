@@ -4,6 +4,7 @@ import { x402HTTPClient } from "@x402/core/http";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { tokenBySymbol } from "./config.js";
 import { account } from "./chain.js";
+import { TOP_UP } from "./abapayIntl.js";
 
 /**
  * AbaPay pays Nigerian bills (airtime, electricity, cable) for whoever settles its x402 challenge.
@@ -17,7 +18,18 @@ import { account } from "./chain.js";
 
 const ENDPOINT = process.env.ABAPAY_X402 ?? "https://agents.abapays.com/api/pay/x402";
 
-export type BillCategory = "AIRTIME" | "ELECTRICITY" | "CABLE";
+export type BillCategory = "AIRTIME" | "ELECTRICITY" | "CABLE" | "INTERNATIONAL";
+
+/** A top-up abroad: the plan's code fixes the price, the rest says where it goes. */
+export type IntlBill = {
+  countryCode: string;
+  operatorId: string;
+  operatorName: string;
+  variationCode: string;
+  /** The plan's face value in the local currency, e.g. "2000.00" with currency "ARS". */
+  foreignAmount: string;
+  currency: string;
+};
 
 export type Bill = {
   category: BillCategory;
@@ -27,7 +39,9 @@ export type Bill = {
   network: string;
   /** Meter, phone or smartcard number. */
   billersCode: string;
+  /** What VTpass charges in naira; for a top-up abroad, the plan's naira equivalent. */
   nairaAmount: number;
+  intl?: IntlBill;
 };
 
 // The providers a group is most likely to share a bill with. Electricity ids follow VTpass.
@@ -55,9 +69,29 @@ const ABAPAY_TOKEN: Record<string, string> = { USAT: "USA₮", USDT: "USD₮", U
 
 export type BillQuote = { asset: Address; amount: bigint; payTo: Address };
 
-function body(bill: Bill, symbol: string) {
+export function body(bill: Bill, symbol: string) {
   const token = ABAPAY_TOKEN[symbol];
   if (!token) throw new Error(`AbaPay settles in USA₮, USD₮ or USDC, not ${symbol}.`);
+  if (bill.intl) {
+    const i = bill.intl;
+    return {
+      serviceID: "foreign-airtime",
+      serviceCategory: "INTERNATIONAL",
+      network: i.operatorName.toUpperCase(),
+      billersCode: bill.billersCode,
+      phone: bill.billersCode,
+      operator_id: i.operatorId,
+      country_code: i.countryCode,
+      product_type_id: TOP_UP,
+      variation_code: i.variationCode,
+      nairaAmount: bill.nairaAmount,
+      foreignAmount: i.foreignAmount,
+      displayAmount: `${i.currency} ${i.foreignAmount}`,
+      token,
+      blockchain: "CELO",
+      wallet_address: account.address,
+    };
+  }
   return {
     serviceID: bill.serviceID,
     serviceCategory: bill.category,
