@@ -27,6 +27,7 @@ import {
 } from "./db.js";
 import { driveCard, dueLabel, escape, fmt, memoTgId, mention, planText, tallyText } from "./format.js";
 import { evenSplit } from "./split.js";
+import { offrampUrl } from "./ripio.js";
 import {
   CB,
   MENU,
@@ -711,6 +712,8 @@ export async function announceContribution(driveId: number, payerName: string, a
       left > 0n
         ? `\n\n<b>${fmt(raised, token)}</b> of ${fmt(target, token)}, ${fmt(left, token)} to go.`
         : `\n\n🎉 Fully paid. ${fmt(raised, token)} landed.`;
+    const cashOut = left <= 0n ? offrampUrl(token.symbol, formatUnits(raised, token.decimals)) : undefined;
+    if (cashOut) text += `\nPayee: <a href="${cashOut}">cash it out to your bank with Ripio</a>.`;
   }
   text += `\n<a href="https://celoscan.io/tx/${txHash}">Onchain receipt</a>`;
   await bot.api.sendMessage(d.chat_id, text, { ...HTML, reply_markup: driveKeyboard(d.id, { closed: !!d.closed }) });

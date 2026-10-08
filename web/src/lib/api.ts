@@ -23,6 +23,8 @@ export type Drive = {
   rpcUrl: string;
   explorer: string;
   chat: { collectorName: string | null } | null;
+  /** Present when Ripio ramps this coin: the country it serves, and the payee's cash-out link. */
+  ramp: { country: string; offramp: string } | null;
   payments: Payment[];
 };
 

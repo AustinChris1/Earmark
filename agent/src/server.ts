@@ -1,3 +1,4 @@
+import { formatUnits } from "viem";
 import express from "express";
 import path from "node:path";
 import fs from "node:fs";
@@ -10,6 +11,7 @@ import { memoName } from "./format.js";
 import { x402Guard, x402Handler, x402Middleware } from "./x402.js";
 import { linkHandler, nonceHandler, sessionHandler, statusHandler } from "./verify.js";
 import { isTestDrive, pickFeatured } from "./featured.js";
+import { offrampUrl, rampCountry } from "./ripio.js";
 import { corridorQuoteHandler, corridorStatusHandler, corridorSubmitHandler } from "./corridorService.js";
 import { drivePageHtml, homepageLiveSnippet, noLiveDriveHtml } from "./publicHtml.js";
 
@@ -242,6 +244,13 @@ app.get("/api/drive/:id", async (req, res) => {
       rpcUrl: publicRpcUrl,
       explorer: explorerUrl,
       chat: local ? { collectorName: local.collector_name } : null,
+      // Ripio serves this coin: the page builds the payer's on-ramp link with their own wallet, and
+      // the payee gets an off-ramp link for what the drive has paid them.
+      ramp: (() => {
+        const t = tokenByAddress(onchain.token);
+        if (!t || !rampCountry(t.symbol)) return null;
+        return { country: rampCountry(t.symbol), offramp: offrampUrl(t.symbol, formatUnits(onchain.raised, t.decimals)) };
+      })(),
       payments: (await paymentsFor(id)).map((p) => ({
         tx: p.tx_hash,
         payer: p.payer,

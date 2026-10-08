@@ -40,6 +40,18 @@ type CorridorQuote = { quote: string; maxPay: string; maxPayHuman: string; payTo
 type CorridorStatus = { status: string; swap_tx: string | null; contribute_tx: string | null; refund_tx: string | null; local_amount: string | null; note: string | null; pay_amount: string };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Ripio's on-ramp, prefilled so the person lands straight in Ripio's flow with the coin delivered to
+// their own wallet; they then pay the drive like anyone else. Ripio does their KYC there.
+function onrampLink(country: string, symbol: string, amount: string, wallet?: string | null) {
+  const q = new URLSearchParams({ country, chain: "42220", token: symbol.toUpperCase() });
+  const n = Number(amount);
+  if (Number.isFinite(n) && n > 0) q.set("amount", (Math.ceil(n * 100) / 100).toFixed(2).replace(/0+$/, "").replace(/\.$/, ""));
+  if (wallet) q.set("address", wallet);
+  return `https://ramp.ripio.com/?${q.toString()}`;
+}
+
+const LOCAL_MONEY: Record<string, string> = { AR: "pesos", BR: "reais", MX: "pesos", CO: "pesos" };
 const money = (v: string) => Number(v).toLocaleString("en-US", { maximumFractionDigits: 4 });
 
 export function DrivePage() {
@@ -55,6 +67,16 @@ export function DrivePage() {
   const [cq, setCq] = useState<CorridorQuote | null>(null);
   const [cqError, setCqError] = useState("");
   const [refundHash, setRefundHash] = useState<Hex | null>(null);
+  const [wallet, setWallet] = useState<string | null>(null);
+
+  // A wallet that is already connected (MiniPay, or a browser wallet that remembers the site) goes
+  // into the on-ramp link, so bought pesos land where the payer will pay from.
+  useEffect(() => {
+    window.ethereum
+      ?.request({ method: "eth_accounts" })
+      .then((a) => setWallet(((a as string[]) ?? [])[0] ?? null))
+      .catch(() => {});
+  }, []);
 
   const query = new URLSearchParams(location.search);
   const tgId = query.get("u") ?? "";
@@ -381,9 +403,21 @@ export function DrivePage() {
                 </div>
               )}
 
-              {drive.closed ? (
+              {drive.ramp && raised > 0n && (target === 0n || raised >= target || drive.closed) && (
+                <div className="mt-6 rounded-xl p-4 text-sm" style={{ background: "var(--accent-soft)" }}>
+                  <p className="font-semibold">Are you the payee?</p>
+                  <p className="mt-1" style={{ color: "var(--text-muted)" }}>
+                    Turn the {fmt(raised)} this drive paid you into {LOCAL_MONEY[drive.ramp.country] ?? "local money"} in your bank.{" "}
+                    <a href={drive.ramp.offramp} target="_blank" rel="noreferrer" className="underline underline-offset-4" style={{ color: "var(--accent)" }}>
+                      Cash out with Ripio
+                    </a>
+                  </p>
+                </div>
+              )}
+
+              {drive.closed || (target > 0n && remaining === 0n) ? (
                 <p className="mt-6 text-sm" style={{ color: "var(--pending)" }}>
-                  This drive is closed.
+                  {target > 0n && remaining === 0n ? "This drive is fully paid." : "This drive is closed."}
                 </p>
               ) : (
                 <div className="mt-6">
@@ -428,6 +462,22 @@ export function DrivePage() {
                       {drive.token.symbol}
                     </span>
                   </div>
+
+                  {drive.ramp && (!corridor || payIn === "local") && (
+                    <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
+                      No {drive.token.symbol}?{" "}
+                      <a
+                        href={onrampLink(drive.ramp.country, drive.token.symbol, amount || formatUnits(remaining, drive.token.decimals), wallet)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline underline-offset-4"
+                        style={{ color: "var(--accent)" }}
+                      >
+                        Buy it with {LOCAL_MONEY[drive.ramp.country] ?? "local money"} on Ripio
+                      </a>
+                      , then come back and pay.
+                    </p>
+                  )}
 
                   {corridor && payIn !== "local" && (
                     <div className="mt-3 rounded-xl p-3 text-sm leading-relaxed" style={{ background: "var(--accent-soft)" }}>
