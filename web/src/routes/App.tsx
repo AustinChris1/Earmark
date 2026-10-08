@@ -1,19 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { animated } from "@react-spring/web";
-import { ArrowRight, ChevronDown, Loader2, Lock, Plus, RefreshCw, Wallet, X } from "lucide-react";
-import { formatUnits, isAddress, parseAbi, parseUnits, type Address, type Hex } from "viem";
+import { ArrowRight, ChevronDown, Loader2, Lock, Plus, RefreshCw, Wallet, X, Zap } from "lucide-react";
+import { formatUnits, isAddress, parseAbi, parseEventLogs, parseUnits, type Address, type Hex } from "viem";
 import { toDataSuffix } from "@celo/attribution-tags";
 import { Shell } from "../components/Shell";
-import { getConfig, getDrives, type DriveSummary } from "../lib/api";
+import {
+  attachBill,
+  coinName,
+  getBillProviders,
+  getBillQuote,
+  getConfig,
+  getDrives,
+  type BillProvider,
+  type BillQuote,
+  type DriveSummary,
+} from "../lib/api";
 import { chainFor, connect, publicFor, silentAccount, walletFor, type Config } from "../lib/wallet";
 import { useLift } from "../lib/springs";
 
 const EARMARK_ABI = parseAbi([
   "function createDrive(address token, address destination, uint256 target, uint64 deadline, string label) returns (uint256)",
   "function close(uint256 id)",
+  "event DriveCreated(uint256 indexed id, address indexed collector, address indexed destination, address token, uint256 target, uint64 deadline, string label)",
 ]);
+
+type BillDraft = { quote: BillQuote; provider: string; naira: number };
 
 function short(a: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
@@ -32,7 +45,8 @@ function driveState(d: DriveSummary): "open" | "paid" | "closed" {
   return d.closed ? "closed" : "open";
 }
 
-function DriveRow({ d, mine, onClose }: { d: DriveSummary; mine: boolean; onClose: (id: number) => void }) {
+function DriveRow({ d, mine, onClose, agent }: { d: DriveSummary; mine: boolean; onClose: (id: number) => void; agent?: Address }) {
+  const isBill = !!agent && d.destination.toLowerCase() === agent.toLowerCase();
   const raised = BigInt(d.raised);
   const target = BigInt(d.target);
   const state = driveState(d);
@@ -52,7 +66,15 @@ function DriveRow({ d, mine, onClose }: { d: DriveSummary; mine: boolean; onClos
         <div className="min-w-0">
           <p className="font-semibold leading-tight">{d.label}</p>
           <p className="mt-1 flex items-center gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
-            <Lock className="h-3 w-3" /> pays {short(d.destination)}
+            {isBill ? (
+              <>
+                <Zap className="h-3 w-3" /> Earmark pays the bill
+              </>
+            ) : (
+              <>
+                <Lock className="h-3 w-3" /> pays {short(d.destination)}
+              </>
+            )}
             <span aria-hidden="true">·</span>
             {d.token.symbol}
           </p>
@@ -115,6 +137,9 @@ export function AppPage() {
   const [error, setError] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [showClosed, setShowClosed] = useState(false);
+  // A bill drive that opened but whose bill is not attached yet (the signature was declined, say).
+  const [unattached, setUnattached] = useState<(BillDraft & { id: number }) | null>(null);
+  const navigate = useNavigate();
   const connectBtn = useLift(2);
 
   const load = useCallback(async () => {
@@ -224,6 +249,62 @@ export function AppPage() {
     }
   }
 
+  // The opener signs which bill the drive pays, so nobody else can attach their own number to it.
+  async function attach(p: BillDraft & { id: number }) {
+    if (!cfg || !account) return;
+    setBusy("Sign to attach the bill");
+    const signature = await walletFor(cfg, account).signMessage({ account, message: p.quote.sign.replace("{id}", String(p.id)) });
+    await attachBill({ driveId: p.id, provider: p.provider, number: p.quote.number, naira: p.naira, coin: p.quote.coin, signature });
+    setUnattached(null);
+    navigate(`/d/${p.id}`);
+  }
+
+  async function createBillDrive(b: BillDraft) {
+    if (!cfg || !account) return;
+    setError("");
+    if (b.quote.payee.toLowerCase() !== cfg.agent.toLowerCase()) return setError("That price did not come from Earmark. Reload and try again.");
+    setBusy("Opening the bill drive");
+    try {
+      const wallet = walletFor(cfg, account);
+      const pub = publicFor(cfg);
+      const hash = await wallet.writeContract({
+        address: cfg.earmark,
+        abi: EARMARK_ABI,
+        functionName: "createDrive",
+        args: [b.quote.token, b.quote.payee, BigInt(b.quote.target), 0n, b.quote.label],
+        chain: chainFor(cfg),
+        dataSuffix: cfg.tag ? toDataSuffix(cfg.tag) : undefined,
+      } as never);
+      const receipt = await pub.waitForTransactionReceipt({ hash: hash as Hex });
+      const created = parseEventLogs({ abi: EARMARK_ABI, logs: receipt.logs, eventName: "DriveCreated" }).find(
+        (l) => l.address.toLowerCase() === cfg.earmark.toLowerCase(),
+      );
+      if (!created) throw new Error("The drive opened but Earmark could not read its number. Refresh the list.");
+      const pending = { ...b, id: Number(created.args.id) };
+      setUnattached(pending);
+      setShowNew(false);
+      await attach(pending);
+    } catch (e) {
+      const err = e as { shortMessage?: string; message?: string };
+      setError(err.shortMessage ?? err.message ?? "Could not open the bill drive.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function retryAttach() {
+    if (!unattached) return;
+    setError("");
+    try {
+      await attach(unattached);
+    } catch (e) {
+      const err = e as { shortMessage?: string; message?: string };
+      setError(err.shortMessage ?? err.message ?? "Could not attach the bill.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   return (
     <Shell>
       <main className="mx-auto max-w-3xl px-5 pb-20">
@@ -268,6 +349,20 @@ export function AppPage() {
             {error}
           </p>
         )}
+        {unattached && !busy && (
+          <div className="surface mt-4 rounded-2xl p-4 text-sm">
+            <p>
+              Drive #{unattached.id} is open, but its bill is not attached yet, so nobody should pay into it until it is.
+            </p>
+            <button
+              onClick={retryAttach}
+              className="pressable mt-3 rounded-xl px-4 py-2 font-semibold"
+              style={{ background: "var(--brand)", color: "var(--brand-ink)" }}
+            >
+              Sign to attach the bill
+            </button>
+          </div>
+        )}
 
         <AnimatePresence>
           {showNew && cfg && (
@@ -278,7 +373,7 @@ export function AppPage() {
               transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }}
               className="overflow-hidden"
             >
-              <NewDriveForm cfg={cfg} onCancel={() => setShowNew(false)} onSubmit={createDrive} />
+              <NewPanel cfg={cfg} onCancel={() => setShowNew(false)} onSubmit={createDrive} onBill={createBillDrive} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -299,7 +394,7 @@ export function AppPage() {
                 </h2>
                 <div className="mt-3 grid gap-3">
                   {mine.map((d) => (
-                    <DriveRow key={d.id} d={d} mine onClose={closeDrive} />
+                    <DriveRow key={d.id} d={d} mine onClose={closeDrive} agent={cfg?.agent} />
                   ))}
                 </div>
               </section>
@@ -331,7 +426,7 @@ export function AppPage() {
               ) : (
                 <div className="mt-3 grid gap-3">
                   {open.map((d) => (
-                    <DriveRow key={d.id} d={d} mine={false} onClose={closeDrive} />
+                    <DriveRow key={d.id} d={d} mine={false} onClose={closeDrive} agent={cfg?.agent} />
                   ))}
                 </div>
               )}
@@ -356,7 +451,7 @@ export function AppPage() {
                 {showClosed && (
                   <div className="mt-3 grid gap-3">
                     {finished.map((d) => (
-                      <DriveRow key={d.id} d={d} mine={false} onClose={closeDrive} />
+                      <DriveRow key={d.id} d={d} mine={false} onClose={closeDrive} agent={cfg?.agent} />
                     ))}
                   </div>
                 )}
@@ -375,13 +470,54 @@ export function AppPage() {
   );
 }
 
-function NewDriveForm({
+function NewPanel({
   cfg,
   onCancel,
   onSubmit,
+  onBill,
 }: {
   cfg: Config;
   onCancel: () => void;
+  onSubmit: (f: { amount: string; symbol: string; destination: string; label: string; deadline: string }) => void;
+  onBill: (b: BillDraft) => void;
+}) {
+  const [kind, setKind] = useState<"address" | "bill">("address");
+  return (
+    <div className="surface mt-6 rounded-2xl p-6">
+      <div className="flex items-center justify-between gap-3">
+        <div role="tablist" aria-label="Kind of drive" className="inline-flex rounded-xl p-1" style={{ background: "var(--bg-sunken)" }}>
+          {(
+            [
+              ["address", "Pay an address"],
+              ["bill", "⚡ Pay a bill"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              role="tab"
+              aria-selected={kind === k}
+              onClick={() => setKind(k)}
+              className="pressable rounded-lg px-3 py-1.5 text-sm font-medium"
+              style={kind === k ? { background: "var(--bg-raised)", color: "var(--text)", boxShadow: "0 1px 2px rgb(0 0 0 / 0.08)" } : { color: "var(--text-muted)" }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <button onClick={onCancel} aria-label="Cancel" className="pressable -m-2 rounded-full p-2">
+          <X className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+        </button>
+      </div>
+      {kind === "address" ? <NewDriveForm cfg={cfg} onSubmit={onSubmit} /> : <BillDriveForm onSubmit={onBill} />}
+    </div>
+  );
+}
+
+function NewDriveForm({
+  cfg,
+  onSubmit,
+}: {
+  cfg: Config;
   onSubmit: (f: { amount: string; symbol: string; destination: string; label: string; deadline: string }) => void;
 }) {
   const symbols = Object.values(cfg.tokens).map((t) => t.symbol);
@@ -391,43 +527,32 @@ function NewDriveForm({
   const [label, setLabel] = useState("");
   const [deadline, setDeadline] = useState("");
 
-  const field = "field";
-  const fieldStyle = {};
-
   return (
-    <div className="surface mt-6 rounded-2xl p-6">
-      <div className="flex items-center justify-between">
-        <p className="font-semibold">Open a drive</p>
-        <button onClick={onCancel} aria-label="Cancel" className="pressable -m-2 rounded-full p-2">
-          <X className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
-        </button>
-      </div>
-      <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+    <>
+      <p className="mt-4 text-sm" style={{ color: "var(--text-muted)" }}>
         The destination is locked for the life of the drive. Paste the school, landlord or vendor wallet.
       </p>
 
       <div className="mt-4 grid gap-3">
         <div className="flex gap-3">
           <input
-            className={`${field} tabular-nums`}
-            style={fieldStyle}
+            className="field tabular-nums"
             inputMode="decimal"
             aria-label="Amount"
             placeholder="450"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
-          <select className={field} style={{ ...fieldStyle, maxWidth: 130 }} aria-label="Token" value={symbol} onChange={(e) => setSymbol(e.target.value)}>
+          <select className="field" style={{ maxWidth: 130 }} aria-label="Token" value={symbol} onChange={(e) => setSymbol(e.target.value)}>
             {symbols.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {coinName(s)}
               </option>
             ))}
           </select>
         </div>
         <input
-          className={field}
-          style={fieldStyle}
+          className="field"
           placeholder="Destination address, 0x…"
           aria-label="Destination address"
           spellCheck={false}
@@ -436,8 +561,7 @@ function NewDriveForm({
           onChange={(e) => setDestination(e.target.value)}
         />
         <input
-          className={field}
-          style={fieldStyle}
+          className="field"
           placeholder="What is it for? Term 1 fees for Chioma"
           aria-label="What the drive is for"
           value={label}
@@ -446,8 +570,7 @@ function NewDriveForm({
         <label className="grid gap-1 text-sm" style={{ color: "var(--text-muted)" }}>
           Closes on <span className="font-normal">(optional, the drive stops accepting payments after this day)</span>
           <input
-            className={`${field} tabular-nums`}
-            style={fieldStyle}
+            className="field tabular-nums"
             type="date"
             min={new Date().toISOString().slice(0, 10)}
             value={deadline}
@@ -462,6 +585,178 @@ function NewDriveForm({
           Open drive
         </button>
       </div>
+    </>
+  );
+}
+
+const PRESETS = { AIRTIME: [100, 200, 500, 1000, 2000, 5000], ELECTRICITY: [2000, 5000, 10000, 20000, 50000] };
+
+function Segmented<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
+  return (
+    <div role="radiogroup" aria-label={label} className="inline-flex flex-wrap rounded-xl p-1" style={{ background: "var(--bg-sunken)" }}>
+      {options.map(([v, text]) => (
+        <button
+          key={v}
+          type="button"
+          role="radio"
+          aria-checked={value === v}
+          onClick={() => onChange(v)}
+          className="pressable rounded-lg px-3 py-1.5 text-sm font-medium"
+          style={value === v ? { background: "var(--bg-raised)", color: "var(--text)", boxShadow: "0 1px 2px rgb(0 0 0 / 0.08)" } : { color: "var(--text-muted)" }}
+        >
+          {text}
+        </button>
+      ))}
     </div>
+  );
+}
+
+function BillDriveForm({ onSubmit }: { onSubmit: (b: BillDraft) => void }) {
+  const [providers, setProviders] = useState<BillProvider[]>([]);
+  const [category, setCategory] = useState<"ELECTRICITY" | "AIRTIME">("ELECTRICITY");
+  const [provider, setProvider] = useState("");
+  const [number, setNumber] = useState("");
+  const [naira, setNaira] = useState("");
+  const [coin, setCoin] = useState<"USAT" | "USDT">("USAT");
+  const [quote, setQuote] = useState<BillQuote | null>(null);
+  const [quoteError, setQuoteError] = useState("");
+
+  useEffect(() => {
+    getBillProviders()
+      .then(setProviders)
+      .catch(() => setQuoteError("Could not load the providers. Refresh to try again."));
+  }, []);
+
+  const list = providers.filter((p) => p.category === category);
+  useEffect(() => {
+    if (!list.some((p) => p.key === provider)) setProvider(list[0]?.key ?? "");
+  }, [category, providers]);
+
+  // A live price from AbaPay once the bill is complete enough to price.
+  useEffect(() => {
+    setQuote(null);
+    setQuoteError("");
+    const n = Number(naira);
+    if (!provider || number.replace(/\D/g, "").length < 6 || !Number.isInteger(n) || n < 100) return;
+    let live = true;
+    const t = setTimeout(() => {
+      getBillQuote({ provider, number, naira: n, coin })
+        .then((q) => live && setQuote(q))
+        .catch((e: Error) => live && setQuoteError(e.message));
+    }, 450);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [provider, number, naira, coin]);
+
+  const what = category === "ELECTRICITY" ? "Prepaid meter number" : "Phone number to top up";
+  const chosen = list.find((p) => p.key === provider);
+
+  return (
+    <>
+      <p className="mt-4 text-sm" style={{ color: "var(--text-muted)" }}>
+        Everyone pays their share into Earmark's wallet. When the drive is full, Earmark pays the provider itself through AbaPay.
+      </p>
+      <div className="mt-4 grid gap-3">
+        <Segmented
+          label="Kind of bill"
+          value={category}
+          options={[
+            ["ELECTRICITY", "⚡ Electricity"],
+            ["AIRTIME", "📱 Airtime"],
+          ]}
+          onChange={setCategory}
+        />
+        <select className="field" aria-label="Provider" value={provider} onChange={(e) => setProvider(e.target.value)}>
+          {list.map((p) => (
+            <option key={p.key} value={p.key}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+        <input
+          className="field tabular-nums"
+          inputMode="numeric"
+          aria-label={what}
+          placeholder={category === "ELECTRICITY" ? "Meter number, e.g. 45012345678" : "Phone number, e.g. 08031234567"}
+          autoComplete="off"
+          value={number}
+          onChange={(e) => setNumber(e.target.value)}
+        />
+        <div>
+          <div className="field flex items-center gap-2 py-0">
+            <span style={{ color: "var(--text-muted)" }}>₦</span>
+            <input
+              className="w-full bg-transparent py-3 tabular-nums outline-none"
+              inputMode="numeric"
+              aria-label="Amount in naira"
+              placeholder="Amount in naira"
+              value={naira}
+              onChange={(e) => setNaira(e.target.value.replace(/[^\d]/g, ""))}
+            />
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {PRESETS[category].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setNaira(String(n))}
+                className="pressable rounded-full px-3 py-1 text-sm tabular-nums"
+                style={Number(naira) === n ? { background: "var(--accent)", color: "var(--accent-ink)" } : { border: "1px solid var(--line)" }}
+              >
+                ₦{n.toLocaleString("en-US")}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            The drive collects
+          </p>
+          <div className="mt-2">
+            <Segmented
+              label="Coin the drive collects"
+              value={coin}
+              options={[
+                ["USAT", "USA₮"],
+                ["USDT", "USD₮"],
+              ]}
+              onChange={setCoin}
+            />
+          </div>
+          <p className="mt-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
+            {coin === "USDT"
+              ? "People can also pay in pesos (wARS), reais (wBRL) or naira (cNGN); Earmark swaps it on Textile FX."
+              : "Everyone pays in USA₮. Pick USD₮ if someone will pay in pesos, reais or naira."}
+          </p>
+        </div>
+
+        <div className="rounded-xl p-3 text-sm leading-relaxed" style={{ background: "var(--accent-soft)" }}>
+          {quote ? (
+            <p>
+              The drive collects{" "}
+              <strong className="tabular-nums">
+                {Number(quote.targetHuman).toLocaleString("en-US", { maximumFractionDigits: 4 })} {coinName(quote.coin)}
+              </strong>
+              : AbaPay's price for {chosen?.label ?? "the bill"} now, plus 2% in case the rate moves. Anything unused goes back to whoever paid.
+            </p>
+          ) : (
+            <p style={{ color: quoteError ? "var(--danger)" : "var(--text-muted)" }}>
+              {quoteError || "Fill in the bill to see what the drive will collect."}
+            </p>
+          )}
+        </div>
+
+        <button
+          disabled={!quote}
+          onClick={() => quote && onSubmit({ quote, provider, naira: Number(naira) })}
+          className="pressable rounded-xl py-3 text-[15px] font-semibold disabled:opacity-50"
+          style={{ background: "var(--accent)", color: "var(--accent-ink)" }}
+        >
+          Open bill drive
+        </button>
+      </div>
+    </>
   );
 }

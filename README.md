@@ -17,16 +17,20 @@ Earmark is a Telegram bot you add to that family group.
 
 If the school does not have a wallet, Earmark cannot pay it. It pays wallet addresses only, and it says so.
 
+**Bills Earmark pays itself.** For Nigerian electricity and airtime there is no wallet to lock, so Earmark pays the provider. The group collects into Earmark's wallet, and when the drive is full the agent pays the bill through [AbaPay](https://agents.abapays.com) over x402 and posts the meter token or receipt in the chat. Unused headroom goes back to the people who paid, and if the bill cannot be paid, everyone gets their share back. This is the one kind of drive where Earmark holds the money, and only until the bill is paid.
+
+**Pay in your own money.** A relative in Buenos Aires or São Paulo pays in pesos (wARS) or reais (wBRL), someone in Lagos in naira (cNGN), anyone else in USD₮ or USA₮. Earmark swaps it on [Textile FX](https://textilecredit.com) into the coin the drive collects, and returns whatever the swap did not use. No pesos on chain yet? The pay page links straight into [Ripio](https://ramp.ripio.com) to buy them.
+
 The name: to earmark money is to set it aside for one purpose. The word comes from a notch cut into an animal's ear, which cannot be undone. The logo is that notch.
 
 ## Try it in two minutes
 
-1. Open [@Earmarked_bot](https://t.me/Earmarked_bot) in Telegram, or add it to a group.
-2. Send `/new` and answer three questions (amount, token, the wallet it pays), or type it in one line: `/new 2 USDT 0xYourWallet September rent`.
-3. Send `/split all`, then tap **Pay my share**. The pay page works in MetaMask, Rabby, Valora or MiniPay's built-in wallet.
-4. Send `/tally` to see who has paid. Open the Celoscan link on any payment: **To** is the locked wallet, never the Earmark contract.
+1. Open [@Earmarked_bot](https://t.me/Earmarked_bot) in Telegram, or add it to a group, and send `/menu`. Everything is buttons; no commands to remember.
+2. Tap **➕ New drive**, pick a coin, reply with the amount and the wallet it pays. Or tap **⚡ Pay a bill**, pick electricity or airtime, the provider, the number and the amount.
+3. Tap **➗ Split evenly**, then **Pay my share**. The pay page works in MetaMask, Rabby, Valora or MiniPay's built-in wallet, and offers pesos, reais, naira or dollars where the drive can swap them.
+4. Tap **Who has paid**. Open the Celoscan link on any payment: **To** is the locked wallet, never the Earmark contract.
 
-No Telegram? The same things work from the browser at <https://earmark-agent.onrender.com/app> with your own wallet.
+No Telegram? All of it, bill drives included, works from the browser at <https://earmark-agent.onrender.com/app> with your own wallet. Typed shortcuts still work in the bot (`/new 2 USDT 0xYourWallet September rent`, `/bill mtn 08031234567 500`).
 
 ## What is live
 
@@ -39,6 +43,8 @@ No Telegram? The same things work from the browser at <https://earmark-agent.onr
 | Bot | [@Earmarked_bot](https://t.me/Earmarked_bot) |
 | Site | <https://earmark-agent.onrender.com>, docs at [/docs](https://earmark-agent.onrender.com/docs), live drive at [/live](https://earmark-agent.onrender.com/live) |
 | Tokens | 25 Celo stablecoins, every address checked on chain before listing; see [usage](docs/usage.md) |
+| Bill payments | Nigerian electricity and airtime through [AbaPay](https://agents.abapays.com) over x402, settled in USA₮ or USD₮ |
+| FX | [Textile FX](https://textilecredit.com) RFQ swaps: wARS, wBRL, cNGN, USD₮ and USA₮ into whatever coin a drive collects |
 | x402 | Drive #7 paid by an agent with no wallet UI: [settlement](https://celoscan.io/tx/0x5dbe0d9832d96f3b5e943a2de9d9af7e8759555692b5b3ddec48acbe1accb518) by Celo's facilitator, then [forwarded into the drive](https://celoscan.io/tx/0x671113b150af4f151add4b972ab64bfd75244882b2cf147fa66e7e1f565d4379). Client: `pnpm -F @earmark/agent x402:pay <id> <amount>` |
 
 ## How it works
@@ -48,7 +54,7 @@ No Telegram? The same things work from the browser at <https://earmark-agent.onr
 3. Each person runs `/pay` and gets a personal link that works in any Celo wallet with a browser (MetaMask, Rabby, Valora, MiniPay's injected wallet). In a wallet with fee abstraction the gas comes out of the stablecoin; elsewhere it is a fraction of a cent in CELO.
 4. A relative abroad, or another agent, pays a share over x402 in USAT, with no local bank account.
 5. The agent watches the chain and reads the tally back into the chat: who paid, who is outstanding, how much is left. `/remind` pings whoever still owes.
-6. Every contribution lands at the locked destination **in the same transaction**. The contract never holds a balance.
+6. Every contribution lands at the locked destination **in the same transaction**. The contract never holds a balance. (Bill drives are the exception described above: their locked destination is Earmark's own wallet, which pays the provider.)
 
 Earmark pays a wallet address, not a bank account. It guarantees the money reaches the account the group named; it does not guarantee that account belongs to an institution. It is not yet listed in MiniPay Discover, so MiniPay users open the pay page in another Celo wallet for now.
 

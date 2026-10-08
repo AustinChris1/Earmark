@@ -20,7 +20,7 @@ import { toDataSuffix } from "@celo/attribution-tags";
 import { Shell } from "../components/Shell";
 import { PayQr } from "../components/PayQr";
 import { ensureChain } from "../lib/wallet";
-import { getDrive, type Drive } from "../lib/api";
+import { coinName, getBillReceipt, getDrive, type BillReceipt, type Drive } from "../lib/api";
 import { useLift } from "../lib/springs";
 
 const EARMARK_ABI = parseAbi(["function contribute(uint256 id, uint256 amount, string memo)"]);
@@ -33,9 +33,8 @@ const ERC20_ABI = parseAbi([
 
 type Stage = "idle" | "approving" | "paying" | "swapping" | "done" | "error";
 
-// Local coins with a live Textile FX corridor: these drives can also be paid in dollars.
-const CORRIDOR_LOCAL = ["cNGN", "wARS", "wBRL"];
-type PayIn = "local" | "USDT" | "USAT";
+// "direct" pays in the drive's own coin; any other value is a coin Earmark swaps on Textile FX.
+type PayIn = string;
 type CorridorQuote = { quote: string; maxPay: string; maxPayHuman: string; payToken: Address; payDecimals: number; pay: string; sendTo: Address; wantLocal: string };
 type CorridorStatus = { status: string; swap_tx: string | null; contribute_tx: string | null; refund_tx: string | null; local_amount: string | null; note: string | null; pay_amount: string };
 
@@ -52,6 +51,10 @@ function onrampLink(country: string, symbol: string, amount: string, wallet?: st
 }
 
 const LOCAL_MONEY: Record<string, string> = { AR: "pesos", BR: "reais", MX: "pesos", CO: "pesos" };
+// Coins Ripio sells for local money, so someone paying in them can buy them first.
+const RAMP_COUNTRY: Record<string, string> = { wARS: "AR", wBRL: "BR" };
+// What each swappable coin is, for people who know their money and not the ticker.
+const COIN_HINT: Record<string, string> = { wARS: "pesos", wBRL: "reais", cNGN: "naira", USDT: "dollars", USAT: "dollars" };
 const money = (v: string) => Number(v).toLocaleString("en-US", { maximumFractionDigits: 4 });
 
 export function DrivePage() {
@@ -63,11 +66,13 @@ export function DrivePage() {
   const [message, setMessage] = useState("");
   const [txHash, setTxHash] = useState<Hex | null>(null);
   const [copied, setCopied] = useState(false);
-  const [payIn, setPayIn] = useState<PayIn>("local");
+  const [payIn, setPayIn] = useState<PayIn>("direct");
   const [cq, setCq] = useState<CorridorQuote | null>(null);
   const [cqError, setCqError] = useState("");
   const [refundHash, setRefundHash] = useState<Hex | null>(null);
   const [wallet, setWallet] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<BillReceipt | null>(null);
+  const [receiptError, setReceiptError] = useState("");
 
   // A wallet that is already connected (MiniPay, or a browser wallet that remembers the site) goes
   // into the on-ramp link, so bought pesos land where the payer will pay from.
@@ -122,11 +127,12 @@ export function DrivePage() {
   const remaining = target > raised ? target - raised : 0n;
   const pct = target > 0n ? Math.min(100, Number((raised * 1000n) / target) / 10) : 0;
 
-  const corridor = !!drive && CORRIDOR_LOCAL.includes(drive.token.symbol);
+  const corridor = !!drive && drive.payOptions.length > 0;
+  const swapping = corridor && payIn !== "direct";
 
   // A dollar payer sees, before paying, the most they will send for the local amount they typed.
   useEffect(() => {
-    if (!drive || !corridor || payIn === "local") {
+    if (!drive || !swapping) {
       setCq(null);
       setCqError("");
       return;
@@ -153,7 +159,7 @@ export function DrivePage() {
       live = false;
       clearTimeout(t);
     };
-  }, [drive, corridor, payIn, amount, remaining]);
+  }, [drive, swapping, payIn, amount, remaining]);
 
   async function payCorridor() {
     if (!drive || !chain || !cq) return;
@@ -172,11 +178,11 @@ export function DrivePage() {
       const maxPay = BigInt(cq.maxPay);
       const balance = await pub.readContract({ address: cq.payToken, abi: ERC20_ABI, functionName: "balanceOf", args: [account] });
       if (balance < maxPay) {
-        throw new Error(`This needs up to ${cq.maxPayHuman} ${cq.pay}, and your wallet has ${formatUnits(balance, cq.payDecimals)}.`);
+        throw new Error(`This needs up to ${money(cq.maxPayHuman)} ${coinName(cq.pay)}, and your wallet has ${money(formatUnits(balance, cq.payDecimals))}.`);
       }
 
       setStage("paying");
-      setMessage(`Confirm sending ${money(cq.maxPayHuman)} ${cq.pay}. Whatever the swap does not use comes back to you.`);
+      setMessage(`Confirm sending ${money(cq.maxPayHuman)} ${coinName(cq.pay)}. Whatever the swap does not use comes back to you.`);
       const payTx = await wallet.writeContract({
         address: cq.payToken,
         abi: ERC20_ABI,
@@ -204,7 +210,7 @@ export function DrivePage() {
           setRefundHash((st.refund_tx as Hex) ?? null);
           setStage("done");
           setMessage(
-            `Paid. ${fmt(st.local_amount ?? "0")} landed at the destination.${st.refund_tx ? " The unused dollars were returned to your wallet." : ""}`,
+            `Paid. ${fmt(st.local_amount ?? "0")} landed at the destination.${st.refund_tx ? ` The unused ${coinName(cq.pay)} went back to your wallet.` : ""}`,
           );
           setAmount("");
           refresh();
@@ -306,6 +312,23 @@ export function DrivePage() {
 
   const busy = stage === "approving" || stage === "paying" || stage === "swapping";
 
+  // The token of a bill drive opened on the website goes only to the wallet that opened it.
+  async function showReceipt() {
+    if (!drive || !chain) return;
+    setReceiptError("");
+    try {
+      if (!window.ethereum) throw new Error("Open this page in the wallet that opened the drive.");
+      const [raw] = (await window.ethereum.request({ method: "eth_requestAccounts" })) as string[];
+      const account = getAddress(raw);
+      const w = createWalletClient({ chain, account, transport: custom(window.ethereum) });
+      const signature = await w.signMessage({ account, message: `Earmark: show me the receipt for drive #${drive.id}.` });
+      setReceipt(await getBillReceipt(drive.id, signature));
+    } catch (e) {
+      const err = e as { shortMessage?: string; message?: string };
+      setReceiptError(err.shortMessage ?? err.message ?? "Could not show the receipt.");
+    }
+  }
+
   async function copyDestination() {
     if (!drive) return;
     try {
@@ -391,13 +414,45 @@ export function DrivePage() {
                   </p>
                   <p className="mt-1" style={{ color: "var(--text-muted)" }}>
                     {drive.bill.status === "paid"
-                      ? "Paid. The token was posted in the group that collected for it."
+                      ? drive.bill.openedOnWeb
+                        ? "Paid. Whoever opened this drive can see the token below."
+                        : "Paid. The token was posted in the group that collected for it."
                       : drive.bill.status === "collecting"
-                        ? "The address above is Earmark's own wallet: the money waits there until the drive is full, then Earmark pays the bill through AbaPay and posts the receipt in the group. Anything unused goes back to the people who paid, and if the bill cannot be paid, everyone gets their share back."
+                        ? `The address above is Earmark's own wallet: the money waits there until the drive is full, then Earmark pays the bill through AbaPay${drive.bill.openedOnWeb ? "" : " and posts the receipt in the group"}. Anything unused goes back to the people who paid, and if the bill cannot be paid, everyone gets their share back.`
                         : drive.bill.status === "paying"
                           ? "Full. Earmark is paying the bill now."
-                          : "This bill was not paid, and the money went back to the people who sent it."}
+                          : drive.bill.status === "awaiting_refund"
+                            ? "AbaPay could not deliver this bill. Everyone is paid back as soon as AbaPay's refund arrives."
+                            : "This bill was not paid, and the money went back to the people who sent it."}
                   </p>
+                  {drive.bill.openedOnWeb && drive.bill.status === "paid" && !receipt && (
+                    <button
+                      type="button"
+                      onClick={showReceipt}
+                      className="pressable mt-3 rounded-lg px-3 py-1.5 text-sm font-semibold"
+                      style={{ border: "1px solid var(--accent)", color: "var(--accent)" }}
+                    >
+                      I opened this drive: show the {drive.bill.category === "ELECTRICITY" ? "token" : "receipt"}
+                    </button>
+                  )}
+                  {receipt && (
+                    <div className="mt-3 rounded-lg p-3" style={{ background: "var(--accent-soft)" }}>
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        For {receipt.number}
+                      </p>
+                      {receipt.purchasedCode ? (
+                        <p className="mt-1 select-all font-mono text-base font-semibold tracking-wide">{receipt.purchasedCode}</p>
+                      ) : (
+                        <p className="mt-1">Delivered straight to the phone number; there is no code to enter.</p>
+                      )}
+                      {receipt.units && <p className="mt-1 text-xs">{receipt.units} units</p>}
+                    </div>
+                  )}
+                  {receiptError && (
+                    <p role="alert" className="mt-2 text-sm" style={{ color: "var(--danger)" }}>
+                      {receiptError}
+                    </p>
+                  )}
                   {drive.bill.settleTx && (
                     <a href={`${drive.explorer}/tx/${drive.bill.settleTx}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 underline underline-offset-4" style={{ color: "var(--accent)" }}>
                       Payment to AbaPay <ExternalLink className="h-3.5 w-3.5" />
@@ -411,8 +466,8 @@ export function DrivePage() {
                 {target > 0n ? `, ${fmt(remaining)} still needed of ${fmt(target)}` : ""}.{" "}
                 {drive.bill
                   ? "After you confirm, your share goes to Earmark's wallet, which pays the bill when the drive is full."
-                  : corridor && payIn !== "local"
-                    ? `Paying in dollars, Earmark swaps them to ${drive.token.symbol} and pays the address above; nobody can redirect it.`
+                  : swapping
+                    ? `Paying in ${coinName(payIn)}, Earmark swaps it to ${drive.token.symbol} and pays the address above; nobody can redirect it.`
                     : "After you confirm, the tokens leave your wallet and arrive at the address above in the same transaction. Earmark never holds the money and nobody can redirect it."}
               </p>
 
@@ -440,7 +495,12 @@ export function DrivePage() {
                 </div>
               )}
 
-              {drive.closed || (target > 0n && remaining === 0n) ? (
+              {drive.unattached ? (
+                <p role="alert" className="mt-6 text-sm" style={{ color: "var(--danger)" }}>
+                  This drive pays Earmark's own wallet but has no bill attached, so nothing would pay it out. Do not pay into it;
+                  whoever opened it can open a new bill drive.
+                </p>
+              ) : drive.closed || (target > 0n && remaining === 0n) ? (
                 <p className="mt-6 text-sm" style={{ color: "var(--pending)" }}>
                   {target > 0n && remaining === 0n ? "This drive is fully paid." : "This drive is closed."}
                 </p>
@@ -449,10 +509,10 @@ export function DrivePage() {
                   {corridor && (
                     <div className="mb-4">
                       <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                        Pay in
+                        Pay in {swapping && COIN_HINT[payIn] ? <span>({COIN_HINT[payIn]}; Earmark swaps it)</span> : null}
                       </p>
-                      <div role="radiogroup" aria-label="Pay in" className="mt-2 inline-flex rounded-xl p-1" style={{ background: "var(--bg-sunken)" }}>
-                        {(["local", "USDT", "USAT"] as PayIn[]).map((p) => (
+                      <div role="radiogroup" aria-label="Pay in" className="mt-2 inline-flex flex-wrap rounded-xl p-1" style={{ background: "var(--bg-sunken)" }}>
+                        {["direct", ...drive.payOptions].map((p) => (
                           <button
                             key={p}
                             type="button"
@@ -462,7 +522,7 @@ export function DrivePage() {
                             className="pressable rounded-lg px-3 py-1.5 text-sm font-medium"
                             style={payIn === p ? { background: "var(--bg-raised)", color: "var(--text)", boxShadow: "0 1px 2px rgb(0 0 0 / 0.08)" } : { color: "var(--text-muted)" }}
                           >
-                            {p === "local" ? drive.token.symbol : p === "USAT" ? "USA₮" : p}
+                            {p === "direct" ? coinName(drive.token.symbol) : coinName(p)}
                           </button>
                         ))}
                       </div>
@@ -488,7 +548,7 @@ export function DrivePage() {
                     </span>
                   </div>
 
-                  {drive.ramp && (!corridor || payIn === "local") && (
+                  {drive.ramp && !swapping && (
                     <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
                       No {drive.token.symbol}?{" "}
                       <a
@@ -504,18 +564,33 @@ export function DrivePage() {
                     </p>
                   )}
 
-                  {corridor && payIn !== "local" && (
+                  {swapping && (
                     <div className="mt-3 rounded-xl p-3 text-sm leading-relaxed" style={{ background: "var(--accent-soft)" }}>
                       {cq ? (
                         <>
                           <p>
-                            You send at most <strong className="tabular-nums">{money(cq.maxPayHuman)} {cq.pay === "USAT" ? "USA₮" : cq.pay}</strong>; the
-                            destination receives <strong className="tabular-nums">{fmt(cq.wantLocal)}</strong>.
+                            You send at most <strong className="tabular-nums">{money(cq.maxPayHuman)} {coinName(cq.pay)}</strong>; the
+                            {drive.bill ? " drive" : " destination"} receives <strong className="tabular-nums">{fmt(cq.wantLocal)}</strong>.
                           </p>
                           <p className="mt-1" style={{ color: "var(--text-muted)" }}>
-                            Earmark swaps it on Textile FX for about {money(cq.quote)} {cq.pay === "USAT" ? "USA₮" : cq.pay} and returns what is not used. Your
-                            dollars sit with Earmark only for the seconds the swap takes; if it cannot swap at this price, they come straight back.
+                            Earmark swaps it on Textile FX for about {money(cq.quote)} {coinName(cq.pay)} and returns what is not used. Your{" "}
+                            {coinName(cq.pay)} sits with Earmark only for the seconds the swap takes; if it cannot swap at this price, it comes straight back.
                           </p>
+                          {RAMP_COUNTRY[cq.pay] && (
+                            <p className="mt-2">
+                              No {cq.pay}?{" "}
+                              <a
+                                href={onrampLink(RAMP_COUNTRY[cq.pay], cq.pay, cq.maxPayHuman, wallet)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="underline underline-offset-4"
+                                style={{ color: "var(--accent)" }}
+                              >
+                                Buy it with {LOCAL_MONEY[RAMP_COUNTRY[cq.pay]]} on Ripio
+                              </a>
+                              , then come back and pay.
+                            </p>
+                          )}
                         </>
                       ) : (
                         <p style={{ color: cqError ? "var(--danger)" : "var(--text-muted)" }}>{cqError || "Getting a price…"}</p>
@@ -525,7 +600,7 @@ export function DrivePage() {
 
                   <animated.button
                     {...payBtn.bind}
-                    onClick={corridor && payIn !== "local" ? payCorridor : pay}
+                    onClick={swapping ? payCorridor : pay}
                     disabled={busy}
                     className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-[15px] font-semibold disabled:opacity-60"
                     style={{ ...payBtn.style, background: "var(--brand)", color: "var(--brand-ink)" }}
