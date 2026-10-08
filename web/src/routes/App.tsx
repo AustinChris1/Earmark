@@ -620,6 +620,9 @@ function Segmented<T extends string>({ label, value, options, onChange }: { labe
 
 type BillKind = "ELECTRICITY" | "AIRTIME" | "ABROAD";
 
+// Listed first: the countries whose money Earmark can take, as wARS and wBRL through Ripio.
+const FIRST = ["AR", "BR", "MX", "CO"];
+
 function BillDriveForm({ onSubmit }: { onSubmit: (b: BillDraft) => void }) {
   const [providers, setProviders] = useState<BillProvider[]>([]);
   const [category, setCategory] = useState<BillKind>("ELECTRICITY");
@@ -728,17 +731,32 @@ function BillDriveForm({ onSubmit }: { onSubmit: (b: BillDraft) => void }) {
           onChange={(v) => {
             setCategory(v);
             setNumber("");
+            if (v === "ABROAD") setCoin("USDT");
           }}
         />
 
         {abroad ? (
           <>
             <select className="field" aria-label="Country" value={country} onChange={(e) => setCountry(e.target.value)}>
-              {countries.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.name}
-                </option>
-              ))}
+              <optgroup label="Where Ripio ramps pesos and reais">
+                {countries
+                  .filter((c) => FIRST.includes(c.code))
+                  .sort((a, b) => FIRST.indexOf(a.code) - FIRST.indexOf(b.code))
+                  .map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.name}
+                    </option>
+                  ))}
+              </optgroup>
+              <optgroup label="Everywhere else">
+                {countries
+                  .filter((c) => !FIRST.includes(c.code))
+                  .map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.name}
+                    </option>
+                  ))}
+              </optgroup>
             </select>
             <select className="field" aria-label="Network" value={operator} onChange={(e) => setOperator(e.target.value)} disabled={!operators.length}>
               {operators.map((o) => (

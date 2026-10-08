@@ -919,7 +919,7 @@ function registerHandlers(b: Bot) {
       if (act === "p" && draft.step === "plan" && draft.abroad) {
         draft.abroad.plan = arg;
         draft.step = "coin";
-        return ctx.editMessageText("Which coin should the drive collect?", { reply_markup: billCoinKeyboard() }).catch(() => {});
+        return ctx.editMessageText("Which coin should the drive collect?", { reply_markup: billCoinKeyboard(true) }).catch(() => {});
       }
       if (act === "t" && draft.step === "coin" && BILL_COINS.includes(arg as BillCoin)) {
         draft.coin = arg as BillCoin;

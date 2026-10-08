@@ -176,13 +176,12 @@ export function billAmountKeyboard(category: BillCategory) {
   return kb.text("Other amount", CB.billNaira("other")).row().text("Cancel", CB.billCancel);
 }
 
-export function billCoinKeyboard() {
-  return new InlineKeyboard()
-    .text("Collect USA₮", CB.billCoin("USAT"))
-    .row()
-    .text("Collect USD₮: pesos, reais and naira can pay too", CB.billCoin("USDT"))
-    .row()
-    .text("Cancel", CB.billCancel);
+export function billCoinKeyboard(dollarFirst = false) {
+  const usdt = "Collect USD₮: pesos, reais and naira can pay too";
+  const kb = new InlineKeyboard();
+  if (dollarFirst) kb.text(usdt, CB.billCoin("USDT")).row().text("Collect USA₮", CB.billCoin("USAT"));
+  else kb.text("Collect USA₮", CB.billCoin("USAT")).row().text(usdt, CB.billCoin("USDT"));
+  return kb.row().text("Cancel", CB.billCancel);
 }
 
 export function billConfirmKeyboard() {
