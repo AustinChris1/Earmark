@@ -31,8 +31,9 @@ services:
       # What the browser is told to use. Never the keyed endpoint.
       - key: PUBLIC_RPC_URL
         value: https://forno.celo.org
+      # Agents on Open Rails tag (Loops, Oct-Nov 2026). Agents at Work used celo_c4e6d31d42c8.
       - key: ATTRIBUTION_TAG
-        value: celo_c4e6d31d42c8
+        value: celo_e8cc99294b28
       - key: EARMARK_ADDRESS
         value: "0x93316de31b4f891c56cf3b65a3f96aa6b04192ae"
       - key: ERC8004_AGENT_ID
