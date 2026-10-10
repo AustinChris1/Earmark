@@ -1,8 +1,8 @@
 import { useEffect, useId, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
 import { animated } from "@react-spring/web";
 import { ArrowRight, ArrowUpRight, ChevronDown } from "lucide-react";
 import { Shell } from "../components/Shell";
+import { FlowDiagram } from "../components/FlowDiagram";
 import { Counter } from "../components/Counter";
 import { useLift } from "../lib/springs";
 import { getStats, type Stats } from "../lib/api";
@@ -12,30 +12,6 @@ const CONTRACT = "0x93316de31b4f891c56cf3b65a3f96aa6b04192ae";
 const AGENT = "0x178977E82c4Df50D5a7465F4495170DFF9275363";
 const HACKATHON_URL = "https://celobuilders.xyz/hackathons/agents-at-work";
 const SOURCE_URL = "https://repo.sourcify.dev/42220/0x93316DE31b4f891C56cf3b65A3f96AA6b04192Ae";
-
-const SCENES = [
-  {
-    src: "/images/meter.jpg",
-    width: 1248,
-    height: 832,
-    alt: "A hand holding a phone beside a prepaid electricity meter on a sunlit wall",
-    title: "The shared meter",
-  },
-  {
-    src: "/images/airtime.jpg",
-    width: 1248,
-    height: 832,
-    alt: "A woman on a city balcony at dusk, phone to her ear",
-    title: "Airtime abroad",
-  },
-  {
-    src: "/images/school.jpg",
-    width: 1248,
-    height: 832,
-    alt: "A parent walking a child through a school gate in the morning",
-    title: "School fees",
-  },
-];
 
 const STEPS = [
   { title: "Name it in the chat", body: "One bill, one locked place." },
@@ -120,7 +96,6 @@ function ProofLink({ href, label, value }: { href: string; label: string; value:
 export function Landing() {
   const [stats, setStats] = useState<Stats | null>(null);
   const cta = useLift(2);
-  const reduce = useReducedMotion();
   const contract = stats?.earmark ?? CONTRACT;
   const agent = stats?.agent ?? AGENT;
 
@@ -128,72 +103,39 @@ export function Landing() {
     getStats().then(setStats).catch(() => setStats(null));
   }, []);
 
-  const rise = reduce
-    ? {}
-    : {
-        initial: { opacity: 0, y: 12 },
-        animate: { opacity: 1, y: 0 },
-        transition: { duration: 0.55, ease: [0.23, 1, 0.32, 1] as const },
-      };
-
   return (
     <Shell>
       <main className="mx-auto max-w-5xl px-5">
-        <section className="grid items-center gap-8 pt-10 pb-16 md:grid-cols-2 md:gap-12 md:pt-16 md:pb-20">
-          <div>
-            <motion.h1 {...rise} className="font-display text-5xl leading-[1.08] tracking-tight md:text-6xl">
-              Money that carries
-              <br />
-              <span className="highlight px-1.5">its destination.</span>
-            </motion.h1>
-            <p className="mt-5 max-w-md text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              A group names one bill. Every share can only reach the place they locked.
-            </p>
-            <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3">
-              <animated.a
-                {...cta.bind}
-                style={{ ...cta.style, background: "var(--brand)", color: "var(--brand-ink)" }}
-                href="https://t.me/Earmarked_bot"
-                className="group inline-flex items-center gap-2 rounded-xl px-5 py-3.5 text-sm font-semibold"
-              >
-                Start in Telegram
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              </animated.a>
-              <a href="/app" className="rounded-lg text-sm underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
-                Or open a drive here
-              </a>
-            </div>
+        <section className="max-w-xl pt-14 pb-16 md:pt-20">
+          <h1 className="font-display text-5xl leading-[1.08] tracking-tight md:text-6xl">
+            Money that carries
+            <br />
+            <span className="highlight px-1.5">its destination.</span>
+          </h1>
+          <p className="mt-5 max-w-md text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            A group names one bill. Every share can only reach the place they locked.
+          </p>
+          <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3">
+            <animated.a
+              {...cta.bind}
+              style={{ ...cta.style, background: "var(--brand)", color: "var(--brand-ink)" }}
+              href="https://t.me/Earmarked_bot"
+              className="group inline-flex items-center gap-2 rounded-xl px-5 py-3.5 text-sm font-semibold"
+            >
+              Start in Telegram
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </animated.a>
+            <a href="/app" className="rounded-lg text-sm underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
+              Or open a drive here
+            </a>
           </div>
-          <img
-            src="/images/compound.jpg"
-            width={1280}
-            height={720}
-            alt="Three neighbours in a courtyard, looking at one phone together"
-            className="aspect-video w-full rounded-2xl object-cover"
-          />
-        </section>
-
-        <section className="border-t py-14" style={{ borderColor: "var(--line)" }}>
-          <h2 className="font-display text-3xl tracking-tight md:text-4xl">What the money is for.</h2>
-          <ul className="mt-8 grid gap-8 sm:grid-cols-3">
-            {SCENES.map((scene) => (
-              <li key={scene.src}>
-                <img
-                  src={scene.src}
-                  width={scene.width}
-                  height={scene.height}
-                  alt={scene.alt}
-                  className="aspect-[3/2] w-full rounded-2xl object-cover"
-                />
-                <p className="mt-3 font-semibold">{scene.title}</p>
-              </li>
-            ))}
-          </ul>
         </section>
 
         <section className="border-t py-14" style={{ borderColor: "var(--line)" }}>
           <h2 className="font-display text-3xl tracking-tight md:text-4xl">How a drive works.</h2>
-          <ol className="mt-8 grid gap-8 sm:grid-cols-3">
+          <div className="mt-8 grid items-center gap-10 md:grid-cols-2">
+            <FlowDiagram className="w-full" />
+            <ol className="grid gap-8">
             {STEPS.map((step, i) => (
               <li key={step.title} className="relative pt-5">
                 <span className="absolute top-0 left-0 h-px w-full" style={{ background: "var(--line)" }} />
@@ -209,7 +151,8 @@ export function Landing() {
                 </p>
               </li>
             ))}
-          </ol>
+            </ol>
+          </div>
         </section>
 
         <section id="faq" className="border-t py-14" style={{ borderColor: "var(--line)" }}>

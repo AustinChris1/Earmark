@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { animated } from "@react-spring/web";
@@ -152,28 +152,41 @@ export function AppPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [c, ds] = await Promise.all([getConfig(), getDrives()]);
+      const c = await getConfig();
       setCfg(c);
-      setDrives(ds);
+      // The chain is public. The page is not a directory: only a connected wallet's own drives are read.
+      setDrives(account ? await getDrives() : []);
     } catch (e) {
-      setError((e as Error).message);
+      const msg = (e as Error).message;
+      setError(msg.startsWith("HTTP ") ? "Earmark is not reachable right now. Try again in a moment." : msg);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [account]);
 
   useEffect(() => {
     void load();
     void silentAccount().then((a) => a && setAccount(a));
   }, [load]);
 
-  // Wiring tests never show; the rest split into yours, still open, and finished.
+  // Wiring tests never show. Everyone else's drives stay off this page; they arrive by pay link.
   const visible = useMemo(() => drives.filter((d) => !d.test), [drives]);
-  const hiddenTests = drives.length - visible.length;
   const isMine = (d: DriveSummary) => !!account && d.collector.toLowerCase() === account.toLowerCase();
-  const mine = useMemo(() => visible.filter(isMine), [visible, account]);
-  const open = useMemo(() => visible.filter((d) => !isMine(d) && driveState(d) === "open"), [visible, account]);
-  const finished = useMemo(() => visible.filter((d) => !isMine(d) && driveState(d) !== "open"), [visible, account]);
+  const isBill = (d: DriveSummary) => !!cfg?.agent && d.destination.toLowerCase() === cfg.agent.toLowerCase();
+  const mineOpen = useMemo(() => visible.filter((d) => isMine(d) && driveState(d) === "open"), [visible, account]);
+  const payingMe = useMemo(
+    () =>
+      visible.filter(
+        (d) =>
+          !!account &&
+          !isMine(d) &&
+          !isBill(d) &&
+          d.destination.toLowerCase() === account.toLowerCase() &&
+          driveState(d) === "open",
+      ),
+    [visible, account, cfg?.agent],
+  );
+  const finished = useMemo(() => visible.filter((d) => isMine(d) && driveState(d) !== "open"), [visible, account]);
 
   async function onConnect() {
     if (!cfg) return;
@@ -318,8 +331,8 @@ export function AppPage() {
         <div className="flex flex-wrap items-end justify-between gap-4 pt-8">
           <div>
             <h1 className="font-display text-4xl tracking-tight">Drives</h1>
-            <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-              Open a drive here, or pay one that is already open.
+            <p className="mt-1 max-w-md text-sm" style={{ color: "var(--text-muted)" }}>
+              Drives you opened. Everyone else pays through the link you send them.
             </p>
           </div>
           {account ? (
@@ -384,34 +397,22 @@ export function AppPage() {
           )}
         </AnimatePresence>
 
-        {loading ? (
-          <p className="mt-10 flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
-            <Loader2 className="h-4 w-4 animate-spin" /> Reading the chain
-          </p>
-        ) : (
-          <>
-            {account && mine.length > 0 && (
-              <section className="mt-10">
-                <h2 className="text-sm font-semibold">
-                  Drives you opened{" "}
-                  <span className="font-normal tabular-nums" style={{ color: "var(--text-muted)" }}>
-                    {mine.length}
-                  </span>
-                </h2>
-                <div className="mt-3 grid gap-3">
-                  {mine.map((d) => (
-                    <DriveRow key={d.id} d={d} mine onClose={closeDrive} agent={cfg?.agent} />
-                  ))}
-                </div>
-              </section>
-            )}
+        <OpenLink />
 
+        {account && loading && (
+          <p className="mt-10 flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
+            <Loader2 className="h-4 w-4 animate-spin" /> Reading your drives
+          </p>
+        )}
+
+        {account && !loading && (
+          <>
             <section className="mt-10">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold">
-                  Open drives{" "}
+                  Open{" "}
                   <span className="font-normal tabular-nums" style={{ color: "var(--text-muted)" }}>
-                    {open.length}
+                    {mineOpen.length}
                   </span>
                 </h2>
                 <button
@@ -423,20 +424,34 @@ export function AppPage() {
                   <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} /> Refresh
                 </button>
               </div>
-              {open.length === 0 ? (
+              {mineOpen.length === 0 ? (
                 <p className="surface mt-3 rounded-2xl p-6 text-sm" style={{ color: "var(--text-muted)" }}>
-                  {account
-                    ? "Nothing open right now. Open one here, or add Earmark to a group chat and use /new."
-                    : "Nothing open right now. Connect a wallet to open one, or add Earmark to a group chat and use /new."}
+                  Nothing open in this wallet. Start one here, or in Telegram with /new.
                 </p>
               ) : (
                 <div className="mt-3 grid gap-3">
-                  {open.map((d) => (
-                    <DriveRow key={d.id} d={d} mine={false} onClose={closeDrive} agent={cfg?.agent} />
+                  {mineOpen.map((d) => (
+                    <DriveRow key={d.id} d={d} mine onClose={closeDrive} agent={cfg?.agent} />
                   ))}
                 </div>
               )}
             </section>
+
+            {payingMe.length > 0 && (
+              <section className="mt-10">
+                <h2 className="text-sm font-semibold">
+                  Paying this wallet{" "}
+                  <span className="font-normal tabular-nums" style={{ color: "var(--text-muted)" }}>
+                    {payingMe.length}
+                  </span>
+                </h2>
+                <div className="mt-3 grid gap-3">
+                  {payingMe.map((d) => (
+                    <DriveRow key={d.id} d={d} mine={false} onClose={closeDrive} agent={cfg?.agent} />
+                  ))}
+                </div>
+              </section>
+            )}
 
             {finished.length > 0 && (
               <section className="mt-10">
@@ -457,22 +472,75 @@ export function AppPage() {
                 {showClosed && (
                   <div className="mt-3 grid gap-3">
                     {finished.map((d) => (
-                      <DriveRow key={d.id} d={d} mine={false} onClose={closeDrive} agent={cfg?.agent} />
+                      <DriveRow key={d.id} d={d} mine onClose={closeDrive} agent={cfg?.agent} />
                     ))}
                   </div>
                 )}
               </section>
             )}
-
-            {hiddenTests > 0 && (
-              <p className="mt-6 text-xs" style={{ color: "var(--text-muted)" }}>
-                {hiddenTests === 1 ? "One wiring test is hidden." : `${hiddenTests} wiring tests are hidden.`}
-              </p>
-            )}
           </>
         )}
       </main>
     </Shell>
+  );
+}
+
+function parseDriveRef(raw: string): string | null {
+  const text = raw.trim();
+  const fromPath = text.match(/\/d\/(\d+)/);
+  if (fromPath && fromPath[1] !== "0") return fromPath[1];
+  if (/^\d+$/.test(text) && text !== "0") return text;
+  return null;
+}
+
+function OpenLink() {
+  const navigate = useNavigate();
+  const [value, setValue] = useState("");
+  const [bad, setBad] = useState(false);
+
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    const id = parseDriveRef(value);
+    if (!id) {
+      setBad(true);
+      return;
+    }
+    navigate(`/d/${id}`);
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="mt-6">
+      <label htmlFor="pay-link" className="text-sm font-semibold">
+        Have a link?
+      </label>
+      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+        <div className="min-w-0 flex-1">
+          <input
+            id="pay-link"
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setBad(false);
+            }}
+            placeholder="Paste a pay link, or a drive number"
+            className="field"
+            autoComplete="off"
+          />
+        </div>
+        <button
+          type="submit"
+          className="pressable rounded-xl px-4 py-2.5 text-sm font-semibold"
+          style={{ background: "var(--brand)", color: "var(--brand-ink)" }}
+        >
+          Open
+        </button>
+      </div>
+      {bad && (
+        <p role="alert" className="mt-2 text-sm" style={{ color: "var(--danger)" }}>
+          Paste a pay link, or the drive number from it.
+        </p>
+      )}
+    </form>
   );
 }
 

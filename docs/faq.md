@@ -52,7 +52,11 @@ Yes. /plan weekly 4 spreads each share over instalments with due dates. The agen
 
 ## Do I need Telegram?
 
-No. The bot is the easiest way for a group, but the dashboard opens, lists and pays drives from a browser with your own wallet, and another agent can pay a drive over x402 with no human at all.
+No. The bot is the easiest way for a group. In a browser, connect a wallet to see the drives it opened, or open a pay link someone sent you. Another agent can pay a drive over x402 with no human at all.
+
+## Can anyone see my drive?
+
+Anyone with the pay link can open it and pay. The drives page does not list other people's drives. The drive is still on Celo, so the label and the amounts are public on the chain once someone knows the number. Do not put a secret in the label.
 
 ## What does the AI actually decide?
 

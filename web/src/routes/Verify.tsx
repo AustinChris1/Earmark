@@ -112,15 +112,11 @@ export function VerifyPage() {
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <div className="surface mt-6 rounded-2xl p-6">
             <h1 className="font-display text-3xl leading-tight tracking-tight">Prove you are a real person</h1>
-            <p className="mt-4 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              You do this once when Self accepts your document. A drive names where money must land, and this check
-              is what stops anyone opening a fake school or landlord anonymously. Self reads a government document on
-              your own device; Earmark only ever learns whether the check passed.
+            <p className="mt-3 text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              Link a wallet, then Self checks a document on your phone. Earmark only learns that you passed.
             </p>
-            <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              Nigerian passports currently show Coming Soon in the Self app. You can still open a drive in Telegram
-              without this step. If you have an NFC passport or ID from a country Self already supports, continue
-              below.
+            <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              Nigerian passports are not accepted by Self yet. You can still open a drive without this.
             </p>
 
             {status?.verified ? (

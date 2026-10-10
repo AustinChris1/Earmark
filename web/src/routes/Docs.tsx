@@ -12,11 +12,11 @@ import architecture from "../../../docs/architecture.md?raw";
 import faq from "../../../docs/faq.md?raw";
 
 const PAGES = [
-  { slug: "", title: "Overview", blurb: "What it is, and what it can actually pay", body: overview },
-  { slug: "how-it-works", title: "How it works", blurb: "The mechanism, in plain language", body: howItWorks },
-  { slug: "usage", title: "Using it", blurb: "For collectors and payers, plus testing", body: usage },
-  { slug: "architecture", title: "Architecture", blurb: "For anyone reading the code", body: architecture },
-  { slug: "faq", title: "FAQ", blurb: "Every question, with the honest answer", body: faq },
+  { slug: "", title: "Overview", body: overview },
+  { slug: "how-it-works", title: "How it works", body: howItWorks },
+  { slug: "usage", title: "Using it", body: usage },
+  { slug: "architecture", title: "Architecture", body: architecture },
+  { slug: "faq", title: "FAQ", body: faq },
 ] as const;
 
 // Links between the markdown files must become routes, and the repo's own headings become anchors.
@@ -43,20 +43,17 @@ export function DocsPage() {
       <main className="mx-auto max-w-5xl px-5 pb-20">
         <div className="pt-8">
           <h1 className="font-display text-4xl tracking-tight">Docs</h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-            The same pages that ship in the repository.
-          </p>
         </div>
 
         <div className="mt-8 grid gap-8 md:grid-cols-[13rem_minmax(0,1fr)] md:items-start">
-          <nav className="-mx-5 flex gap-2 overflow-x-auto px-5 md:sticky md:top-24 md:mx-0 md:flex-col md:overflow-visible md:px-0">
+          <nav className="flex flex-wrap gap-2 md:sticky md:top-24 md:flex-col">
             {PAGES.map((p) => {
               const active = p.slug === current.slug;
               return (
                 <button
                   key={p.slug || "overview"}
                   onClick={() => navigate(p.slug ? `/docs/${p.slug}` : "/docs")}
-                  className="pressable shrink-0 rounded-xl px-3 py-2 text-left text-sm md:shrink"
+                  className="pressable rounded-xl px-3 py-2 text-left text-sm"
                   style={{
                     background: active ? "var(--accent-soft)" : "transparent",
                     color: active ? "var(--accent)" : "var(--text-muted)",
@@ -64,9 +61,6 @@ export function DocsPage() {
                   }}
                 >
                   {p.title}
-                  <span className="hidden text-xs font-normal md:block" style={{ color: "var(--text-muted)" }}>
-                    {p.blurb}
-                  </span>
                 </button>
               );
             })}

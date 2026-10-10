@@ -66,6 +66,7 @@ export function DrivePage() {
   const [message, setMessage] = useState("");
   const [txHash, setTxHash] = useState<Hex | null>(null);
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [payIn, setPayIn] = useState<PayIn>("direct");
   const [cq, setCq] = useState<CorridorQuote | null>(null);
   const [cqError, setCqError] = useState("");
@@ -94,7 +95,9 @@ export function DrivePage() {
         setDrive(d);
         setLoadError(null);
       })
-      .catch((e: Error) => setLoadError(e.message));
+      .catch((e: Error) =>
+        setLoadError(e.message.startsWith("HTTP ") ? "Earmark is not reachable right now. Try again in a moment." : e.message),
+      );
   }, [id, tgId]);
 
   useEffect(refresh, [refresh]);
@@ -329,6 +332,17 @@ export function DrivePage() {
     }
   }
 
+  async function copyLink() {
+    if (!drive) return;
+    try {
+      await navigator.clipboard.writeText(`${location.origin}/d/${drive.id}`);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 1600);
+    } catch {
+      /* the address bar still has the link */
+    }
+  }
+
   async function copyDestination() {
     if (!drive) return;
     try {
@@ -363,7 +377,18 @@ export function DrivePage() {
         {drive && (
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
             <div className="surface mt-6 rounded-2xl p-6">
-              <h1 className="font-display text-3xl leading-tight tracking-tight">{drive.label}</h1>
+              <div className="flex items-start justify-between gap-3">
+                <h1 className="min-w-0 font-display text-3xl leading-tight tracking-tight">{drive.label}</h1>
+                <button
+                  type="button"
+                  onClick={copyLink}
+                  className="pressable mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold"
+                  style={{ border: "1px solid var(--line)", color: "var(--text)" }}
+                >
+                  {linkCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {linkCopied ? "Copied" : "Copy link"}
+                </button>
+              </div>
               <p className="mt-1.5 text-sm tabular-nums" style={{ color: "var(--text-muted)" }}>
                 {drive.you ? `Instalment ${drive.you.seq} of ${drive.you.count}` : `Drive #${drive.id}`}
                 {drive.closed ? " · closed" : ""}
