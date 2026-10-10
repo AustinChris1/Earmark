@@ -47,6 +47,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <Link to="/app" className="rounded hover:underline">Drives</Link>
             <Link to="/docs" className="rounded hover:underline">Docs</Link>
             <Link to="/docs/faq" className="rounded hover:underline">FAQ</Link>
+            <Link to="/docs/privacy" className="rounded hover:underline">Privacy</Link>
           </nav>
         </div>
         <p className="max-w-[68ch] pt-5 text-[13px]">

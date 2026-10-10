@@ -1,107 +1,78 @@
 # Using Earmark
 
-## Before anything moves
+## In Telegram: tap, don't type
 
-Two things are needed and neither is Earmark's to give you.
+Add [@Earmarked_bot](https://t.me/Earmarked_bot) to the group and send `/menu`. Everything is a button.
 
-1. **The payee needs a Celo wallet address.** Earmark pays an address, not a bank
-   account. If the school, landlord or vendor is not onchain, decide who will hold the
-   money and understand that you are trusting that person for the final step.
-2. **Payers need the drive's token in a Celo wallet.** [MiniPay](https://www.opera.com/products/minipay)
-   is the usual one. A drive denominated in cNGN can only be paid in cNGN.
-
-Earmark accepts 25 Celo stablecoins, each checked on chain for its symbol and decimals
-before being listed:
-
-| Group | Tokens |
+| Button | What happens |
 |---|---|
-| Dollars | USDT, USDC, USAT, USDm |
-| Naira | cNGN, NGNm |
-| Mento local | KESm, GHSm, ZARm, XOFm, EURm, BRLm, COPm, PHPm, GBPm, CHFm, JPYm, AUDm, CADm |
-| Ripio wFIAT | wARS, wBRL, wMXN, wCOP, wPEN, wCLP |
+| ➕ **New drive** | Pick a coin, reply with the amount, paste the wallet it pays, name it, confirm |
+| ⚡ **Pay a Nigerian Bill** | Electricity or airtime, the provider, the meter or phone number, a preset amount, the coin, confirm |
+| 🌍 **Airtime abroad** | The country, the network, the number with its country code, a top-up, the coin, confirm |
+| ➗ **Split evenly** | Divides the drive between everyone the bot has seen in the group. Anyone missed taps **Count me in** |
+| 💳 **Pay my share** | Your own pay link, as a button and a QR code |
+| 🧾 **Who has paid** | The tally, with a Refresh button |
+| 🔔 **Nudge everyone** | Pings whoever still owes |
 
-Pick the one the payee actually wants to hold. A drive in a currency nobody around you
-can obtain is a drive nobody can pay.
+Every drive card also carries **Set instalments** and **Close drive**. Only the person who opened a drive can close it.
 
-Gas is paid in the stablecoin through Celo's fee abstraction, so a payer does not need
-to hold CELO.
+> A bill outside Nigeria that is not airtime, like rent abroad or a power bill in Buenos Aires? Open a normal drive locked to the wallet of the person who will pay it. When it fills, they get a Ripio link to cash it out to their bank in Argentina, Brazil, Mexico or Colombia.
 
-## As the person collecting
+## On the website
 
-### In a group chat
+Open <https://earmark-agent.onrender.com/app> and connect a wallet.
 
-1. Add [@Earmarked_bot](https://t.me/Earmarked_bot) to the group.
-2. Send `/new`. You can also write it in one line, for example
-   `/new collect 450 USDT for Chioma's school fees, pay 0xd6db...0216`, and the agent reads the
-   sentence. Anything it extracts is checked back against your message before it is used, and it
-   will never accept an address you did not type. On its own, `/new` asks three questions: the amount and token, the destination
-   address, and what the money is for. Answer each by replying to its message.
-3. Confirm on the summary card. The drive is opened onchain and the card is posted with
-   buttons.
-4. Set shares: `/split @ada 40 @emeka 30`, or `/split all` to divide the target evenly between everyone the bot has heard from in the group. Anyone it missed taps **Count me in** and it splits again.
-5. Optional, spread it over time: `/plan weekly 4`, or tap **Instalments** and pick a
-   preset.
-6. Watch it with `/tally`, chase with `/remind`, stop it with `/close`.
+- **New drive, Pay an address:** the same as the bot, from your own wallet. You can close it yourself.
+- **New drive, Pay a bill:** Nigerian electricity, Nigerian airtime or airtime abroad, with a live price. The drive opens from your wallet with Earmark as the locked payee, then you sign once to attach the bill. Only your wallet can see the token afterwards.
+- **Have a link?** Paste a pay link or a drive number to open it.
 
-`/menu` brings the buttons back at any point. In a private chat with the bot the menu
-sits under the keyboard permanently.
+No Telegram is needed for any of it.
 
-### In the browser
+## Paying a share
 
-Open <https://earmark-agent.onrender.com/app>, connect a wallet, and use **New drive**.
-A drive opened here belongs to your own wallet rather than the agent's, so you can close
-it yourself. This route needs no Telegram at all.
+1. Open the link from the chat, or scan its QR code with your phone's wallet browser.
+2. Pick the money you hold. Flags show what each coin is: naira, pesos, reais, dollars.
+3. Confirm in your wallet. Paying in the drive's own coin takes two approvals the first time; paying in another coin is one transfer to Earmark, which swaps and pays.
+4. The chat announces it, with a Celoscan receipt.
 
-## As somebody paying
+Wallets that work: MiniPay's browser, MetaMask, Rabby, Valora, or any Celo wallet with a browser.
 
-1. Tap **Pay my share** in the chat, or open the drive link you were sent.
-2. The page shows what you are paying, and the address it can go to. If a plan is
-   running it shows which instalment is due and prefills that amount.
-3. Confirm in your wallet. There are two approvals the first time: one to permit the
-   token, one to pay.
-4. The chat announces it, and the amount lands at the destination in that same
-   transaction.
+## Which coin to collect
 
-Nothing about this requires the payer to be in the group, or to have Telegram.
+| If the group | Collect |
+|---|---|
+| Is all in Nigeria, paying a bill | USA₮ |
+| Has someone paying in pesos, reais or naira | USD₮ |
+| Is paying a person who wants naira | cNGN |
+| Is paying a person in Argentina or Brazil | wARS or wBRL, so they can cash out with Ripio |
+
+Earmark accepts 25 Celo stablecoins in all, each checked on chain before it was listed: USDT, USDC, USAT, USDm, cNGN, NGNm, the Mento local currencies and Ripio's wFIAT.
 
 ## Testing it end to end
 
-Do this in order. Skipping the first step is the usual reason a test stalls.
+1. **Get about a dollar of USD₮ onto Celo.** Withdraw from an exchange on the Celo network, or buy inside MiniPay.
+2. **Open a small bill drive:** ⚡ Pay a Nigerian Bill, MTN airtime, ₦100. It collects about 0.08 USD₮.
+3. **Pay it from a different wallet** than the one that opened it.
+4. **Watch:** the airtime lands, the receipt is posted, and the unused 2% comes back to the payer.
 
-1. **Get a stablecoin onto Celo.** USDT is the easiest to source. Withdraw from an
-   exchange with Celo selected as the network, or bridge, or buy inside MiniPay.
-   Roughly one dollar is plenty.
-2. **Open a small drive** in the token you actually hold. A drive in a token you cannot
-   obtain cannot be tested, which is worth checking before you go looking for a bug.
-3. **Pay it** from a different wallet than the destination, so the transfer is between
-   two real parties.
-4. **Check the receipt** on Celoscan from the link the bot posts, and confirm the
-   destination balance moved.
+To test the swap, pay a USD₮ drive in wARS. The Ripio link on the pay page buys the pesos.
 
-To exercise the whole product rather than a single payment, add a second person, use
-`/split`, set `/plan daily 3`, and let a nudge fire.
+## Typed shortcuts
 
-## Commands
-
-| Command | What it does |
+| Command | Does |
 |---|---|
-| `/new` | Opens a drive, guided |
-| `/split @name amount …` | Sets each person's share |
-| `/split all` | Divides the target evenly between the members the bot knows |
-| `/plan daily\|weekly\|biweekly\|monthly N` | Spreads shares over instalments |
-| `/pay` | Your personal pay link |
-| `/tally` | Who has paid and who has not |
-| `/remind` | Nudges whoever is outstanding |
-| `/verify` | Optional Self check. Nigerian passports are not accepted by Self yet, so this is not required to open a drive |
-| `/menu` | Brings the buttons back |
-| `/close` | Stops the drive |
+| `/new 450 USDT 0xWallet Rent for March` | Opens a drive in one line, or describe it in a sentence |
+| `/bill mtn 08031234567 500 usdt` | A Nigerian bill drive in one line |
+| `/abroad` | Airtime abroad, guided |
+| `/split @ada 40 @emeka 30` | Set amounts per person |
+| `/plan weekly 4` | Instalments |
+| `/pay`, `/tally`, `/remind`, `/close` | Pay link, tally, nudge, close |
+| `/verify` | Prove you are a person with Self, once |
 
 ## When something looks wrong
 
-- **"I did not recognise that token."** The drive must use one of USDT, USDC, USAT or
-  cNGN. Case does not matter.
-- **A payment is not showing.** The watcher polls the chain every twelve seconds, and
-  the tally refreshes when read. Give it a moment, then tap Refresh.
-- **The bot is silent.** On the free hosting tier the service sleeps after fifteen idle
-  minutes. A scheduled ping keeps it awake; if nudges stop arriving, check that first.
+- **A payment is not showing.** The agent reads the chain every twelve seconds. Wait a moment, then tap Refresh.
+- **"AbaPay could not price that."** The provider may be paused, or the number is not valid for it. Try again, or another provider.
+- **The swap price will not load.** Textile has a minimum of about one dollar per swap. Pay a little more, or pay in the drive's own coin.
+- **The bot is silent.** The free hosting tier sleeps when idle. A scheduled ping keeps it awake; the first message after a sleep can take a minute.
 - **"This drive is closed."** Closing is final. Open a new one.

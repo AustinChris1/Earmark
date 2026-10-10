@@ -1,109 +1,70 @@
 # Architecture
 
-## Shape
+## The shape
 
 ```
 Telegram group ─┐
-                ├─► agent (Node)  ─► Earmark.sol on Celo ─► destination wallet
-browser /app  ──┤       │
-another agent ──┘       ├─ Turso (libSQL): chat state, shares, plans, x402 intents
-   (x402)               └─ Self SBT contract: is this collector a verified human
+browser /app   ─┼─► agent (Node) ─► Earmark.sol on Celo ─► locked wallet
+another agent  ─┘        │
+   (x402)                ├─ Textile FX ── swaps pesos, reais, naira, dollars
+                         ├─ AbaPay ────── pays bills over x402
+                         ├─ Turso ─────── chat state, shares, plans, bills
+                         └─ Self ──────── is this collector a person
 ```
 
-Three workspaces:
-
-| Path | What it holds |
+| Path | Holds |
 |---|---|
 | `contracts/` | `Earmark.sol`, Hardhat, the tests that assert no custody |
-| `agent/` | Telegram bot, chain watcher, instalment scheduler, HTTP and x402 server |
-| `web/` | Landing page, drive pay page, dashboard, Self verification page |
+| `agent/` | The bot, chain watcher, sweepers, HTTP and x402 server |
+| `web/` | Landing page, pay page, drives page, docs, Self verification |
 
 ## The contract
 
-One file, about a hundred lines, deliberately small because it is the part that cannot
-be patched after people trust it.
+About a hundred lines, kept small because it is the part nobody can patch once people trust it. A drive holds a token, a destination, a collector, a target, the amount raised, an optional deadline and a label. `createDrive` writes the destination once, `contribute` pulls from the payer and pushes to the destination in the same call, and `close` belongs to the collector.
 
-A `Drive` holds a token, a destination, a collector, a target, the amount raised, an
-optional deadline, a closed flag and a label. `createDrive` writes the destination
-once. `contribute` pulls from the payer and pushes to the destination in the same call.
-`close` is restricted to the collector.
+No withdraw, no owner, no pause, no upgrade. A wrong destination cannot be rescued, which is why every flow shows the full address before anyone confirms.
 
-There is no withdraw, no owner, no pause and no upgrade path. That is the point rather
-than an omission: an admin key that can redirect a drive would undo the only promise
-the product makes. The cost is that a mistaken destination cannot be rescued, which is
-why the guided setup makes you look at the address before confirming.
+## The agent, file by file
 
-Contributions carry a short `memo`, which is how a payment made from a link is matched
-back to a person in the chat.
+| File | Job |
+|---|---|
+| `bot.ts`, `keyboards.ts` | The buttons and guided flows. Privacy mode is on, so free text arrives only as replies to the bot's own prompts |
+| `watcher.ts` | Reads `Contributed` and `DriveClosed` logs every twelve seconds and announces them |
+| `scheduler.ts` | Nudges instalments that fell due |
+| `x402.ts` | Answers 402, records who signed, forwards once the payment settled |
+| `corridor.ts`, `corridorService.ts`, `textile.ts` | Paying in another coin: quote, firm RFQ, swap, contribute, return the rest |
+| `bills.ts`, `billService.ts` | Bill drives: price, pay, return change, refund failures |
+| `abapay.ts`, `abapayIntl.ts` | AbaPay's x402 endpoint and its international catalogue |
+| `ripio.ts` | Ripio on-ramp and off-ramp links |
+| `verify.ts` | Self: nonce, signature, session, badge check |
+| `db.ts` | libSQL on Turso; every accessor is async |
 
-## The agent
+## Money the agent holds, and how it is kept safe
 
-- **bot.ts** commands, buttons, the guided setup. Telegram privacy mode is on, so the
-  bot only ever receives commands, callback taps and replies to its own prompts. This
-  is why the guided setup uses force reply and why the persistent keyboard is offered
-  only in private chats, where plain text is delivered.
-- **watcher.ts** polls `Contributed` and `DriveClosed` logs every twelve seconds,
-  records payments and announces them. It resumes from the last block it saw.
-- **scheduler.ts** every ten minutes, finds instalments that have come due and posts one
-  nudge per drive, silencing each person for twenty hours.
-- **x402.ts** issues the HTTP 402 challenge, then records an intent and forwards it to
-  the drive. Forwarding is a separate idempotent sweep rather than inline, so it does
-  not depend on whether the facilitator settles before or after the route handler runs.
-- **verify.ts** nonce, signature check, a Self session created per person, and the `balanceOf`
-  read against Self's token. Self issues a one time verification URL per session, so there is no
-  static link. The call is a plain POST to `/v1/sessions` rather than the official SDK, whose
-  dependency tree resolves `node-forge` from a git repository and is blocked by this project's
-  supply chain policy.
-- **db.ts** libSQL. Every accessor is async because the production database is remote.
+The agent wallet holds money in three cases: a bill drive's pool, a payment waiting for its swap, and an x402 payment waiting to be forwarded. All three share one wallet, so no step trusts the wallet balance.
 
-## Why the database is not on the host
+- **x402:** a payment is forwarded only when the token's `authorizationState` says that payer's exact authorisation was used.
+- **Swaps:** each payment is a row tied to its own transaction hash, run one at a time. Every path ends with the drive paid and the rest returned, or everything returned.
+- **Bills:** change and refunds go to the real payer behind every payment, including swapped and x402 ones. If AbaPay took the money but did not deliver, the refund waits until AbaPay's own refund transfer is seen on chain. A sweeper finishes those and catches any full drive whose last payment was missed.
 
-Drives and payments can always be rebuilt from chain. Three things cannot: which chat a
-drive belongs to, the shares, and the instalment plans. The hosting tier has a
-disposable filesystem, so keeping those on the instance meant a restart could silently
-destroy the schedule that the whole product turns on. State lives in Turso instead, and
-the instance holds nothing worth losing.
+## Paying a bill without an account
+
+AbaPay's x402 path needs no account, key or PIN. The agent posts the bill, gets a `402` naming the price, checks the asset is the coin the drive collected, signs one EIP-3009 authorisation and posts again. One trap is checked before anything is signed: AbaPay names coins as `"USA₮"` and `"USD₮"`, and any other spelling silently prices in USDC.
 
 ## Reading a sentence
 
-`/new` accepts free text as well as its strict form. Cencori routes the request to a model,
-which only ever locates values: every field is then checked back against the message it came
-from. The address must appear in the user's own text character for character, the digits must
-appear too, and the ticker must resolve to a listed token. Anything that fails drops back to the
-guided prompts.
+`/new` accepts a plain sentence. A model only *locates* the amount, coin, address and label, and every field is checked against the message: the address must appear character for character in what the person typed. A model can find an address; it can never supply one.
 
-That check is the whole point. A destination cannot be changed once a drive is open, so a
-hallucinated address would send money to a stranger with no way back. The model is allowed to
-read, never to supply.
+## The rest
 
-## RPC
-
-The agent reads the chain constantly, so a single endpoint is a single point of failure
-for a watcher that must not miss a payment. Chainstack is the primary endpoint and Forno
-is the automatic fallback, through viem's fallback transport.
-
-A Chainstack URL carries its credential in the path, so it is never handed to a browser.
-`/api/config` serves a separate public endpoint, and the keyed one stays server side.
-
-## Attribution
-
-Every transaction Earmark sends carries an ERC-8021 attribution tag through
-`@celo/attribution-tags`. The browser receives the same tag from `/api/config`, so a
-payment a person makes with their own wallet is tagged identically to one the agent
-makes. Tagging was verified by decoding a real transaction rather than assumed.
-
-## Identity
-
-The agent is registered in Celo's ERC-8004 Identity Registry as agent 9806, and the
-registration document is embedded as a base64 data URI so there is no pinning service
-to keep alive.
+- **Database off the host.** Drives and payments can be rebuilt from the chain; chat links, shares, plans and bills cannot, and the host's disk is disposable. They live in Turso.
+- **RPC.** Chainstack first, Forno as an automatic fallback. The keyed URL never reaches a browser.
+- **Attribution.** Every transaction the agent or the website sends carries the ERC-8021 tag `celo_e8cc99294b28`.
+- **Identity.** ERC-8004 agent 9806, with its card embedded as a data URI.
 
 ## Deliberate limits
 
-- **Earmark pays addresses, not institutions.** There are no banking rails. See the
-  [README](./README.md) for what that rules in and out.
-- **The x402 route touches the funds briefly.** Settlement is made to the agent, which
-  then forwards to the locked destination. The group chat path never does this.
-- **A wrong destination is permanent.** No admin can fix it, by design.
-- **Instalment plans live off chain.** The chain holds payments and drives; the schedule
-  is application state.
+- Earmark pays wallets and listed bill providers, not bank accounts.
+- A bill drive holds the pool until the provider is paid.
+- A wrong destination is permanent, by design.
+- Instalment plans are application state, not chain state.

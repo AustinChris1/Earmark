@@ -299,3 +299,50 @@ input::placeholder {
 .prose-earmark img {
   max-width: 100%;
 }
+
+/* Docs: headings land below the pinned bars, and their anchor is the heading itself. */
+.docs-article h2 {
+  scroll-margin-top: 8.5rem;
+  font-size: 1.85rem;
+}
+
+@media (min-width: 768px) {
+  .docs-article h2 {
+    scroll-margin-top: 6rem;
+  }
+}
+
+.docs-article h2 a.anchor {
+  color: inherit;
+  text-decoration: none;
+}
+
+.docs-article h2 a.anchor:hover::after {
+  content: " #";
+  color: var(--accent);
+}
+
+.docs-article p,
+.docs-article li {
+  font-size: 1.0625rem;
+}
+
+.docs-article .table-wrap {
+  overflow-x: auto;
+  margin: 1.25rem 0;
+  border: 1px solid var(--line);
+  border-radius: 0.875rem;
+}
+
+.docs-article .table-wrap table {
+  display: table;
+  margin: 0;
+  border-style: hidden;
+}
+
+.docs-article blockquote {
+  border-radius: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--accent-soft);
+  color: var(--text);
+}

@@ -1,78 +1,69 @@
-# How Earmark works
+# How it works
 
-## In one paragraph
+## A wallet drive, in one breath
 
-Someone opens a drive: an amount, a token, a destination address and a name for what
-it is. The destination is written into a smart contract at that moment. Everyone else
-pays their share through a link. Each payment moves from the payer straight to the
-destination inside a single transaction, so the money is never held by Earmark, by the
-contract, or by the person who opened the drive. The chat sees who has paid and who
-has not, and the chain holds the receipt.
+Someone names the bill, the amount, the coin and the wallet it pays. That wallet is written into a smart contract and can never change. Everyone pays their share from a link. Each payment goes **from the payer straight to that wallet in one transaction**, so the money is never held by Earmark, by the contract, or by whoever opened the drive.
 
-## Why the destination lock is the whole product
-
-Most group payment tools pool money and then release it. That creates a moment where
-somebody holds everyone else's money, which is exactly the moment things go wrong.
-
-Earmark has no such moment. The contract function is short enough to read in full:
+The whole promise fits in three lines of the contract:
 
 ```solidity
-function contribute(uint256 id, uint256 amount, string memo) external {
-    Drive storage d = _drives[id];
-    ...
-    d.raised += amount;
-    contributionOf[id][msg.sender] += amount;
-    IERC20(d.token).safeTransferFrom(msg.sender, d.destination, amount);
-    emit Contributed(id, msg.sender, amount, d.raised, memo);
-}
+d.raised += amount;
+contributionOf[id][msg.sender] += amount;
+IERC20(d.token).safeTransferFrom(msg.sender, d.destination, amount);
 ```
 
-The transfer is `payer -> destination`. The contract is a router, not a vault. Its
-token balance is asserted to be exactly zero in the test suite. There is no withdraw
-function to call and no owner to compromise, so "we cannot run away with your money"
-is a property of the code rather than a promise in a document.
+The transfer is `payer -> destination`. There is no withdraw, no owner and no upgrade path, and the tests assert the contract's balance is always zero. "We cannot run away with your money" is a property of the code, not a sentence in a document.
 
-## Paying over time
+## A bill drive: Earmark pays the provider
 
-A one off collection gives a group no reason to come back, and most real obligations
-are not one off. A collector can split each person's share into instalments on a
-cadence: daily, weekly, fortnightly or monthly.
+A meter or a phone has no wallet to lock, so for those Earmark pays the bill itself.
 
-The agent then nudges each person in the chat when theirs falls due, at most once per
-person per drive per twenty hours. Someone who pays their whole share early is never
-chased for an instalment that has not arrived yet.
+1. **The price.** Earmark asks AbaPay for the live price of the bill. The drive collects that price plus 2%, in case the rate moves before it fills.
+2. **The pool.** Shares go to Earmark's own wallet, which is the drive's locked destination.
+3. **The payment.** When the drive is full, the agent pays AbaPay over x402: it signs one authorisation in USA₮ or USD₮ and AbaPay vends the bill.
+4. **The receipt.** The meter token or airtime receipt is posted in the group. On a drive opened on the website, only the wallet that opened it can see the token.
+5. **The change.** Whatever the bill did not use goes back to the people who paid, in proportion to what each paid.
 
-Instalment status is never stored as a flag that could drift. It is recomputed from
-the payment history every time it is read, so a retry, a duplicate log or a restart
-cannot leave the ledger wrong.
+> If the bill cannot be paid, everyone gets their share back. If AbaPay took the money but could not deliver, Earmark waits until AbaPay's refund is actually seen on chain before paying anyone back, so one drive is never refunded out of another drive's money.
 
-## Proof of personhood
+Bill drives cover Nigerian electricity (Ikeja, Eko, Abuja and nine more), Nigerian airtime (MTN, Airtel, Glo, 9mobile) and **airtime for a phone in 140+ countries**: Claro, Movistar and Personal in Argentina, Claro, TIM and Vivo in Brazil, and so on. Abroad, only fixed-price top-ups are offered, so the price always comes from the plan, never from what someone typed.
 
-A drive names where money must land, so the risk worth defending against is somebody
-publishing a fake school or a fake landlord. Before opening a drive, a collector
-verifies once with [Self](https://self.xyz): a government document is read on their own
-device, and Self mints a non transferable token to their wallet on Celo. Earmark never
-sees the document. It only reads whether that wallet holds the token.
+## Paying in another currency
 
-Binding a Telegram account to a wallet requires signing a message, so a verified
-address cannot simply be typed in by somebody else.
+Say the drive collects USD₮ and you hold pesos.
+
+1. The pay page asks Textile FX for a price and shows **the most you will send**: the quote plus 1%.
+2. You send that to Earmark.
+3. Earmark buys exactly the USD₮ your share needs on Textile, pays it into the drive, and **sends back the pesos it did not use**.
+4. If the market moved past your maximum, nothing is swapped and everything comes back.
+
+Where Textile has no direct route, Earmark goes through USDT: pesos into a naira drive is pesos to USDT to cNGN. The one coin nothing can swap into is USA₮, so a USA₮ drive is paid in USA₮.
+
+| The drive collects | It can also be paid in |
+|---|---|
+| USD₮ | USA₮, cNGN, wARS, wBRL |
+| cNGN | USD₮, USA₮, wARS, wBRL |
+| wARS or wBRL | USD₮, USA₮ and the other local coins |
+| USA₮ | USA₮ only |
 
 ## Paying from outside the chat
 
-A relative abroad does not need Telegram or the group. Two routes exist:
+Nobody needs Telegram to pay. The pay link works in any Celo wallet's browser, and every open drive is also an **x402 endpoint**: an agent or a script asks for the price, signs a payment in USDT, USDC or USAT, and Celo's facilitator settles it.
 
-- the drive's public page, which anybody with the link can pay from a wallet
-- an x402 endpoint, so another agent can pay a share programmatically, settling in
-  USDC, USDT or USAT through Celo's facilitator
+Earmark records who signed each x402 payment and forwards it into the drive **only once the token itself confirms that exact authorisation was used**. A payment that never settled can never be paid out of someone else's money.
 
-## What each participant sees
+## Paying over time
 
-| Who | What they do | What they never do |
+A collector can split each share into instalments: daily, weekly, fortnightly or monthly. The agent nudges each person when theirs falls due, at most once a day, and never chases someone who already paid ahead. Instalment status is recomputed from the payments every time, so a restart cannot leave it wrong.
+
+## Proof of personhood
+
+A drive names where money must land, so the risk is someone publishing a fake landlord. A collector can prove they are a real person once with [Self](https://self.xyz): a passport or ID is read on their own phone, and Self mints a badge to their wallet. Earmark never sees the document. Self does not accept every document yet, so the check is not enforced everywhere.
+
+## Who does what
+
+| Who | Does | Never does |
 |---|---|---|
-| Collector | Names the obligation and the destination, sets shares | Hold anyone's money, or change the destination |
-| Payer | Pays their share or instalment from their own wallet | Send money to a person and hope |
-| Earmark agent | Announces, nudges, keeps the tally, forwards x402 payments | Take custody on the group chat path |
-
-The one exception worth naming: on the x402 route the agent briefly receives the
-payment before forwarding it to the locked destination, because the settlement is made
-to the agent's address. The group chat path never touches it.
+| Collector | Names the bill and where it goes, sets shares | Holds anyone's money, or changes the destination |
+| Payer | Pays a share from their own wallet, in their own money | Sends money to a person and hopes |
+| Earmark agent | Announces, nudges, keeps the tally, swaps, pays bills | Holds money on a wallet drive |

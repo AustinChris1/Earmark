@@ -64,6 +64,8 @@ Earmark pays a wallet address, not a bank account. It guarantees the money reach
 - [How it works](docs/how-it-works.md)
 - [Using it, and testing it end to end](docs/usage.md)
 - [Architecture](docs/architecture.md)
+- [FAQ](docs/faq.md)
+- [Privacy and terms](docs/privacy.md)
 
 ## For builders
 
