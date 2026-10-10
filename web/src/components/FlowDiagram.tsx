@@ -3,7 +3,9 @@ import { useReducedMotion } from "framer-motion";
 import gsap from "gsap";
 
 // Animates the product mechanic: three payers, one locked destination, and a diversion that cannot land.
-export function FlowDiagram({ className = "" }: { className?: string }) {
+// `large` sets the labels bigger, for when the diagram is drawn small, as on the hero photo.
+export function FlowDiagram({ className = "", large = false }: { className?: string; large?: boolean }) {
+  const fs = (n: number) => (large ? Math.round(n * 1.35) : n);
   const root = useRef<SVGSVGElement>(null);
   const still = useReducedMotion();
 
@@ -51,7 +53,7 @@ export function FlowDiagram({ className = "" }: { className?: string }) {
       {[44, 118, 192].map((y, i) => (
         <g key={y} className="payer">
           <circle cx="40" cy={y} r="17" fill="var(--bg-raised)" stroke="var(--line)" strokeWidth="1.5" />
-          <text x="40" y={y + 5} textAnchor="middle" fontSize="13" fill="var(--text-muted)" fontFamily="var(--font-sans)">
+          <text x="40" y={y + 5} textAnchor="middle" fontSize={fs(13)} fill="var(--text-muted)" fontFamily="var(--font-sans)">
             {["A", "E", "C"][i]}
           </text>
         </g>
@@ -67,10 +69,10 @@ export function FlowDiagram({ className = "" }: { className?: string }) {
 
       <g className="dest">
         <rect x="252" y="86" width="148" height="64" rx="12" fill="var(--bg-raised)" stroke="var(--accent)" strokeWidth="2" />
-        <text x="326" y="112" textAnchor="middle" fontSize="13" fill="var(--text)" fontFamily="var(--font-sans)" fontWeight="600">
+        <text x="326" y="112" textAnchor="middle" fontSize={fs(13)} fill="var(--text)" fontFamily="var(--font-sans)" fontWeight="600">
           Destination
         </text>
-        <text x="326" y="131" textAnchor="middle" fontSize="11" fill="var(--text-muted)" fontFamily="var(--font-sans)">
+        <text x="326" y="131" textAnchor="middle" fontSize={fs(11)} fill="var(--text-muted)" fontFamily="var(--font-sans)">
           locked at creation
         </text>
       </g>
@@ -85,7 +87,7 @@ export function FlowDiagram({ className = "" }: { className?: string }) {
         </g>
         <circle cx="326" cy="204" r="15" fill="none" stroke="var(--pending)" strokeWidth="2" />
         <path d="M319 197 l14 14 M333 197 l-14 14" stroke="var(--pending)" strokeWidth="2" strokeLinecap="round" />
-        <text x="326" y="238" textAnchor="middle" fontSize="11" fill="var(--pending)" fontFamily="var(--font-sans)">
+        <text x="326" y="238" textAnchor="middle" fontSize={fs(11)} fill="var(--pending)" fontFamily="var(--font-sans)">
           cannot land on a person
         </text>
       </g>

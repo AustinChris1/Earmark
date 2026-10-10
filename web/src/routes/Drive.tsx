@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { animated, useSpring } from "@react-spring/web";
-import { Check, CheckCircle2, Copy, ExternalLink, Globe, Loader2, Lock, Smartphone, TriangleAlert, Wallet, Zap } from "lucide-react";
+import { ArrowRightLeft, Check, CheckCircle2, Copy, ExternalLink, Globe, Loader2, Lock, ShieldCheck, Smartphone, TriangleAlert, Wallet, Zap } from "lucide-react";
 import {
   createPublicClient,
   createWalletClient,
@@ -53,6 +53,14 @@ function onrampLink(country: string, symbol: string, amount: string, wallet?: st
 const LOCAL_MONEY: Record<string, string> = { AR: "pesos", BR: "reais", MX: "pesos", CO: "pesos" };
 // Coins Ripio sells for local money, so someone paying in them can buy them first.
 const RAMP_COUNTRY: Record<string, string> = { wARS: "AR", wBRL: "BR" };
+// The flag or logo for a coin, so people pick their money by sight.
+const COIN_ICON: Record<string, string> = {
+  cNGN: "/flags/ng.svg",
+  wARS: "/flags/ar.svg",
+  wBRL: "/flags/br.svg",
+  USDT: "/logos/tether.svg",
+  USAT: "/flags/us.svg",
+};
 // What each swappable coin is, for people who know their money and not the ticker.
 const COIN_HINT: Record<string, string> = { wARS: "pesos", wBRL: "reais", cNGN: "naira", USDT: "dollars", USAT: "dollars" };
 const money = (v: string) => Number(v).toLocaleString("en-US", { maximumFractionDigits: 4 });
@@ -494,15 +502,26 @@ export function DrivePage() {
                 </div>
               )}
 
-              <p className="mt-4 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                You are paying <span style={{ color: "var(--text)" }}>{drive.label}</span>
-                {target > 0n ? `, ${fmt(remaining)} still needed of ${fmt(target)}` : ""}.{" "}
-                {drive.bill
-                  ? "After you confirm, your share goes to Earmark's wallet, which pays the bill when the drive is full."
-                  : swapping
-                    ? `Paying in ${coinName(payIn)}, Earmark swaps it to ${drive.token.symbol} and pays the address above; nobody can redirect it.`
-                    : "After you confirm, the tokens leave your wallet and arrive at the address above in the same transaction. Earmark never holds the money and nobody can redirect it."}
-              </p>
+              {target > 0n && (
+                <p className="mt-5 text-[15px]">
+                  <strong className="tabular-nums">{fmt(remaining)}</strong>{" "}
+                  <span style={{ color: "var(--text-muted)" }}>still needed of {fmt(target)}</span>
+                </p>
+              )}
+              <ul className="mt-3 grid gap-1.5 text-sm" style={{ color: "var(--text-muted)" }}>
+                <li className="flex items-start gap-2">
+                  <ArrowRightLeft className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--accent)" }} />
+                  {drive.bill
+                    ? "Waits in Earmark's wallet until the bill is paid"
+                    : swapping
+                      ? `Swapped to ${drive.token.symbol}, then paid to the address above`
+                      : "Goes straight to the address above, in one transaction"}
+                </li>
+                <li className="flex items-start gap-2">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--accent)" }} />
+                  Nobody can redirect it
+                </li>
+              </ul>
 
               {target > 0n && (
                 <div className="mt-5">
@@ -552,9 +571,12 @@ export function DrivePage() {
                             role="radio"
                             aria-checked={payIn === p}
                             onClick={() => setPayIn(p)}
-                            className="pressable rounded-lg px-3 py-1.5 text-sm font-medium"
+                            className="pressable inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium"
                             style={payIn === p ? { background: "var(--bg-raised)", color: "var(--text)", boxShadow: "0 1px 2px rgb(0 0 0 / 0.08)" } : { color: "var(--text-muted)" }}
                           >
+                            {COIN_ICON[p === "direct" ? drive.token.symbol : p] && (
+                              <img src={COIN_ICON[p === "direct" ? drive.token.symbol : p]} alt="" className="h-4 w-4 rounded-full bg-white object-cover" />
+                            )}
                             {p === "direct" ? coinName(drive.token.symbol) : coinName(p)}
                           </button>
                         ))}

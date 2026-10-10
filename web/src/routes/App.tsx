@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { animated } from "@react-spring/web";
-import { ArrowRight, ChevronDown, Loader2, Lock, Plus, RefreshCw, Wallet, X, Zap } from "lucide-react";
+import { ArrowRight, ChevronDown, Link2, Loader2, Lock, Plus, RefreshCw, Wallet, X, Zap } from "lucide-react";
 import { formatUnits, isAddress, parseAbi, parseEventLogs, parseUnits, type Address, type Hex } from "viem";
 import { toDataSuffix } from "@celo/attribution-tags";
 import { Shell } from "../components/Shell";
@@ -396,6 +396,38 @@ export function AppPage() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {!account && (
+          <div className="mt-8 grid overflow-hidden rounded-[1.75rem] md:grid-cols-[1.1fr_1fr]" style={{ background: "var(--bg-sunken)" }}>
+            <img
+              src="/images/house-chat.webp"
+              alt="Friends on a couch, sorting out a shared bill"
+              decoding="async"
+              className="h-52 w-full object-cover md:h-full md:min-h-[17rem]"
+            />
+            <ul className="grid content-center gap-5 p-6 md:p-8">
+              {(
+                [
+                  [Wallet, "Connect a wallet", "See and open your drives"],
+                  [Zap, "Pay a bill together", "Nigerian light, airtime, or airtime abroad"],
+                  [Link2, "Got a link?", "Paste it below and pay your share"],
+                ] as const
+              ).map(([Icon, title, line]) => (
+                <li key={title} className="flex items-center gap-4">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--brand)", color: "var(--brand-ink)" }}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span className="leading-tight">
+                    <span className="block font-semibold">{title}</span>
+                    <span className="block text-sm" style={{ color: "var(--text-muted)" }}>
+                      {line}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <OpenLink />
 
