@@ -319,8 +319,7 @@ export function AppPage() {
           <div>
             <h1 className="font-display text-4xl tracking-tight">Drives</h1>
             <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-              Everything the bot can do, from a browser. Drives live on Celo, so this list is public and read from
-              the chain.
+              Open a drive here, or pay one that is already open.
             </p>
           </div>
           {account ? (
@@ -496,7 +495,7 @@ function NewPanel({
           {(
             [
               ["address", "Pay an address"],
-              ["bill", "⚡ Pay a bill"],
+              ["bill", "Pay a bill"],
             ] as const
           ).map(([k, label]) => (
             <button
@@ -598,9 +597,26 @@ function NewDriveForm({
 
 const PRESETS = { AIRTIME: [100, 200, 500, 1000, 2000, 5000], ELECTRICITY: [2000, 5000, 10000, 20000, 50000] };
 
-function Segmented<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
+function Segmented<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  wide = false,
+}: {
+  label: string;
+  value: T;
+  options: [T, string][];
+  onChange: (v: T) => void;
+  wide?: boolean;
+}) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex flex-wrap rounded-xl p-1" style={{ background: "var(--bg-sunken)" }}>
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={wide ? "grid grid-cols-1 gap-1 rounded-xl p-1 sm:grid-cols-3" : "inline-flex flex-wrap rounded-xl p-1"}
+      style={{ background: "var(--bg-sunken)" }}
+    >
       {options.map(([v, text]) => (
         <button
           key={v}
@@ -717,21 +733,22 @@ function BillDriveForm({ onSubmit }: { onSubmit: (b: BillDraft) => void }) {
   return (
     <>
       <p className="mt-4 text-sm" style={{ color: "var(--text-muted)" }}>
-        Everyone pays their share into Earmark's wallet. When the drive is full, Earmark pays the provider itself through AbaPay.
+        The pool sits in Earmark's wallet until the drive is full. Then the provider is paid, and anything unused comes back.
       </p>
       <div className="mt-4 grid gap-3">
         <Segmented
+          wide
           label="Kind of bill"
           value={category}
           options={[
-            ["ELECTRICITY", "⚡ Nigerian electricity"],
-            ["AIRTIME", "📱 Nigerian airtime"],
-            ["ABROAD", "🌍 Airtime abroad"],
+            ["ELECTRICITY", "Electricity"],
+            ["AIRTIME", "Airtime"],
+            ["ABROAD", "Abroad"],
           ]}
           onChange={(v) => {
             setCategory(v);
             setNumber("");
-            if (v === "ABROAD") setCoin("USDT");
+            setCoin(v === "ABROAD" ? "USDT" : "USAT");
           }}
         />
 
@@ -870,12 +887,12 @@ function BillDriveForm({ onSubmit }: { onSubmit: (b: BillDraft) => void }) {
         <div className="rounded-xl p-3 text-sm leading-relaxed" style={{ background: "var(--accent-soft)" }}>
           {quote ? (
             <p>
-              The drive collects{" "}
+              Collects{" "}
               <strong className="tabular-nums">
                 {Number(quote.targetHuman).toLocaleString("en-US", { maximumFractionDigits: 4 })} {coinName(quote.coin)}
-              </strong>
-              : AbaPay's price for {quote.amountLabel} of {chosenLabel ?? "the bill"} now, plus 2% in case the rate moves. Anything unused goes back
-              to whoever paid.
+              </strong>{" "}
+              for {quote.amountLabel}
+              {chosenLabel ? ` of ${chosenLabel}` : ""}. Price plus 2%. Unused money comes back.
             </p>
           ) : (
             <p style={{ color: quoteError ? "var(--danger)" : "var(--text-muted)" }}>

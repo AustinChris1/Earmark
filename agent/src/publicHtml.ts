@@ -115,7 +115,7 @@ export function shell(opts: { title: string; canonical: string; body: string }) 
     <nav><a href="${ORIGIN}/app">Drives</a><a href="${ORIGIN}/docs">Docs</a></nav>
   </header>
 ${opts.body}
-  <footer>Earmark routes every contribution to the locked destination in the same transaction. The contract never holds a balance. Built on Celo.</footer>
+  <footer>A wallet drive pays the locked address in the same transaction. A bill drive holds the pool only until the provider is paid. On Celo.</footer>
 </div>
 </body>
 </html>`;
@@ -195,7 +195,7 @@ ${
   <li>Press Pay now. Your wallet asks you to approve the token once, then to confirm the payment.</li>
   <li>The tokens go from your wallet to the address above in that one transaction. The page shows the Celoscan receipt, and the group chat tally marks you paid.</li>
   ${target > 0n ? `<li>If your amount would push the total past ${fmtToken(target, d.decimals, d.tokenSymbol)}, or the drive is closed or past its date, the contract rejects it and nothing leaves your wallet. When the total reaches ${fmtToken(target, d.decimals, d.tokenSymbol)} the drive closes itself.</li>` : `<li>If the drive is closed or past its date, the contract rejects the payment and nothing leaves your wallet.</li>`}
-  <li>There are no refunds from Earmark, because it never had the money: a contribution is a direct payment to the payee.</li>
+  <li>On a wallet drive there is no refund from Earmark, because that payment went straight to the payee. On a bill drive the pool sits in Earmark's wallet until the provider is paid, and anything unused comes back.</li>
 </ol>`
 }
 ${receiptsHtml(d.receipts, d.decimals, d.tokenSymbol, d.explorer)}

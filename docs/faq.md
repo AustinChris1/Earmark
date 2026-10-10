@@ -4,7 +4,9 @@ Every answer describes what the contract and the pages actually do. Where someth
 
 ## Does Earmark ever hold my money?
 
-No. A payment is one transaction that moves tokens from your wallet to the locked destination. The contract has no balance to hold, so there is nothing for anyone to withdraw, freeze or sweep.
+On a wallet drive, no. A payment is one transaction from your wallet to the locked destination. The contract has no balance, no withdraw, and no owner.
+
+On a bill drive, yes, for a short time. Nigerian electricity, Nigerian airtime, and a phone top-up abroad are locked to Earmark's own wallet. The pool sits there until the drive is full, Earmark pays the provider, and anything unused goes back to the people who paid. If the bill cannot be paid, everyone gets their share back.
 
 ## Can the destination be changed after a drive opens?
 
@@ -20,11 +22,13 @@ The contract refuses the payment and nothing leaves your wallet. A payment that 
 
 ## Can I get a refund?
 
-Not from Earmark, because it never had the money. Each contribution is a direct payment to the payee, so a refund is between you and them, the same as any transfer.
+On a wallet drive, no. That payment already went to the payee, so a refund is between you and them.
+
+On a bill drive, unused money comes back after the provider is paid. If the bill cannot be paid, the whole pool comes back.
 
 ## Which wallets and tokens work?
 
-Any Celo wallet with a browser or a connect button: MetaMask, Rabby, Valora and MiniPay's injected wallet. Twenty five Celo stablecoins, each checked on chain before it was listed: the dollar coins (USDT, USDC, USAT, USDm), cNGN and NGNm for naira, the Mento local currencies (KESm, GHSm, ZARm, XOFm, BRLm, COPm and more) and Ripio's wFIAT for Latin America (wARS, wBRL, wMXN, wCOP, wPEN, wCLP). A drive is opened in one token and paid in that token. Earmark is not yet listed in MiniPay Discover, so MiniPay users open it in another Celo wallet for now.
+Any Celo wallet with a browser or a connect button: MetaMask, Rabby, Valora and MiniPay's injected wallet. Twenty five Celo stablecoins, each checked on chain before it was listed: the dollar coins (USDT, USDC, USAT, USDm), cNGN and NGNm for naira, the Mento local currencies (KESm, GHSm, ZARm, XOFm, BRLm, COPm and more) and Ripio's wFIAT for Latin America (wARS, wBRL, wMXN, wCOP, wPEN, wCLP). A drive is opened in one token. A USD₮ drive can also be paid in pesos (wARS), reais (wBRL), naira (cNGN), or USA₮, and Earmark swaps those in. Earmark is not yet listed in MiniPay Discover, so open the pay link in MiniPay's browser rather than through a Discover wrapper.
 
 ## Can someone outside the chat, or another agent, pay a share?
 
@@ -32,7 +36,7 @@ Yes. Every open drive is also an x402 endpoint: a request to it answers 402 with
 
 ## Can it pay my school's bank account?
 
-No. Earmark pays a wallet address. It guarantees the money reaches the account the group named; it does not guarantee that account belongs to an institution. If the payee is not on chain, somebody still carries the last step.
+Not a school bank account. Earmark pays a wallet the group locked, or, on a bill drive, a Nigerian electricity or airtime provider, or a phone top-up abroad. It does not prove that a wallet belongs to an institution. Check the address on Celoscan before you pay.
 
 ## What if the person who opened the drive typed the wrong address?
 
@@ -60,7 +64,7 @@ The contract source is verified on Sourcify as an exact match of the deployed by
 
 ## What if the bot or this site goes down?
 
-Your money is not affected. Funds only ever move through the verified contract on Celo, which anyone can call directly. The bot and the pages read the chain; they do not custody anything.
+On a wallet drive, your money is not affected. It already went to the locked address, and anyone can call the verified contract directly. On a bill drive, the pool is in Earmark's wallet until the provider is paid, so that window needs the agent to be up. If it cannot pay, the refund still runs when the agent is back.
 
 ## Why is it called Earmark?
 

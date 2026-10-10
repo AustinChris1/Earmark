@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { animated, useSpring } from "@react-spring/web";
-import { Check, CheckCircle2, Copy, ExternalLink, Loader2, Lock, TriangleAlert, Wallet } from "lucide-react";
+import { Check, CheckCircle2, Copy, ExternalLink, Globe, Loader2, Lock, Smartphone, TriangleAlert, Wallet, Zap } from "lucide-react";
 import {
   createPublicClient,
   createWalletClient,
@@ -408,9 +408,17 @@ export function DrivePage() {
 
               {drive.bill && (
                 <div className="mt-4 rounded-xl p-4 text-sm leading-relaxed" style={{ border: "1px solid var(--line)" }}>
-                  <p className="font-semibold">
-                    {drive.bill.category === "ELECTRICITY" ? "⚡" : drive.bill.category === "INTERNATIONAL" ? "🌍" : "📱"} Earmark pays{" "}
-                    {drive.bill.provider} for {drive.bill.number}, {drive.bill.amountLabel}
+                  <p className="flex items-start gap-2 font-semibold">
+                    {drive.bill.category === "ELECTRICITY" ? (
+                      <Zap className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                    ) : drive.bill.category === "INTERNATIONAL" ? (
+                      <Globe className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                    ) : (
+                      <Smartphone className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                    )}
+                    <span>
+                      Earmark pays {drive.bill.provider} for {drive.bill.number}, {drive.bill.amountLabel}
+                    </span>
                   </p>
                   <p className="mt-1" style={{ color: "var(--text-muted)" }}>
                     {drive.bill.status === "paid"
@@ -418,12 +426,12 @@ export function DrivePage() {
                         ? "Paid. Whoever opened this drive can see the token below."
                         : "Paid. The token was posted in the group that collected for it."
                       : drive.bill.status === "collecting"
-                        ? `The address above is Earmark's own wallet: the money waits there until the drive is full, then Earmark pays the bill through AbaPay${drive.bill.openedOnWeb ? "" : " and posts the receipt in the group"}. Anything unused goes back to the people who paid, and if the bill cannot be paid, everyone gets their share back.`
+                        ? `This pool sits in Earmark's wallet until the drive is full, then the provider is paid${drive.bill.openedOnWeb ? "" : " and the receipt goes to the group"}. Unused money comes back. If the bill cannot be paid, everyone is refunded.`
                         : drive.bill.status === "paying"
                           ? "Full. Earmark is paying the bill now."
                           : drive.bill.status === "awaiting_refund"
-                            ? "AbaPay could not deliver this bill. Everyone is paid back as soon as AbaPay's refund arrives."
-                            : "This bill was not paid, and the money went back to the people who sent it."}
+                            ? "The provider could not deliver this bill. Everyone is paid back as soon as the refund arrives."
+                            : "This bill was not paid. The money went back to the people who sent it."}
                   </p>
                   {drive.bill.openedOnWeb && drive.bill.status === "paid" && !receipt && (
                     <button

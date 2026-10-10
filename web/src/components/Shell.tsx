@@ -20,11 +20,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh">
       <header className="sticky top-0 z-30 backdrop-blur-md" style={{ background: "color-mix(in srgb, var(--bg) 82%, transparent)" }}>
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4">
-          <Link to="/" aria-label="Earmark home" className="rounded-lg">
-            <Wordmark />
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3.5 sm:px-5 sm:py-4">
+          <Link to="/" aria-label="Earmark home" className="min-w-0 rounded-lg">
+            <Wordmark className="gap-2 [&_.font-display]:text-[1.35rem] sm:[&_.font-display]:text-[1.6rem]" />
           </Link>
-          <nav className="flex items-center gap-1" aria-label="Site">
+          <nav className="flex shrink-0 items-center gap-0.5 sm:gap-1" aria-label="Site">
             <NavItem to="/app">Drives</NavItem>
             <NavItem to="/docs">Docs</NavItem>
             <button
@@ -40,11 +40,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
       {children}
       <footer className="mx-auto max-w-5xl px-5 py-12 text-sm" style={{ color: "var(--text-muted)" }}>
         <div className="h-px w-full" style={{ background: "var(--line)" }} />
-        <p className="pt-6">
-          Earmark routes every contribution to the locked destination in the same transaction. The contract never holds a
-          balance.
+        <p className="max-w-[68ch] pt-6">
+          A wallet drive pays the locked address in the same transaction. A bill drive holds the pool only until the
+          provider is paid.
         </p>
-        <p className="pt-2">Built on Celo for the Agents at Work Hackathon.</p>
+        <p className="pt-2">On Celo.</p>
       </footer>
     </div>
   );
