@@ -59,3 +59,8 @@ services:
       # Optional. Without it /new keeps using its guided prompts instead of reading a sentence.
       - key: CENCORI_API_KEY
         sync: false
+      # buy (usebuy.ai): Earmark pays for the model and a backup node per call, in USDC, up to this a day.
+      - key: BUY_TOKEN
+        value: USDC
+      - key: BUY_DAILY_USD
+        value: "0.50"

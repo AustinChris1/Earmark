@@ -104,6 +104,11 @@ export const env = {
   // Optional. Without a key the bot simply keeps using its guided prompts.
   CENCORI_API_KEY: process.env.CENCORI_API_KEY ?? "",
   CENCORI_MODEL: process.env.CENCORI_MODEL ?? "gpt-4o",
+  // buy (usebuy.ai): the coin Earmark pays services in, and the most it spends in a day. 0 turns buy off.
+  BUY_GATEWAY: process.env.BUY_GATEWAY ?? "https://gateway.usebuy.ai",
+  BUY_TOKEN: process.env.BUY_TOKEN ?? "USDC",
+  BUY_DAILY_USD: process.env.BUY_DAILY_USD ?? "0",
+  BUY_MODEL: process.env.BUY_MODEL ?? "maximo-atlas-1.3",
 };
 
 export const ERC8004_IDENTITY_REGISTRY: Address = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";

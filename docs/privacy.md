@@ -37,7 +37,7 @@ Leaving a group removes you from that group's list. Payment records stay, becaus
 | Textile FX | Only Earmark's own wallet; it trades as the taker | When a share is swapped |
 | Ripio | Your wallet address and amount, in the link you choose to open | Only if you tap a Ripio link. Ripio runs its own identity checks |
 | Self | Nothing from Earmark. The document is read on your phone | Only if you verify |
-| Cencori, an AI gateway | The sentence you typed | Only when you describe a new drive in a sentence |
+| buy (usebuy.ai) and Cencori, an AI gateway | The sentence you typed | Only when you describe a new drive in a sentence |
 | Render, Turso, Chainstack | Hosting, the database, chain reads | Always, as infrastructure |
 
 ## Terms, in brief

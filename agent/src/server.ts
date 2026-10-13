@@ -12,7 +12,8 @@ import { x402Guard, x402Handler, x402Middleware } from "./x402.js";
 import { linkHandler, nonceHandler, sessionHandler, statusHandler } from "./verify.js";
 import { isTestDrive, pickFeatured } from "./featured.js";
 import { offrampUrl, rampCountry } from "./ripio.js";
-import { getBill } from "./db.js";
+import { getBill, recentBuyCalls } from "./db.js";
+import { buyEnabled } from "./buy.js";
 import { maskNumber } from "./bills.js";
 import { PROVIDERS } from "./abapay.js";
 import {
@@ -39,6 +40,9 @@ const webDist = path.resolve(here, "../../web/dist");
 
 export const app = express();
 app.disable("x-powered-by");
+// Render terminates TLS in front of the app; trusting that one hop makes req.protocol "https", so
+// the x402 challenge advertises the https URL that clients like buy actually call.
+app.set("trust proxy", 1);
 
 // The theme script in index.html is inline; hashing it keeps the CSP strict without 'unsafe-inline' for scripts.
 const inlineScriptHashes = (() => {
@@ -116,6 +120,34 @@ app.get("/api/drives", async (_req, res) => {
         test: isTestDrive(d),
       })),
     );
+  } catch (e) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
+
+// Every service Earmark has bought through buy, with the settlement on chain, so anyone can check them.
+app.get("/api/buy", async (_req, res) => {
+  try {
+    const calls = await recentBuyCalls(100);
+    const coin = tokenBySymbol(env.BUY_TOKEN);
+    const spent = calls.reduce((a, c) => a + BigInt(c.amount), 0n);
+    res.json({
+      enabled: buyEnabled(),
+      payer: account.address,
+      token: env.BUY_TOKEN,
+      dailyCapUsd: env.BUY_DAILY_USD,
+      paidCalls: calls.filter((c) => c.ok && c.tx).length,
+      spent: coin ? formatUnits(spent, coin.decimals) : spent.toString(),
+      calls: calls.map((c) => ({
+        service: c.service,
+        amount: coin ? formatUnits(BigInt(c.amount), coin.decimals) : c.amount,
+        ok: !!c.ok,
+        tx: c.tx,
+        receipt: c.tx ? `https://celoscan.io/tx/${c.tx}` : null,
+        note: c.note,
+        at: new Date(c.created_at * 1000).toISOString(),
+      })),
+    });
   } catch (e) {
     res.status(500).json({ error: (e as Error).message });
   }

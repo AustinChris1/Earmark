@@ -101,6 +101,7 @@ That is the whole trust story: the destination is fixed before the first naira a
 - **Cencori** reads a free-text `/new`. The model may only locate values that appear in the message,
   never supply them: the address, the digits and the ticker are all checked back against what was typed.
 - **Chainstack** RPC as the primary endpoint with Forno as fallback; browsers are only ever given the public one.
+- **buy** ([usebuy.ai](https://usebuy.ai)): Earmark buys the model that reads a sentence, and a backup Celo node, per call over x402 from its own wallet, in USDC, under a daily cap. Every paid call is listed at [`/api/buy`](https://earmark-agent.onrender.com/api/buy). A member's own agent can pay their share the same way: **Pay my share** prints the `npx @celo/buy curl` command.
 
 ### Token addresses (Celo mainnet, verified on chain)
 

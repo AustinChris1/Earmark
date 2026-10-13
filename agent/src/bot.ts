@@ -98,6 +98,19 @@ function displayName(ctx: Context): string {
   return u.username ? `@${u.username}` : [u.first_name, u.last_name].filter(Boolean).join(" ");
 }
 
+/**
+ * The same share, paid by the member's own AI agent with buy (usebuy.ai) over x402. Only drives in
+ * a coin x402 settles (USD₮, USDC, USA₮), and only for a known amount.
+ */
+function agentPayLine(d: DriveRow, token: TokenInfo, tgId: string, name: string, amount: string | undefined): string {
+  if (!token.eip712 || !amount) return "";
+  const url = `${env.PUBLIC_URL}/x402/drive/${d.id}?amt=${amount}&u=${tgId}&name=${encodeURIComponent(name)}`;
+  const coin = token.symbol === "USDC" ? "" : ` --token ${token.symbol}`;
+  return `
+Or let your AI agent pay it with buy:
+<code>${escape(`npx @celo/buy curl --max-amount ${amount}${coin} "${url}"`)}</code>`;
+}
+
 function payLink(driveId: number, tgId: number | string, name: string, amount?: string): string {
   const base = `${env.PUBLIC_URL}/d/${driveId}?u=${tgId}&n=${encodeURIComponent(name)}`;
   return amount ? `${base}&amt=${amount}` : base;
@@ -422,7 +435,7 @@ async function sendPersonalLink(ctx: Context, d: DriveRow) {
       const human = formatUnits(BigInt(next.amount), token.decimals);
       return replyWithPayLink(
         ctx,
-        `${name} — instalment <b>${next.seq} of ${total}</b>, ${fmt(next.amount, token)} (${dueLabel(next.due_at)}). ${paid} paid so far.`,
+        `${name} — instalment <b>${next.seq} of ${total}</b>, ${fmt(next.amount, token)} (${dueLabel(next.due_at)}). ${paid} paid so far.${agentPayLine(d, token, me, name, human)}`,
         payLink(d.id, me, name, human),
       );
     }
@@ -431,7 +444,7 @@ async function sendPersonalLink(ctx: Context, d: DriveRow) {
   const share = (await sharesFor(d.id)).find((s) => s.tg_id === me || s.tg_id === name);
   const human = share ? formatUnits(BigInt(share.amount), token.decimals) : undefined;
   const hint = share ? `Your share is ${fmt(share.amount, token)}.` : "Pay any amount toward this drive.";
-  return replyWithPayLink(ctx, `${name} — ${hint}`, payLink(d.id, me, name, human));
+  return replyWithPayLink(ctx, `${name} — ${hint}${agentPayLine(d, token, me, name, human)}`, payLink(d.id, me, name, human));
 }
 
 async function showVerify(ctx: Context) {
@@ -599,12 +612,21 @@ function registerHandlers(b: Bot) {
           const guess = await parseDriveRequest(raw);
           await ctx.api.deleteMessage(thinking.chat.id, thinking.message_id).catch(() => {});
           if (guess) {
-            return openDrive(ctx, {
+            const opened = await openDrive(ctx, {
               token: guess.token,
               destination: guess.destination,
               target: guess.amount,
               label: guess.label,
             });
+            if (guess.readBy.via === "buy") {
+              // Say plainly who read the sentence and what it cost, with the payment on chain.
+              const receipt = guess.readBy.tx ? ` <a href="https://celoscan.io/tx/${guess.readBy.tx}">Payment</a>` : "";
+              await ctx.reply(`I read that with Cencori, bought through buy for 0.01 ${env.BUY_TOKEN} from Earmark's own wallet.${receipt}`, {
+                ...HTML,
+                link_preview_options: { is_disabled: true },
+              });
+            }
+            return opened;
           }
         }
         return ctx.reply(

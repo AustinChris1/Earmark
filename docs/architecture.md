@@ -8,6 +8,7 @@ browser /app   ─┼─► agent (Node) ─► Earmark.sol on Celo ─► locke
 another agent  ─┘        │
    (x402)                ├─ Textile FX ── swaps pesos, reais, naira, dollars
                          ├─ AbaPay ────── pays bills over x402
+                         ├─ buy ───────── buys a model and a backup node, per call
                          ├─ Turso ─────── chat state, shares, plans, bills
                          └─ Self ──────── is this collector a person
 ```
@@ -36,6 +37,7 @@ No withdraw, no owner, no pause, no upgrade. A wrong destination cannot be rescu
 | `bills.ts`, `billService.ts` | Bill drives: price, pay, return change, refund failures |
 | `abapay.ts`, `abapayIntl.ts` | AbaPay's x402 endpoint and its international catalogue |
 | `ripio.ts` | Ripio on-ramp and off-ramp links |
+| `buy.ts` | Pays services on [buy](https://usebuy.ai) over x402 from the agent wallet, capped per day, logged at `/api/buy` |
 | `verify.ts` | Self: nonce, signature, session, badge check |
 | `db.ts` | libSQL on Turso; every accessor is async |
 
@@ -55,10 +57,33 @@ AbaPay's x402 path needs no account, key or PIN. The agent posts the bill, gets 
 
 `/new` accepts a plain sentence. A model only *locates* the amount, coin, address and label, and every field is checked against the message: the address must appear character for character in what the person typed. A model can find an address; it can never supply one.
 
+## What Earmark buys
+
+Earmark pays for two things it does not run, through [buy](https://usebuy.ai), Celo's marketplace for agents. Each call is one x402 payment from the agent wallet, with no account or API key.
+
+| Service | When | Price |
+|---|---|---|
+| Cencori chat completion | Reading a drive typed as a sentence. The bot says it was bought, and links the payment | 0.01 USDC |
+| Chainstack Celo RPC | Only when Chainstack and Forno both fail. viem batches the reads, so one payment covers up to 2,000 calls | 0.01 USDC per batch |
+
+The agent wallet also holds other people's money, so buy is kept apart from it:
+
+- **One coin.** buy is paid in USDC, which no bill or swap uses, from what is left after x402 shares still waiting to be forwarded.
+- **The catalogue price, no more.** A 402 asking for more than the catalogue says is refused before anything is signed.
+- **A daily cap**, `BUY_DAILY_USD`. Past it, or with no USDC to spare, Earmark falls back to its own Cencori key and its own nodes.
+
+Every call is logged with its settlement at [`/api/buy`](https://earmark-agent.onrender.com/api/buy).
+
+It works the other way too. Every open USD₮, USDC or USA₮ drive is an x402 endpoint, so a member's own agent can pay their share with buy. **Pay my share** in the bot prints the command, with the member's Telegram id in it so the payment ticks their instalments:
+
+```
+npx @celo/buy curl --max-amount 5 --token USDT "https://earmark-agent.onrender.com/x402/drive/9?amt=5&u=…&name=…"
+```
+
 ## The rest
 
 - **Database off the host.** Drives and payments can be rebuilt from the chain; chat links, shares, plans and bills cannot, and the host's disk is disposable. They live in Turso.
-- **RPC.** Chainstack first, Forno as an automatic fallback. The keyed URL never reaches a browser.
+- **RPC.** Chainstack first, Forno as an automatic fallback, then Chainstack bought through buy. The keyed URL never reaches a browser.
 - **Attribution.** Every transaction the agent or the website sends carries the ERC-8021 tag `celo_e8cc99294b28`.
 - **Identity.** ERC-8004 agent 9806, with its card embedded as a data URI.
 
