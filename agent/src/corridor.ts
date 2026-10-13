@@ -143,6 +143,13 @@ export async function settle<Q extends Firm>(intent: CorridorIntent, deps: Corri
     bought = await deps.execute(q, heldToken, drive.token);
     held -= q.takerPays;
     const { swapHash, received } = bought;
+    if (received === 0n) {
+      // The swap went through but no coin is accounted for: refunding by guess could pay out of
+      // someone else's money, so a person looks at it.
+      const note = `Swap ${swapHash} went through but no ${tokenByAddress(drive.token)?.symbol ?? "coin"} was seen arriving.`;
+      await deps.setStatus(intent.id, "failed", { swap_tx: swapHash, note });
+      throw new Error(note);
+    }
 
     const contributeTx = await deps.contribute(intent.drive_id, drive.token, received, intent.memo);
     let refundTx: Hex | undefined;
@@ -155,6 +162,7 @@ export async function settle<Q extends Firm>(intent: CorridorIntent, deps: Corri
     });
     return { status: "contributed", contributeTx, swapTx: swapHash, local: received, refundTx, refunded: refundTx ? held : undefined };
   } catch (e) {
+    if (bought?.received === 0n) throw e;
     const reason = `${bought ? "Paying the drive" : "Swap"} failed: ${(e as Error).message}`;
     try {
       if (bought) {
