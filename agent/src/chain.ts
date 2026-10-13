@@ -12,6 +12,7 @@ import { celo } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { toDataSuffix } from "@celo/attribution-tags";
 import { env, isLocal, LOCAL_CHAIN_ID } from "./config.js";
+import { buyRpcFetch } from "./buy.js";
 
 export const EARMARK_ABI = parseAbi([
   "struct Drive { address token; address destination; address collector; uint256 target; uint256 raised; uint64 deadline; bool closed; string label; }",
@@ -37,9 +38,17 @@ export const ERC20_ABI = parseAbi([
 export const chain = isLocal ? { ...celo, id: LOCAL_CHAIN_ID, name: "Hardhat" } : celo;
 export const account = privateKeyToAccount(env.AGENT_PRIVATE_KEY);
 
-// One endpoint is a single point of failure for a watcher that must not miss a payment.
+// One endpoint is a single point of failure for a watcher that must not miss a payment. When both
+// fail, Earmark buys reads from Chainstack through buy, batched so one payment covers many calls.
 const endpoints = [env.CELO_RPC_URL, env.CELO_RPC_FALLBACK].filter((u, i, a) => u && a.indexOf(u) === i);
-const transport = isLocal || endpoints.length < 2 ? http(env.CELO_RPC_URL) : fallback(endpoints.map((u) => http(u)));
+const paidNode = Number(env.BUY_DAILY_USD) > 0
+  ? [http(`${env.BUY_GATEWAY}/chainstack/celo`, { fetchFn: buyRpcFetch, batch: { batchSize: 2000, wait: 20 }, retryCount: 0 })]
+  : [];
+const transport = isLocal
+  ? http(env.CELO_RPC_URL)
+  : endpoints.length + paidNode.length < 2
+    ? http(env.CELO_RPC_URL)
+    : fallback([...endpoints.map((u) => http(u)), ...paidNode]);
 
 export const publicClient = createPublicClient({ chain, transport });
 export const walletClient = createWalletClient({ chain, account, transport });

@@ -104,7 +104,11 @@ export const x402Handler: RequestHandler = async (req: Request, res: Response) =
   try {
     const raw = req.query.amt;
     const { id, drive, token, amount } = await quote(req.path, typeof raw === "string" ? raw : undefined);
-    const payerName = typeof req.query.name === "string" && req.query.name ? req.query.name : "diaspora";
+    const name = typeof req.query.name === "string" && req.query.name ? req.query.name.slice(0, 40) : "diaspora";
+    // ?u=<telegram id> credits the payment to that member, so it ticks their instalments like a
+    // payment from the pay page does. Paying someone's share for them is allowed; that is a gift.
+    const tg = typeof req.query.u === "string" && /^\d{1,20}$/.test(req.query.u) ? req.query.u : "";
+    const payerName = tg ? `tg:${tg}:${name}` : name;
     const intentId = randomUUID();
     const { payer, nonce } = signedBy(req.header("payment-signature") ?? req.header("x-payment"));
     await addIntent({ id: intentId, drive_id: id, token: drive.token, amount: amount.toString(), payer_name: payerName, payer, nonce });
@@ -125,6 +129,11 @@ export const x402Handler: RequestHandler = async (req: Request, res: Response) =
     res.status(400).json({ error: (e as Error).message });
   }
 };
+
+/** The contribution memo: a Telegram-linked payment keeps the `tg:` form the instalments read. */
+export function memoFor(payerName: string): string {
+  return payerName.startsWith("tg:") ? payerName : `x402:${payerName}`;
+}
 
 const EIP3009_ABI = parseAbi(["function authorizationState(address authorizer, bytes32 nonce) view returns (bool)"]);
 
@@ -147,7 +156,7 @@ async function forwardIntent(id: string): Promise<string | null> {
     args: [intent.payer as Address, intent.nonce as Hex],
   });
   if (!settled) return null;
-  const hash = await contributeFromAgent(BigInt(intent.drive_id), intent.token as Address, amount, `x402:${intent.payer_name}`);
+  const hash = await contributeFromAgent(BigInt(intent.drive_id), intent.token as Address, amount, memoFor(intent.payer_name));
   await markForwarded(id, hash);
   return hash;
 }

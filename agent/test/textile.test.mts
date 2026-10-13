@@ -1,3 +1,4 @@
+import "./setup-env.mts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { encodeAbiParameters, encodeEventTopics, parseAbiItem, type Address, type Hex, type Log } from "viem";

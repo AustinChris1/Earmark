@@ -113,6 +113,17 @@ const SCHEMA = [
      seen_at INTEGER NOT NULL,
      PRIMARY KEY (chat_id, tg_id)
    )`,
+  // Every service Earmark bought through buy (usebuy.ai), paid from the agent wallet over x402.
+  `CREATE TABLE IF NOT EXISTS buy_calls (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     service TEXT NOT NULL,
+     amount TEXT NOT NULL,
+     token TEXT NOT NULL,
+     tx TEXT,
+     ok INTEGER NOT NULL,
+     note TEXT,
+     created_at INTEGER NOT NULL
+   )`,
 ];
 
 // Columns added after a table first shipped. SQLite has no ADD COLUMN IF NOT EXISTS, so a column
@@ -574,4 +585,30 @@ export async function getMeta(k: string): Promise<string | undefined> {
 
 export async function setMeta(k: string, v: string) {
   await run(`INSERT INTO meta (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v`, [k, v]);
+}
+
+// --- buy -----------------------------------------------------------------------------------------
+
+export type BuyCall = { service: string; amount: string; token: string; tx: string | null; ok: number; note: string | null; created_at: number };
+
+export async function recordBuyCall(c: Omit<BuyCall, "created_at">) {
+  await run(`INSERT INTO buy_calls (service, amount, token, tx, ok, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`, [
+    c.service,
+    c.amount,
+    c.token,
+    c.tx,
+    c.ok,
+    c.note,
+    now(),
+  ]);
+}
+
+/** Atomic units of `token` signed away to buy since `since` (unix seconds). */
+export async function buySpentSince(token: string, since: number): Promise<bigint> {
+  const rows = await all<{ amount: string }>(`SELECT amount FROM buy_calls WHERE token = ? AND created_at >= ?`, [token, since]);
+  return rows.reduce((a, r) => a + BigInt(r.amount), 0n);
+}
+
+export async function recentBuyCalls(limit = 50): Promise<BuyCall[]> {
+  return all<BuyCall>(`SELECT service, amount, token, tx, ok, note, created_at FROM buy_calls ORDER BY id DESC LIMIT ?`, [limit]);
 }
