@@ -1,6 +1,6 @@
 import { getAddress, parseAbi, verifyMessage, type Address, type Hex } from "viem";
-import { env, tokenBySymbol } from "./config.js";
-import { account, publicClient, readDrive, refundFromAgent } from "./chain.js";
+import { CELO_CHAIN_ID, env, tokenByAddress, tokenBySymbol } from "./config.js";
+import { account, publicClient, readDrive, refundFromAgent, tagSuffix, walletClient } from "./chain.js";
 import { payBill, PROVIDERS, quoteBill, type Bill, type BillResult, type IntlBill } from "./abapay.js";
 import { intlCountry, intlNumber, intlOperators, intlPlans, type IntlPlan } from "./abapayIntl.js";
 import { billTarget, maskNumber, returnShares, settleBill, type BillOutcome, type Share } from "./bills.js";
@@ -215,7 +215,10 @@ async function realPayments(driveId: number): Promise<Share[]> {
   return out;
 }
 
-const AUTH_ABI = parseAbi(["function authorizationState(address authorizer, bytes32 nonce) view returns (bool)"]);
+const AUTH_ABI = parseAbi([
+  "function authorizationState(address authorizer, bytes32 nonce) view returns (bool)",
+  "function cancelAuthorization(address authorizer, bytes32 nonce, bytes signature)",
+]);
 const TRANSFER = parseAbi(["event Transfer(address indexed from, address indexed to, uint256 value)"]);
 const SCAN = 2000n;
 
@@ -245,6 +248,37 @@ async function refundSeen(token: Address, amount: bigint, fromBlock: bigint): Pr
 
 type Auth = { nonce: Hex; validBefore: number; fromBlock?: number };
 
+/**
+ * Burns an authorisation AbaPay never used, so it can never be spent later. AbaPay's are valid for
+ * a day; without this, people would wait that long for a refund. True when the cancel landed, which
+ * proves the money never left; false when the authorisation had already been used.
+ */
+async function cancelAuthorization(token: Address, nonce: Hex): Promise<boolean> {
+  const eip712 = tokenByAddress(token)?.eip712;
+  if (!eip712) return false;
+  const signature = await account.signTypedData({
+    domain: { name: eip712.name, version: eip712.version, chainId: CELO_CHAIN_ID, verifyingContract: token },
+    types: { CancelAuthorization: [{ name: "authorizer", type: "address" }, { name: "nonce", type: "bytes32" }] },
+    primaryType: "CancelAuthorization",
+    message: { authorizer: account.address, nonce },
+  });
+  try {
+    const hash = await walletClient.writeContract({
+      address: token,
+      abi: AUTH_ABI,
+      functionName: "cancelAuthorization",
+      args: [account.address, nonce, signature],
+      dataSuffix: tagSuffix,
+    });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    return receipt.status === "success";
+  } catch (e) {
+    // Reverts when AbaPay used it a moment before; the caller then looks for AbaPay's refund.
+    console.error("cancel authorisation:", (e as Error).message);
+    return false;
+  }
+}
+
 async function afterFailure(token: Address, auth: Auth | null, paid: bigint): Promise<"intact" | "returned" | "waiting"> {
   // Without the authorisation there is no way to tell whether money left, so a person checks it.
   if (!auth) return "waiting";
@@ -254,7 +288,10 @@ async function afterFailure(token: Address, auth: Auth | null, paid: bigint): Pr
     functionName: "authorizationState",
     args: [account.address, auth.nonce],
   });
-  if (!used) return Date.now() / 1000 > auth.validBefore ? "intact" : "waiting";
+  if (!used) {
+    if (Date.now() / 1000 > auth.validBefore) return "intact";
+    if (await cancelAuthorization(token, auth.nonce)) return "intact";
+  }
   return (await refundSeen(token, paid, BigInt(auth.fromBlock ?? 0))) ? "returned" : "waiting";
 }
 
@@ -310,11 +347,38 @@ function retryRefund(row: BillRow) {
   }).catch((e) => console.error(`bill refund ${row.drive_id}:`, (e as Error).message));
 }
 
+/**
+ * A bill drive closed before it filled can never pay the bill, and its money is in the agent
+ * wallet, so it all goes back to the people who paid.
+ */
+export function refundClosedBill(driveId: number) {
+  queue = queue.then(async () => {
+    const row = await getBill(driveId);
+    if (!row || row.status !== "collecting") return;
+    const d = await readDrive(BigInt(driveId));
+    if (!d.closed || d.raised >= d.target) return;
+    const coin = tokenBySymbol(row.token)!;
+    const refunds = d.raised > 0n
+      ? await returnShares(await realPayments(driveId), d.raised, {
+          agent: account.address,
+          refund: (to, amount) => refundFromAgent(coin.address, to, amount),
+        })
+      : [];
+    const reason = "The drive was closed before it filled, so the bill was not paid.";
+    await setBillStatus(driveId, "refunded", { note: reason });
+    if (refunds.length) await notify(driveId, (await getBill(driveId))!, { status: "refunded", reason, refunds }).catch(() => {});
+  }).catch((e) => console.error(`bill close ${driveId}:`, (e as Error).message));
+  return queue;
+}
+
 /** Picks up full drives whose last payment was missed, and finishes refunds AbaPay has returned. */
 export function startBillSweeper() {
   const tick = async () => {
     try {
-      for (const row of await billsWithStatus("collecting")) void maybeSettleBill(row.drive_id);
+      for (const row of await billsWithStatus("collecting")) {
+        void maybeSettleBill(row.drive_id);
+        void refundClosedBill(row.drive_id);
+      }
       for (const row of await billsWithStatus("awaiting_refund")) retryRefund(row);
     } catch (e) {
       console.error("bill sweeper:", (e as Error).message);

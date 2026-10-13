@@ -79,6 +79,7 @@ export function DrivePage() {
   const [cq, setCq] = useState<CorridorQuote | null>(null);
   const [cqError, setCqError] = useState("");
   const [refundHash, setRefundHash] = useState<Hex | null>(null);
+  const [failedHash, setFailedHash] = useState<Hex | null>(null);
   const [wallet, setWallet] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<BillReceipt | null>(null);
   const [receiptError, setReceiptError] = useState("");
@@ -130,7 +131,7 @@ export function DrivePage() {
 
   const fmt = (v: bigint | string) =>
     drive
-      ? `${Number(formatUnits(BigInt(v), drive.token.decimals)).toLocaleString("en-US", { maximumFractionDigits: 2 })} ${drive.token.symbol}`
+      ? `${Number(formatUnits(BigInt(v), drive.token.decimals)).toLocaleString("en-US", { maximumFractionDigits: 6 })} ${drive.token.symbol}`
       : "";
 
   const raised = drive ? BigInt(drive.raised) : 0n;
@@ -201,7 +202,9 @@ export function DrivePage() {
         args: [cq.sendTo, maxPay],
         dataSuffix,
       } as never);
-      await pub.waitForTransactionReceipt({ hash: payTx });
+      if ((await pub.waitForTransactionReceipt({ hash: payTx })).status !== "success") {
+        throw new Error("The transfer failed on chain, so nothing was sent. Check your wallet has a little CELO for gas.");
+      }
 
       setStage("swapping");
       setMessage(`Received. Swapping to ${drive.token.symbol} on Textile FX, then paying the drive.`);
@@ -260,6 +263,12 @@ export function DrivePage() {
       setMessage("Enter an amount.");
       return;
     }
+    if (target > 0n && value > remaining) {
+      // The contract refuses a payment past the target, and some wallets send it anyway.
+      setStage("error");
+      setMessage(`This drive needs only ${formatUnits(remaining, drive.token.decimals)} ${drive.token.symbol} more. Pay that, or less.`);
+      return;
+    }
     if (!window.ethereum) {
       setStage("error");
       setMessage("No wallet here. Open this link in MiniPay, or in the browser inside MetaMask or another Celo wallet.");
@@ -295,7 +304,9 @@ export function DrivePage() {
           dataSuffix,
           feeCurrency,
         } as never);
-        await pub.waitForTransactionReceipt({ hash: h });
+        if ((await pub.waitForTransactionReceipt({ hash: h })).status !== "success") {
+          throw new Error("The approval failed on chain. Nothing was paid.");
+        }
       }
       setStage("paying");
       setMessage("Confirm the payment.");
@@ -308,7 +319,10 @@ export function DrivePage() {
         feeCurrency,
       } as never);
       setMessage("Sending it to the destination.");
-      await pub.waitForTransactionReceipt({ hash });
+      if ((await pub.waitForTransactionReceipt({ hash })).status !== "success") {
+        setFailedHash(hash);
+        throw new Error("The payment failed on chain, so nothing was paid. Only the gas was spent.");
+      }
       setTxHash(hash);
       setStage("done");
       setMessage("Paid. It landed at the destination.");
@@ -426,16 +440,23 @@ export function DrivePage() {
                     >
                       Open on Celoscan <ExternalLink className="h-3 w-3" />
                     </a>
-                    <button
-                      type="button"
-                      onClick={copyDestination}
-                      className="pressable inline-flex items-center gap-1 rounded"
-                      style={{ color: "var(--accent)" }}
-                    >
-                      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                      {copied ? "Copied" : "Copy"}
-                    </button>
+                    {!drive.bill && (
+                      <button
+                        type="button"
+                        onClick={copyDestination}
+                        className="pressable inline-flex items-center gap-1 rounded"
+                        style={{ color: "var(--accent)" }}
+                      >
+                        {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                        {copied ? "Copied" : "Copy"}
+                      </button>
+                    )}
                   </div>
+                  {drive.bill && (
+                    <p className="mt-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
+                      Pay with the button below. Coins sent straight to this address are not counted toward the drive.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -691,7 +712,18 @@ export function DrivePage() {
                       className="mr-4 mt-2 inline-flex items-center gap-1 text-sm underline underline-offset-4"
                       style={{ color: "var(--accent)" }}
                     >
-                      Refund transaction <ExternalLink className="h-3.5 w-3.5" />
+                      See the refund on Celoscan <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                  {failedHash && (
+                    <a
+                      href={`${drive.explorer}/tx/${failedHash}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mr-4 mt-2 inline-flex items-center gap-1 text-sm underline underline-offset-4"
+                      style={{ color: "var(--danger)" }}
+                    >
+                      See the failed transaction <ExternalLink className="h-3.5 w-3.5" />
                     </a>
                   )}
                   {txHash && (

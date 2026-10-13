@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { concat, type Address, type Hex } from "viem";
+import { concat, parseEventLogs, type Address, type Hex, type TransactionReceipt } from "viem";
 import { account, ERC20_ABI, publicClient, tagSuffix, walletClient } from "./chain.js";
 import { CELO_CHAIN_ID } from "./config.js";
 
@@ -174,7 +174,7 @@ function tagged(data: Hex): Hex {
   return tagSuffix ? concat([data, tagSuffix]) : data;
 }
 
-async function send(tx: UnsignedTx): Promise<Hex> {
+async function send(tx: UnsignedTx): Promise<TransactionReceipt> {
   if (tx.chainId !== CELO_CHAIN_ID) throw new TextileError(`Quote is for chain ${tx.chainId}, not Celo`);
   const hash = await walletClient.sendTransaction({
     to: tx.to,
@@ -184,13 +184,34 @@ async function send(tx: UnsignedTx): Promise<Hex> {
   } as never);
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success") throw new TextileError(`Transaction ${hash} reverted`);
-  return hash;
+  return receipt;
+}
+
+const TRANSFER_EVENT = [
+  {
+    type: "event",
+    name: "Transfer",
+    inputs: [
+      { name: "from", type: "address", indexed: true },
+      { name: "to", type: "address", indexed: true },
+      { name: "value", type: "uint256", indexed: false },
+    ],
+  },
+] as const;
+
+/** What `token` the swap delivered to the agent, read from the swap's own receipt. */
+export function deliveredTo(receipt: Pick<TransactionReceipt, "logs">, token: Address, to: Address): bigint {
+  return parseEventLogs({ abi: TRANSFER_EVENT, eventName: "Transfer", logs: receipt.logs })
+    .filter((l) => l.address.toLowerCase() === token.toLowerCase() && l.args.to.toLowerCase() === to.toLowerCase())
+    .reduce((sum, l) => sum + l.args.value, 0n);
 }
 
 /**
  * Settles a firm quote from the agent wallet: approves the spender if the standing allowance does
  * not cover it, swaps, and reports the settlement back to Textile. Returns how much of the buy
- * token actually arrived, measured from the balance rather than trusted from the quote.
+ * token actually arrived, read from the swap's Transfer logs rather than trusted from the quote.
+ * (Not from a balance before and after: the public RPC is several nodes, and a read straight after
+ * the receipt can land on one that has not seen the swap yet, which reads as nothing arrived.)
  */
 export async function execute(q: FirmQuote, sellToken: Address, buyToken: Address): Promise<{ swapHash: Hex; received: bigint }> {
   if (q.expiresAt.getTime() < Date.now()) throw new TextileError("Quote expired before it could be executed", "expired");
@@ -202,11 +223,11 @@ export async function execute(q: FirmQuote, sellToken: Address, buyToken: Addres
   });
   if (allowance < q.takerPays) await send(q.approval);
 
-  const before = await publicClient.readContract({ address: buyToken, abi: ERC20_ABI, functionName: "balanceOf", args: [account.address] });
-  const swapHash = await send(q.swap);
-  const after = await publicClient.readContract({ address: buyToken, abi: ERC20_ABI, functionName: "balanceOf", args: [account.address] });
+  const receipt = await send(q.swap);
+  const swapHash = receipt.transactionHash;
+  const received = deliveredTo(receipt, buyToken, account.address);
   await call(`/rfq/${q.rfqId}/submit`, { method: "POST", claim: q.claimToken, body: JSON.stringify({ txHash: swapHash }) }).catch(
     (e) => console.error("textile submit:", (e as Error).message),
   );
-  return { swapHash, received: after - before };
+  return { swapHash, received };
 }

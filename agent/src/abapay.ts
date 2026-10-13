@@ -169,7 +169,15 @@ export async function payBill(bill: Bill, symbol: "USAT" | "USDT", maxAmount: bi
   }
   const signed = await http.createPaymentPayload(required);
   const auth = (signed.payload as { authorization?: { nonce?: Hex; validBefore?: string } }).authorization;
-  const paid = await post(payload, http.encodePaymentSignatureHeader(signed));
+  const authorization = auth?.nonce ? { nonce: auth.nonce, validBefore: Number(auth.validBefore ?? 0) } : null;
+  // From here a signature is out: a lost answer must not read as "nothing was signed".
+  let paid: Response;
+  try {
+    paid = await post(payload, http.encodePaymentSignatureHeader(signed));
+  } catch (e) {
+    const status = `no answer from AbaPay: ${(e as Error).message}`;
+    return { ok: false, status, purchasedCode: null, units: null, settleTx: null, requestId: null, quote, authorization };
+  }
   const result = (await paid.json().catch(() => ({}))) as {
     success?: boolean;
     status?: string;
@@ -187,6 +195,6 @@ export async function payBill(bill: Bill, symbol: "USAT" | "USDT", maxAmount: bi
     settleTx: result.tx_hash ?? null,
     requestId: result.request_id ?? null,
     quote,
-    authorization: auth?.nonce ? { nonce: auth.nonce, validBefore: Number(auth.validBefore ?? 0) } : null,
+    authorization,
   };
 }

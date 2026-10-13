@@ -155,3 +155,15 @@ test("a coin that cannot reach the drive's coin goes straight back", async () =>
   assert.equal(r.status, "refunded");
   assert.ok(!log.some((l) => l.startsWith("swap")), log.join(" | "));
 });
+
+test("a swap that shows no coin arriving is left for a person, never refunded by guess", async () => {
+  const { deps, log } = fakeDeps({
+    execute: async (q, sell, buy) => {
+      log.push(`swap ${name(sell)}->${name(buy)} ${q.takerPays}`);
+      return { swapHash: tx(50), received: 0n };
+    },
+  });
+  await assert.rejects(settle(intent(), deps));
+  assert.ok(!log.some((l) => l.startsWith("contribute") || l.startsWith("refund")), log.join(" | "));
+  assert.equal(log.at(-1), "status failed");
+});

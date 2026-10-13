@@ -3,7 +3,7 @@ import { env, isLocal } from "./config.js";
 import { getDrive, getMeta, insertPayment, markClosed, reconcileInstalments, setMeta } from "./db.js";
 import { memoName } from "./format.js";
 import { announceContribution } from "./bot.js";
-import { maybeSettleBill } from "./billService.js";
+import { maybeSettleBill, refundClosedBill } from "./billService.js";
 
 const CHUNK = 2000n;
 const POLL_MS = 12_000;
@@ -56,7 +56,9 @@ export function startWatcher(startBlock?: bigint) {
           toBlock: to,
         });
         for (const log of closed) {
-          if (log.args.id !== undefined) await markClosed(Number(log.args.id));
+          if (log.args.id === undefined) continue;
+          await markClosed(Number(log.args.id));
+          void refundClosedBill(Number(log.args.id));
         }
         await setMeta("last_block", to.toString());
         from = to + 1n;

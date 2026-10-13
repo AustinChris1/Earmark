@@ -213,7 +213,9 @@ export function AppPage() {
         chain: chainFor(cfg),
         dataSuffix: cfg.tag ? toDataSuffix(cfg.tag) : undefined,
       } as never);
-      await pub.waitForTransactionReceipt({ hash: hash as Hex });
+      if ((await pub.waitForTransactionReceipt({ hash: hash as Hex })).status !== "success") {
+        throw new Error("Closing failed on chain. The drive is still open.");
+      }
       await load();
     } catch (e) {
       const err = e as { shortMessage?: string; message?: string };
@@ -258,7 +260,9 @@ export function AppPage() {
         chain: chainFor(cfg),
         dataSuffix: cfg.tag ? toDataSuffix(cfg.tag) : undefined,
       } as never);
-      await pub.waitForTransactionReceipt({ hash: hash as Hex });
+      if ((await pub.waitForTransactionReceipt({ hash: hash as Hex })).status !== "success") {
+        throw new Error("Opening the drive failed on chain. Nothing was created.");
+      }
       setShowNew(false);
       await load();
     } catch (e) {
@@ -296,6 +300,7 @@ export function AppPage() {
         dataSuffix: cfg.tag ? toDataSuffix(cfg.tag) : undefined,
       } as never);
       const receipt = await pub.waitForTransactionReceipt({ hash: hash as Hex });
+      if (receipt.status !== "success") throw new Error("Opening the drive failed on chain. Nothing was created.");
       const created = parseEventLogs({ abi: EARMARK_ABI, logs: receipt.logs, eventName: "DriveCreated" }).find(
         (l) => l.address.toLowerCase() === cfg.earmark.toLowerCase(),
       );
