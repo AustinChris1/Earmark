@@ -1,4 +1,4 @@
-import type { Address, Hex } from "viem";
+import { formatUnits, type Address, type Hex } from "viem";
 import { tokenByAddress, tokenBySymbol, type TokenInfo } from "./config.js";
 
 /**
@@ -27,6 +27,21 @@ export const PAY_COINS = ["USDT", "USAT", "cNGN", "wARS", "wBRL"] as const;
 
 /** Headroom over the quoted price that the payer is asked to send; the unused part is refunded. */
 export const HEADROOM_BPS = 100n;
+
+/**
+ * Textile rejects an exact-out quote whose buyAmount is under 1_000_000 atomic units.
+ * On a 6-decimal coin that is 1 whole unit, so a ₦100 bill priced at ~0.08 USD₮ cannot be swapped.
+ */
+export const TEXTILE_MIN_BUY = 1_000_000n;
+
+export function belowTextileMinimum(buyAmount: bigint): boolean {
+  return buyAmount < TEXTILE_MIN_BUY;
+}
+
+export function textileMinimumMessage(token: TokenInfo): string {
+  const min = formatUnits(TEXTILE_MIN_BUY, token.decimals);
+  return `Textile will not swap less than ${min} ${token.symbol}. Pay this drive in ${token.symbol}.`;
+}
 
 const symbolOf = (a: Address) => tokenByAddress(a)?.symbol ?? "";
 
@@ -119,6 +134,8 @@ export async function settle<Q extends Firm>(intent: CorridorIntent, deps: Corri
   if (drive.closed) return giveBack("The drive closed before the payment could be swapped.");
   const want = localToBuy(intent.want_local, drive.target, drive.raised);
   if (want === 0n) return giveBack("The drive is already full.");
+  const driveToken = tokenByAddress(drive.token);
+  if (driveToken && belowTextileMinimum(want)) return giveBack(textileMinimumMessage(driveToken));
 
   await deps.setStatus(intent.id, "swapping");
 
