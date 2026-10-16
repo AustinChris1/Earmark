@@ -66,6 +66,24 @@ test("if AbaPay's price moved past the pool, nothing is paid and everyone gets t
   assert.deepEqual(log, ["status paying", "refund Ada 1970965", "refund Emeka 1970964", "status refunded"]);
 });
 
+test("a payment AbaPay is still delivering is not refunded and is not signed again", async () => {
+  const pending = {
+    ok: false,
+    status: "PROCESSING",
+    purchasedCode: null,
+    units: null,
+    settleTx: tx(1),
+    requestId: "req_3",
+    quote: { asset: USAT, amount: 3_864_636n, payTo: AGENT },
+    authorization: { nonce: tx(7), validBefore: 9 },
+  } as BillResult;
+  const { d, log } = deps({ pay: async () => pending });
+  const r = await settleBill(9, bill, 3_941_929n, payments, d);
+  assert.equal(r.status, "vending");
+  assert.ok(!log.some((l) => l.startsWith("refund")));
+  assert.ok(log.includes("status vending"));
+});
+
 test("not delivered: people are paid back only once the money is provably back", async () => {
   const failed = {
     ok: false,
