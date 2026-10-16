@@ -1,5 +1,7 @@
 import type { Address, Hex } from "viem";
 import type { Bill, BillResult } from "./abapay.js";
+import type { TokenInfo } from "./config.js";
+import { fmt } from "./format.js";
 
 /**
  * Bill drives. The group collects the bill's price into the Earmark agent wallet, and when the drive
@@ -14,6 +16,19 @@ export const BILL_HEADROOM_BPS = 200n;
 
 export function billTarget(quoted: bigint): bigint {
   return quoted + (quoted * BILL_HEADROOM_BPS + 9_999n) / 10_000n;
+}
+
+/**
+ * The chat line after a paid bill. The drive collects a little over the quote, and the spare
+ * goes back, but a spare that prints as 0 is not announced.
+ */
+export function unusedLine(refunds: { amount: bigint }[], token: TokenInfo): string {
+  const amount = refunds.reduce((a, x) => a + x.amount, 0n);
+  const people = refunds.filter((r) => r.amount > 0n).length;
+  if (people === 0 || amount <= 0n) return "";
+  const shown = fmt(amount, token);
+  if (shown.startsWith("0 ")) return "";
+  return `\nUnused ${shown} went back to ${people} ${people === 1 ? "person" : "people"}.`;
 }
 
 /** "45000000000" -> "4500•••0000", enough for the group to recognise its meter, not to copy it. */

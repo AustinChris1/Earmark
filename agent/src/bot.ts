@@ -4,7 +4,7 @@ import { isAddress, parseUnits, formatUnits, getAddress, type Address } from "vi
 import { env, TOKENS, tokenByAddress, tokenBySymbol, type TokenInfo } from "./config.js";
 import { account, createDriveOnchain, closeDriveOnchain } from "./chain.js";
 import { PROVIDERS, type BillCategory } from "./abapay.js";
-import type { BillOutcome } from "./bills.js";
+import { unusedLine, type BillOutcome } from "./bills.js";
 import {
   BILL_COINS,
   billAmount,
@@ -386,7 +386,7 @@ async function announceBill(driveId: number, row: BillRow, outcome: BillOutcome)
     text = `${row.category === "ELECTRICITY" ? "⚡" : "📱"} <b>Paid.</b> ${what}.`;
     if (r.purchasedCode) text += `\nToken: <code>${escape(r.purchasedCode)}</code>${r.units ? ` (${escape(r.units)} units)` : ""}`;
     if (r.settleTx) text += `\n<a href="https://celoscan.io/tx/${r.settleTx}">Payment to AbaPay</a>`;
-    if (outcome.refunds.length) text += `\nUnused ${fmt(outcome.refunds.reduce((a, x) => a + x.amount, 0n), usat)} went back to ${outcome.refunds.length} ${outcome.refunds.length === 1 ? "person" : "people"}.`;
+    text += unusedLine(outcome.refunds, usat);
   } else if (outcome.status === "vending") {
     text = `AbaPay has the payment for ${what} and is still delivering it.\nEarmark will confirm here when it lands. Do not send it again.`;
   } else if (outcome.status === "refunded") {

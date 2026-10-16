@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Address, Hex } from "viem";
-import { billTarget, maskNumber, proRata, settleBill, type BillDeps } from "../src/bills.js";
+import { billTarget, maskNumber, proRata, settleBill, unusedLine, type BillDeps } from "../src/bills.js";
+import { tokenBySymbol } from "../src/config.js";
 import type { Bill, BillResult } from "../src/abapay.js";
 
 const AGENT = "0x178977E82c4Df50D5a7465F4495170DFF9275363" as Address;
@@ -11,6 +12,13 @@ const EMEKA = "0x00000000000000000000000000000000000000E1" as Address;
 const tx = (n: number) => `0x${n.toString(16).padStart(64, "0")}` as Hex;
 
 const bill: Bill = { category: "ELECTRICITY", serviceID: "ikeja-electric", network: "IKEJA-ELECTRIC", billersCode: "45000000000", nairaAmount: 5000 };
+
+test("a spare that prints as 0 is not announced", () => {
+  const usdt = tokenBySymbol("USDT")!;
+  assert.equal(unusedLine([{ amount: 1_536n }], usdt), "");
+  assert.equal(unusedLine([], usdt), "");
+  assert.equal(unusedLine([{ amount: 38_647n }, { amount: 38_646n }], usdt), "\nUnused 0.08 USDT went back to 2 people.");
+});
 
 test("the target carries two percent headroom, rounded up", () => {
   assert.equal(billTarget(3_864_636n), 3_941_929n);
