@@ -105,7 +105,12 @@ export async function createDriveOnchain(args: {
 const ERC20_TRANSFER_ABI = parseAbi(["function transfer(address to, uint256 amount) returns (bool)"]);
 
 /** Sends tokens the agent is holding for someone back to them. Gas in CELO, so the refund is exact. */
-export async function refundFromAgent(token: Address, to: Address, amount: bigint): Promise<Hex> {
+export async function refundFromAgent(
+  token: Address,
+  to: Address,
+  amount: bigint,
+  opts: { onSent?: (hash: Hex) => void | Promise<void> } = {},
+): Promise<Hex> {
   const hash = await walletClient.writeContract({
     address: token,
     abi: ERC20_TRANSFER_ABI,
@@ -113,6 +118,8 @@ export async function refundFromAgent(token: Address, to: Address, amount: bigin
     args: [to, amount],
     dataSuffix: tagSuffix,
   });
+  // Persist the hash before waiting, so a crash cannot send the refund twice.
+  if (opts.onSent) await opts.onSent(hash);
   await publicClient.waitForTransactionReceipt({ hash });
   return hash;
 }
@@ -123,7 +130,7 @@ export async function contributeFromAgent(
   token: Address,
   amount: bigint,
   memo: string,
-  opts: { celoGas?: boolean } = {},
+  opts: { celoGas?: boolean; onSent?: (hash: Hex) => void | Promise<void> } = {},
 ): Promise<Hex> {
   const earmark = requireEarmark();
   // An x402 settlement lands the exact amount, so paying gas out of the same token would leave the
@@ -155,6 +162,8 @@ export async function contributeFromAgent(
     dataSuffix: tagSuffix,
     feeCurrency,
   });
+  // Persist the hash before waiting, so a crash cannot contribute the same transfer twice.
+  if (opts.onSent) await opts.onSent(hash);
   await publicClient.waitForTransactionReceipt({ hash });
   return hash;
 }

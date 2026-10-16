@@ -124,6 +124,25 @@ const SCHEMA = [
      note TEXT,
      created_at INTEGER NOT NULL
    )`,
+  // A plain transfer to the agent. Kept so a restart cannot count it twice, and so a bill refund
+  // can find the person who sent it. `noted` and `held` rows are not moved.
+  `CREATE TABLE IF NOT EXISTS direct_payments (
+     pay_tx TEXT PRIMARY KEY,
+     payer TEXT NOT NULL,
+     token TEXT NOT NULL,
+     amount TEXT NOT NULL,
+     block INTEGER NOT NULL,
+     block_time INTEGER NOT NULL,
+     drive_id INTEGER,
+     credit TEXT,
+     refund_amount TEXT,
+     contribute_tx TEXT,
+     refund_tx TEXT,
+     memo TEXT,
+     status TEXT NOT NULL,
+     notified INTEGER NOT NULL DEFAULT 0,
+     created_at INTEGER NOT NULL
+   )`,
 ];
 
 // Columns added after a table first shipped. SQLite has no ADD COLUMN IF NOT EXISTS, so a column
@@ -252,6 +271,14 @@ export function getDrive(id: number) {
 
 export function openDrivesForChat(chatId: string) {
   return all<DriveRow>(`SELECT * FROM drives WHERE chat_id = ? AND closed = 0 ORDER BY id DESC`, [chatId]);
+}
+
+export function allOpenDrives() {
+  return all<DriveRow>(`SELECT * FROM drives WHERE closed = 0 ORDER BY id`);
+}
+
+export function drivesPaying(destination: string) {
+  return all<DriveRow>(`SELECT * FROM drives WHERE lower(destination) = lower(?) ORDER BY id`, [destination]);
 }
 
 export function latestDriveForChat(chatId: string) {
@@ -486,14 +513,101 @@ export function billsWithStatus(status: string) {
 }
 
 /**
- * Who really paid a contribution the agent made on someone's behalf: a swapped payment or an x402
- * payment. Without this, change from a bill drive could not go back to the person who sent it.
+ * Who really paid a contribution the agent made on someone's behalf: a swapped payment, an x402
+ * payment, or a plain transfer the agent counted. Without this, change from a bill drive could not
+ * go back to the person who sent it.
  */
 export async function realPayerFor(txHash: string): Promise<string | undefined> {
   const swapped = await one<{ payer: string }>(`SELECT payer FROM corridor_intents WHERE contribute_tx = ?`, [txHash]);
   if (swapped) return swapped.payer;
   const x402 = await one<{ payer: string | null }>(`SELECT payer FROM x402_intents WHERE forwarded_tx = ?`, [txHash]);
-  return x402?.payer ?? undefined;
+  if (x402?.payer) return x402.payer;
+  const direct = await one<{ payer: string }>(`SELECT payer FROM direct_payments WHERE lower(contribute_tx) = lower(?)`, [txHash]);
+  return direct?.payer;
+}
+
+export function billsInFlight() {
+  return all<BillRow>(`SELECT * FROM bills WHERE status IN ('collecting', 'paying', 'awaiting_refund') ORDER BY drive_id`);
+}
+
+export type DirectRow = {
+  pay_tx: string;
+  payer: string;
+  token: string;
+  amount: string;
+  block: number;
+  block_time: number;
+  drive_id: number | null;
+  credit: string | null;
+  refund_amount: string | null;
+  contribute_tx: string | null;
+  refund_tx: string | null;
+  memo: string | null;
+  status: string;
+  notified: number;
+  created_at: number;
+};
+
+export async function insertDirect(p: {
+  pay_tx: string;
+  payer: string;
+  token: string;
+  amount: string;
+  block: number;
+  block_time: number;
+  status: string;
+}): Promise<boolean> {
+  const changes = await run(
+    `INSERT OR IGNORE INTO direct_payments (pay_tx, payer, token, amount, block, block_time, status, notified, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+    [p.pay_tx.toLowerCase(), p.payer, p.token, p.amount, p.block, p.block_time, p.status, now()],
+  );
+  return changes > 0;
+}
+
+const DIRECT_FIELDS = new Set(["drive_id", "credit", "refund_amount", "contribute_tx", "refund_tx", "memo", "status", "notified"]);
+
+export async function updateDirect(payTx: string, fields: Partial<Record<"drive_id" | "credit" | "refund_amount" | "contribute_tx" | "refund_tx" | "memo" | "status" | "notified", string | number | null>>) {
+  const keys = Object.keys(fields).filter((k) => DIRECT_FIELDS.has(k));
+  if (!keys.length) return;
+  const sets = keys.map((k) => `${k} = ?`).join(", ");
+  await run(`UPDATE direct_payments SET ${sets} WHERE pay_tx = ?`, [...keys.map((k) => fields[k as keyof typeof fields] ?? null), payTx.toLowerCase()]);
+}
+
+export function getDirect(payTx: string) {
+  return one<DirectRow>(`SELECT * FROM direct_payments WHERE pay_tx = ?`, [payTx.toLowerCase()]);
+}
+
+/** True when this contribute already belongs to a direct transfer, an x402 forward, or a swap. */
+export async function contributeTxTaken(txHash: string): Promise<boolean> {
+  const hash = txHash.toLowerCase();
+  const direct = await one<{ pay_tx: string }>(`SELECT pay_tx FROM direct_payments WHERE lower(contribute_tx) = ?`, [hash]);
+  if (direct) return true;
+  const x402 = await one<{ id: string }>(`SELECT id FROM x402_intents WHERE lower(forwarded_tx) = ?`, [hash]);
+  if (x402) return true;
+  const swapped = await one<{ id: string }>(`SELECT id FROM corridor_intents WHERE lower(contribute_tx) = ?`, [hash]);
+  return !!swapped;
+}
+
+export async function deleteDirect(payTx: string) {
+  await run(`DELETE FROM direct_payments WHERE pay_tx = ?`, [payTx.toLowerCase()]);
+}
+
+/** Transfers that still need a decision, a refund, or the one message that explains them. */
+export function unfinishedDirects() {
+  return all<DirectRow>(
+    `SELECT * FROM direct_payments
+     WHERE status IN ('held', 'ambiguous', 'crediting') OR (status = 'noted' AND notified = 0)
+     ORDER BY block ASC`,
+  );
+}
+
+/** Transfers whose coins are still sitting in the agent wallet and must not be spent for someone else. */
+export function directStillHeld() {
+  return all<DirectRow>(
+    `SELECT * FROM direct_payments
+     WHERE status IN ('held', 'ambiguous', 'noted') OR (status = 'crediting' AND contribute_tx IS NULL)`,
+  );
 }
 
 export function getBill(driveId: number) {
@@ -576,6 +690,11 @@ export async function linkWallet(tgId: string, address: string) {
 export async function walletFor(tgId: string): Promise<string | undefined> {
   const r = await one<{ address: string }>(`SELECT address FROM verifications WHERE tg_id = ?`, [tgId]);
   return r?.address;
+}
+
+export async function tgForAddress(address: string): Promise<string | undefined> {
+  const r = await one<{ tg_id: string }>(`SELECT tg_id FROM verifications WHERE lower(address) = lower(?)`, [address]);
+  return r?.tg_id;
 }
 
 export async function getMeta(k: string): Promise<string | undefined> {

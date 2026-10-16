@@ -423,7 +423,7 @@ export function DrivePage() {
                 <Lock className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--accent)" }} />
                 <div className="min-w-0">
                   <p className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
-                    Pays only to this address
+                    {drive.bill ? "The pool waits at this address" : "Pays only to this address"}
                   </p>
                   <p className="mt-0.5 font-mono text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
                     {drive.destination.slice(0, 22)}
@@ -440,21 +440,19 @@ export function DrivePage() {
                     >
                       Open on Celoscan <ExternalLink className="h-3 w-3" />
                     </a>
-                    {!drive.bill && (
-                      <button
-                        type="button"
-                        onClick={copyDestination}
-                        className="pressable inline-flex items-center gap-1 rounded"
-                        style={{ color: "var(--accent)" }}
-                      >
-                        {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                        {copied ? "Copied" : "Copy"}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={copyDestination}
+                      className="pressable inline-flex items-center gap-1 rounded"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      {copied ? "Copied" : "Copy"}
+                    </button>
                   </div>
                   {drive.bill && (
                     <p className="mt-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
-                      Pay with the button below. Coins sent straight to this address are not counted toward the drive.
+                      Pay with the button, or send this coin to the address above. A transfer counts when only one open drive can take it.
                     </p>
                   )}
                 </div>
