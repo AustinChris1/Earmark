@@ -140,7 +140,13 @@ const AUTH_TYPES = {
 async function post(payload: object, headers: Record<string, string> = {}) {
   return fetch(ENDPOINT, {
     method: "POST",
-    headers: { "Content-Type": "application/json; charset=utf-8", ...headers },
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      // AbaPay asked for these so they can find Earmark's payments. They do not change settlement.
+      "X-Agent-Name": "Earmark",
+      "X-Agent-Id": "9806",
+      ...headers,
+    },
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(90_000),
   });
