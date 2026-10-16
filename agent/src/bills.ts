@@ -65,7 +65,8 @@ export type BillDeps = {
 export type BillOutcome =
   | { status: "paid"; result: BillResult; refunds: { payer: Address; amount: bigint; tx: Hex }[] }
   | { status: "refunded"; reason: string; refunds: { payer: Address; amount: bigint; tx: Hex }[] }
-  | { status: "awaiting_refund"; reason: string };
+  | { status: "awaiting_refund"; reason: string }
+  | { status: "vending"; reason: string };
 
 /** Pays a full bill drive, then returns any change; on failure returns the whole pool. */
 export async function settleBill(driveId: number, bill: Bill, raised: bigint, payments: Share[], deps: BillDeps): Promise<BillOutcome> {
@@ -95,6 +96,22 @@ export async function settleBill(driveId: number, bill: Bill, raised: bigint, pa
       request_id: result.requestId ?? "",
     });
     return { status: "paid", result, refunds };
+  }
+
+  // Money has moved and AbaPay is still delivering. Refunding now would pay people with other
+  // drives' coins, and signing again would buy the bill a second time.
+  if (result.status === "PROCESSING") {
+    const reason = "AbaPay has the payment and is still delivering the bill.";
+    await deps.setStatus(driveId, "vending", {
+      note: reason,
+      paid_amount: result.quote.amount.toString(),
+      settle_tx: result.settleTx ?? "",
+      request_id: result.requestId ?? "",
+      purchased_code: result.purchasedCode ?? "",
+      units: result.units ?? "",
+      auth: result.authorization ? JSON.stringify(result.authorization) : "",
+    });
+    return { status: "vending", reason };
   }
 
   // Not delivered. People are paid back only once the money is provably here, never out of other

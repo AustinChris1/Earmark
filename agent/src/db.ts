@@ -527,7 +527,7 @@ export async function realPayerFor(txHash: string): Promise<string | undefined> 
 }
 
 export function billsInFlight() {
-  return all<BillRow>(`SELECT * FROM bills WHERE status IN ('collecting', 'paying', 'awaiting_refund') ORDER BY drive_id`);
+  return all<BillRow>(`SELECT * FROM bills WHERE status IN ('collecting', 'paying', 'vending', 'awaiting_refund') ORDER BY drive_id`);
 }
 
 export type DirectRow = {

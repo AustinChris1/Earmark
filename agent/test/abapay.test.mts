@@ -2,7 +2,7 @@ import "./setup-env.mts";
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { acceptsFrom, checkChallenge, v1PaymentHeader } from "../src/abapay.js";
+import { acceptsFrom, authorizationWindow, checkChallenge, recordFromHistory, v1PaymentHeader, vendPhase } from "../src/abapay.js";
 
 const USAT = "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771";
 const USDC = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C";
@@ -31,6 +31,28 @@ test("the price is read from the 402 body, not from a version-2 header", () => {
   const q = checkChallenge(acceptsFrom(body), USAT);
   assert.equal(q.amount, 390000n);
   assert.equal(acceptsFrom({ x402Version: 2 }).length, 0);
+});
+
+test("the authorization is already valid for a day, and a short challenge still leaves time to settle", () => {
+  const w = authorizationWindow(1_000_000, 86_400);
+  assert.equal(w.validAfter, 1_000_000 - 86_400);
+  assert.equal(w.validBefore, 1_000_000 + 86_400);
+  const short = authorizationWindow(1_000_000, 30);
+  assert.equal(short.validBefore, 1_000_000 + 900);
+});
+
+test("a settlement still being delivered is not treated as paid or failed", () => {
+  assert.equal(vendPhase("TIMEOUT"), "pending");
+  assert.equal(vendPhase("PROCESSING"), "pending");
+  assert.equal(vendPhase("SUCCESS"), "paid");
+  assert.equal(vendPhase("FAILED_VENDING"), "failed");
+  const row = recordFromHistory(
+    [{ status: "PROCESSING", tx_hash: "0xabc", x402_settle_tx: "0xabc", request_id: "req_9", purchased_code: null, units: null }],
+    "0xAbC",
+  );
+  assert.equal(row?.status, "PROCESSING");
+  assert.equal(row?.requestId, "req_9");
+  assert.equal(recordFromHistory([{ status: "SUCCESS", tx_hash: "0xdef" }], "0xabc"), null);
 });
 
 test("the payment AbaPay is given is the flat version-1 envelope on network celo", () => {

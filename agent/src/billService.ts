@@ -1,7 +1,7 @@
 import { getAddress, parseAbi, verifyMessage, type Address, type Hex } from "viem";
 import { CELO_CHAIN_ID, env, tokenByAddress, tokenBySymbol } from "./config.js";
 import { account, publicClient, readDrive, refundFromAgent, tagSuffix, walletClient } from "./chain.js";
-import { payBill, PROVIDERS, quoteBill, type Bill, type BillResult, type IntlBill } from "./abapay.js";
+import { lookupSettledBill, payBill, PROVIDERS, quoteBill, vendPhase, type Bill, type BillResult, type IntlBill } from "./abapay.js";
 import { intlCountry, intlNumber, intlOperators, intlPlans, type IntlPlan } from "./abapayIntl.js";
 import { billTarget, maskNumber, returnShares, settleBill, type BillOutcome, type Share } from "./bills.js";
 import { billsWithStatus, getBill, insertBill, paymentsFor, realPayerFor, setBillStatus, type BillRow } from "./db.js";
@@ -372,6 +372,53 @@ export function refundClosedBill(driveId: number) {
   return queue;
 }
 
+/** A settlement AbaPay accepted but had not finished delivering. Checks history. Never signs again. */
+function resumeVending(row: BillRow) {
+  queue = queue.then(async () => {
+    const current = await getBill(row.drive_id);
+    if (!current || current.status !== "vending" || !current.settle_tx) return;
+    const record = await lookupSettledBill(current.settle_tx);
+    if (!record) return;
+    const phase = vendPhase(record.status);
+    if (phase === "pending") return;
+    const coin = tokenBySymbol(current.token)!;
+    const paid = BigInt(current.paid_amount ?? "0");
+    if (phase === "paid") {
+      const d = await readDrive(BigInt(current.drive_id));
+      const change = d.raised > paid ? d.raised - paid : 0n;
+      const refunds = change > 0n
+        ? await returnShares(await realPayments(current.drive_id), change, {
+            agent: account.address,
+            refund: (to, amount) => refundFromAgent(coin.address, to, amount),
+          })
+        : [];
+      const result: BillResult = {
+        ok: true,
+        status: "SUCCESS",
+        purchasedCode: record.purchasedCode,
+        units: record.units,
+        settleTx: current.settle_tx,
+        requestId: record.requestId ?? current.request_id,
+        quote: { asset: coin.address, amount: paid, payTo: coin.address },
+        authorization: null,
+      };
+      await setBillStatus(current.drive_id, "paid", {
+        purchased_code: record.purchasedCode ?? "",
+        units: record.units ?? "",
+        request_id: record.requestId ?? current.request_id ?? "",
+      });
+      await notify(current.drive_id, (await getBill(current.drive_id))!, { status: "paid", result, refunds }).catch(() => {});
+      return;
+    }
+    const reason = "AbaPay could not deliver the bill.";
+    await setBillStatus(current.drive_id, "awaiting_refund", {
+      note: `${reason} Waiting on AbaPay's refund before paying people back.`,
+      request_id: record.requestId ?? current.request_id ?? "",
+    });
+    await notify(current.drive_id, (await getBill(current.drive_id))!, { status: "awaiting_refund", reason }).catch(() => {});
+  }).catch((e) => console.error(`bill vend ${row.drive_id}:`, (e as Error).message));
+}
+
 /** Picks up full drives whose last payment was missed, and finishes refunds AbaPay has returned. */
 export function startBillSweeper() {
   const tick = async () => {
@@ -380,6 +427,7 @@ export function startBillSweeper() {
         void maybeSettleBill(row.drive_id);
         void refundClosedBill(row.drive_id);
       }
+      for (const row of await billsWithStatus("vending")) resumeVending(row);
       for (const row of await billsWithStatus("awaiting_refund")) retryRefund(row);
     } catch (e) {
       console.error("bill sweeper:", (e as Error).message);

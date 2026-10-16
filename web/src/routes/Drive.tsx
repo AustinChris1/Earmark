@@ -481,9 +481,11 @@ export function DrivePage() {
                         ? `This pool sits in Earmark's wallet until the drive is full, then the provider is paid${drive.bill.openedOnWeb ? "" : " and the receipt goes to the group"}. Unused money comes back. If the bill cannot be paid, everyone is refunded.`
                         : drive.bill.status === "paying"
                           ? "Full. Earmark is paying the bill now."
-                          : drive.bill.status === "awaiting_refund"
-                            ? "The provider could not deliver this bill. Everyone is paid back as soon as the refund arrives."
-                            : "This bill was not paid. The money went back to the people who sent it."}
+                          : drive.bill.status === "vending"
+                            ? "AbaPay has the payment and is still delivering it. This page updates when it lands. Do not pay it again."
+                            : drive.bill.status === "awaiting_refund"
+                              ? "The provider could not deliver this bill. Everyone is paid back as soon as the refund arrives."
+                              : "This bill was not paid. The money went back to the people who sent it."}
                   </p>
                   {drive.bill.openedOnWeb && drive.bill.status === "paid" && !receipt && (
                     <button
