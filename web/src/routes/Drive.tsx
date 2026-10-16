@@ -2,7 +2,25 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { animated, useSpring } from "@react-spring/web";
-import { ArrowRightLeft, Check, CheckCircle2, Copy, ExternalLink, Globe, Loader2, Lock, ShieldCheck, Smartphone, TriangleAlert, Wallet, Zap } from "lucide-react";
+import {
+  ArrowRightLeft,
+  Check,
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  Globe,
+  GraduationCap,
+  Home,
+  Loader2,
+  Lock,
+  ShieldCheck,
+  Smartphone,
+  TriangleAlert,
+  Users,
+  Wallet,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 import {
   createPublicClient,
   createWalletClient,
@@ -64,6 +82,50 @@ const COIN_ICON: Record<string, string> = {
 // What each swappable coin is, for people who know their money and not the ticker.
 const COIN_HINT: Record<string, string> = { wARS: "pesos", wBRL: "reais", cNGN: "naira", USDT: "dollars", USAT: "dollars" };
 const money = (v: string) => Number(v).toLocaleString("en-US", { maximumFractionDigits: 4 });
+
+// The photograph that says what this drive is for, before the address and the amounts.
+function sceneFor(drive: Drive): { img: string; alt: string; icon: LucideIcon } {
+  const label = drive.label.toLowerCase();
+  if (drive.bill?.category === "ELECTRICITY" || /electric|meter|prepaid/.test(label)) {
+    return { img: "/images/meter.webp", alt: "A prepaid electricity meter on a wall", icon: Zap };
+  }
+  if (drive.bill?.category === "INTERNATIONAL") {
+    return { img: "/images/buenos-aires.webp", alt: "A street in Buenos Aires with a fruit stand", icon: Globe };
+  }
+  if (drive.bill?.category === "AIRTIME" || /airtime|mtn|airtel|glo|9mobile/.test(label)) {
+    return { img: "/images/phone-yellow.webp", alt: "A woman smiling at her phone", icon: Smartphone };
+  }
+  if (/school|fee|term|tuition/.test(label)) {
+    return { img: "/images/school.webp", alt: "Two smiling schoolboys in uniform", icon: GraduationCap };
+  }
+  if (/rent|house|landlord|compound/.test(label)) {
+    return { img: "/images/compound.webp", alt: "A house with washing drying out front", icon: Home };
+  }
+  return { img: "/images/friends.webp", alt: "Friends sitting together", icon: Users };
+}
+
+function pathMarks(drive: Drive): { src: string; name: string }[] {
+  const marks: { src: string; name: string }[] = [{ src: "/logos/celo.png", name: "Celo" }];
+  const coin = COIN_ICON[drive.token.symbol];
+  if (coin) marks.push({ src: coin, name: coinName(drive.token.symbol) });
+  if (drive.payOptions.length > 0) marks.push({ src: "/logos/textile.svg", name: "Textile" });
+  if (drive.bill) marks.push({ src: "/logos/abapay.png", name: "AbaPay" });
+  if (drive.ramp) marks.push({ src: "/logos/ripio.png", name: "Ripio" });
+  if (drive.chat) marks.push({ src: "/logos/telegram.svg", name: "Telegram" });
+  return marks;
+}
+
+function Mark({ src, name, size = "h-9 w-9" }: { src: string; name: string; size?: string }) {
+  const flag = src.includes("/flags/");
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-black/5 ${size}`}>
+        <img src={src} alt="" className={flag ? "h-full w-full object-cover" : "h-[62%] w-[62%] object-contain"} />
+      </span>
+      <span className="text-xs font-semibold">{name}</span>
+    </span>
+  );
+}
 
 export function DrivePage() {
   const { id } = useParams();
@@ -131,7 +193,7 @@ export function DrivePage() {
 
   const fmt = (v: bigint | string) =>
     drive
-      ? `${Number(formatUnits(BigInt(v), drive.token.decimals)).toLocaleString("en-US", { maximumFractionDigits: 6 })} ${drive.token.symbol}`
+      ? `${Number(formatUnits(BigInt(v), drive.token.decimals)).toLocaleString("en-US", { maximumFractionDigits: 6 })} ${coinName(drive.token.symbol)}`
       : "";
 
   const raised = drive ? BigInt(drive.raised) : 0n;
@@ -376,6 +438,11 @@ export function DrivePage() {
     }
   }
 
+  const scene = drive ? sceneFor(drive) : null;
+  const marks = drive ? pathMarks(drive) : [];
+  const SceneIcon = scene?.icon ?? Users;
+  const full = target > 0n && remaining === 0n;
+
   return (
     <Shell>
       <main className="mx-auto max-w-lg px-5 pb-16">
@@ -396,31 +463,55 @@ export function DrivePage() {
           </div>
         )}
 
-        {drive && (
+        {drive && scene && (
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <div className="surface mt-6 rounded-2xl p-6">
-              <div className="flex items-start justify-between gap-3">
-                <h1 className="min-w-0 font-display text-3xl leading-tight tracking-tight">{drive.label}</h1>
-                <button
-                  type="button"
-                  onClick={copyLink}
-                  className="pressable mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold"
-                  style={{ border: "1px solid var(--line)", color: "var(--text)" }}
-                >
-                  {linkCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  {linkCopied ? "Copied" : "Copy link"}
-                </button>
+            <header className="relative mt-6 overflow-hidden rounded-[1.5rem]" style={{ background: "#0a0a08" }}>
+              <img src={scene.img} alt={scene.alt} className="absolute inset-0 h-full w-full object-cover opacity-85" />
+              <span aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/20" />
+              <div className="relative flex min-h-[14.5rem] flex-col p-5 text-white">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl" style={{ background: "var(--brand)", color: "var(--brand-ink)" }}>
+                    <SceneIcon className="h-5 w-5" />
+                  </span>
+                  <button
+                    type="button"
+                    onClick={copyLink}
+                    className="pressable inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold text-white"
+                    style={{ background: "rgb(0 0 0 / 0.35)", border: "1px solid rgb(255 255 255 / 0.28)" }}
+                  >
+                    {linkCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {linkCopied ? "Copied" : "Copy link"}
+                  </button>
+                </div>
+                <div className="mt-auto pt-8">
+                  <p className="text-xs font-semibold tracking-wide text-white/80 uppercase">
+                    {full || drive.bill?.status === "paid" ? "Fully paid" : drive.closed ? "Closed" : "Open"}
+                  </p>
+                  <h1 className="mt-1 font-display text-3xl leading-tight tracking-tight">{drive.label}</h1>
+                  <p className="mt-1.5 text-sm text-white/80 tabular-nums">
+                    {drive.you ? `Instalment ${drive.you.seq} of ${drive.you.count}` : `Drive #${drive.id}`}
+                    {drive.closed ? " · closed" : ""}
+                    {!drive.closed && drive.deadline > 0
+                      ? ` · closes ${new Date(drive.deadline * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`
+                      : ""}
+                  </p>
+                </div>
               </div>
-              <p className="mt-1.5 text-sm tabular-nums" style={{ color: "var(--text-muted)" }}>
-                {drive.you ? `Instalment ${drive.you.seq} of ${drive.you.count}` : `Drive #${drive.id}`}
-                {drive.closed ? " · closed" : ""}
-                {!drive.closed && drive.deadline > 0
-                  ? ` · closes ${new Date(drive.deadline * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`
-                  : ""}
-              </p>
+            </header>
 
-              <div className="mt-5 flex items-start gap-2 rounded-xl p-3" style={{ background: "color-mix(in srgb, var(--accent) 10%, transparent)" }}>
-                <Lock className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--accent)" }} />
+            <div className="surface mt-4 rounded-2xl p-5">
+              <ul className="flex flex-wrap gap-x-4 gap-y-2">
+                {marks.map((m) => (
+                  <li key={m.name}>
+                    <Mark src={m.src} name={m.name} />
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-5 flex items-start gap-3 rounded-xl p-3" style={{ background: "color-mix(in srgb, var(--accent) 10%, transparent)" }}>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--brand)", color: "var(--brand-ink)" }}>
+                  <Lock className="h-4 w-4" />
+                </span>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
                     {drive.bill ? "The pool waits at this address" : "Pays only to this address"}
@@ -459,18 +550,25 @@ export function DrivePage() {
               </div>
 
               {drive.bill && (
-                <div className="mt-4 rounded-xl p-4 text-sm leading-relaxed" style={{ border: "1px solid var(--line)" }}>
-                  <p className="flex items-start gap-2 font-semibold">
-                    {drive.bill.category === "ELECTRICITY" ? (
-                      <Zap className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                    ) : drive.bill.category === "INTERNATIONAL" ? (
-                      <Globe className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                    ) : (
-                      <Smartphone className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                    )}
-                    <span>
-                      Earmark pays {drive.bill.provider} for {drive.bill.number}, {drive.bill.amountLabel}
+                <div className="mt-4 overflow-hidden rounded-xl text-sm leading-relaxed" style={{ border: "1px solid var(--line)" }}>
+                  <div className="flex items-center justify-between gap-3 px-4 py-3" style={{ background: "var(--bg-sunken)" }}>
+                    <p className="flex min-w-0 items-center gap-2 text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+                      {drive.bill.category === "ELECTRICITY" ? (
+                        <Zap className="h-4 w-4 shrink-0" aria-hidden />
+                      ) : drive.bill.category === "INTERNATIONAL" ? (
+                        <Globe className="h-4 w-4 shrink-0" aria-hidden />
+                      ) : (
+                        <Smartphone className="h-4 w-4 shrink-0" aria-hidden />
+                      )}
+                      {drive.bill.provider}
+                    </p>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white ring-1 ring-black/5">
+                      <img src="/logos/abapay.png" alt="AbaPay" className="h-6 w-6 object-contain" />
                     </span>
+                  </div>
+                  <div className="p-4">
+                  <p className="font-semibold">
+                    Earmark pays {drive.bill.provider} for {drive.bill.number}, {drive.bill.amountLabel}
                   </p>
                   <p className="mt-1" style={{ color: "var(--text-muted)" }}>
                     {drive.bill.status === "paid"
@@ -520,6 +618,7 @@ export function DrivePage() {
                       Payment to AbaPay <ExternalLink className="h-3.5 w-3.5" />
                     </a>
                   )}
+                  </div>
                 </div>
               )}
 
@@ -546,18 +645,33 @@ export function DrivePage() {
 
               {target > 0n && (
                 <div className="mt-5">
-                  <div className="h-2.5 w-full overflow-hidden rounded-full" style={{ background: "var(--line)" }}>
+                  <div className="h-3 w-full overflow-hidden rounded-full" style={{ background: "var(--line)" }}>
                     <animated.div className="h-full rounded-full" style={{ ...progress, background: "var(--accent)" }} />
                   </div>
-                  <div className="mt-2 flex justify-between text-sm tabular-nums">
-                    <span className="font-semibold">{fmt(raised)}</span>
+                  <div className="mt-2 flex items-center justify-between text-sm tabular-nums">
+                    <span className="inline-flex items-center gap-2 font-semibold">
+                      {COIN_ICON[drive.token.symbol] && (
+                        <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-black/5">
+                          <img
+                            src={COIN_ICON[drive.token.symbol]}
+                            alt=""
+                            className={COIN_ICON[drive.token.symbol].includes("/flags/") ? "h-full w-full object-cover" : "h-3.5 w-3.5 object-contain"}
+                          />
+                        </span>
+                      )}
+                      {fmt(raised)}
+                    </span>
                     <span style={{ color: "var(--text-muted)" }}>of {fmt(target)}</span>
                   </div>
                 </div>
               )}
 
               {drive.ramp && raised > 0n && (target === 0n || raised >= target || drive.closed) && (
-                <div className="mt-6 rounded-xl p-4 text-sm" style={{ background: "var(--accent-soft)" }}>
+                <div className="mt-6 flex items-start gap-3 rounded-xl p-4 text-sm" style={{ background: "var(--accent-soft)" }}>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-black/5">
+                    <img src="/logos/ripio.png" alt="" className="h-6 w-6 object-contain" />
+                  </span>
+                  <div>
                   <p className="font-semibold">Are you the payee?</p>
                   <p className="mt-1" style={{ color: "var(--text-muted)" }}>
                     Turn the {fmt(raised)} this drive paid you into {LOCAL_MONEY[drive.ramp.country] ?? "local money"} in your bank.{" "}
@@ -565,6 +679,7 @@ export function DrivePage() {
                       Cash out with Ripio
                     </a>
                   </p>
+                  </div>
                 </div>
               )}
 
@@ -573,10 +688,13 @@ export function DrivePage() {
                   This drive pays Earmark's own wallet but has no bill attached, so nothing would pay it out. Do not pay into it;
                   whoever opened it can open a new bill drive.
                 </p>
-              ) : drive.closed || (target > 0n && remaining === 0n) ? (
-                <p className="mt-6 text-sm" style={{ color: "var(--pending)" }}>
-                  {target > 0n && remaining === 0n ? "This drive is fully paid." : "This drive is closed."}
-                </p>
+              ) : drive.closed || full ? (
+                <div className="mt-6 flex items-center gap-3 rounded-xl p-3" style={{ background: "var(--accent-soft)" }}>
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--brand)", color: "var(--brand-ink)" }}>
+                    <Check className="h-5 w-5" />
+                  </span>
+                  <p className="text-sm font-semibold">{full ? "This drive is fully paid." : "This drive is closed."}</p>
+                </div>
               ) : (
                 <div className="mt-6">
                   {corridor && (
@@ -584,23 +702,43 @@ export function DrivePage() {
                       <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                         Pay in {swapping && COIN_HINT[payIn] ? <span>({COIN_HINT[payIn]}; Earmark swaps it)</span> : null}
                       </p>
-                      <div role="radiogroup" aria-label="Pay in" className="mt-2 inline-flex flex-wrap rounded-xl p-1" style={{ background: "var(--bg-sunken)" }}>
-                        {["direct", ...drive.payOptions].map((p) => (
-                          <button
-                            key={p}
-                            type="button"
-                            role="radio"
-                            aria-checked={payIn === p}
-                            onClick={() => setPayIn(p)}
-                            className="pressable inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium"
-                            style={payIn === p ? { background: "var(--bg-raised)", color: "var(--text)", boxShadow: "0 1px 2px rgb(0 0 0 / 0.08)" } : { color: "var(--text-muted)" }}
-                          >
-                            {COIN_ICON[p === "direct" ? drive.token.symbol : p] && (
-                              <img src={COIN_ICON[p === "direct" ? drive.token.symbol : p]} alt="" className="h-4 w-4 rounded-full bg-white object-cover" />
-                            )}
-                            {p === "direct" ? coinName(drive.token.symbol) : coinName(p)}
-                          </button>
-                        ))}
+                      <div role="radiogroup" aria-label="Pay in" className="mt-2 grid grid-cols-2 gap-2">
+                        {["direct", ...drive.payOptions].map((p) => {
+                          const symbol = p === "direct" ? drive.token.symbol : p;
+                          const icon = COIN_ICON[symbol];
+                          const picked = payIn === p;
+                          return (
+                            <button
+                              key={p}
+                              type="button"
+                              role="radio"
+                              aria-checked={picked}
+                              onClick={() => setPayIn(p)}
+                              className="pressable flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left"
+                              style={
+                                picked
+                                  ? { background: "var(--bg-raised)", color: "var(--text)", boxShadow: "0 0 0 2px var(--accent)" }
+                                  : { background: "var(--bg-sunken)", color: "var(--text-muted)" }
+                              }
+                            >
+                              {icon ? (
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-black/5">
+                                  <img src={icon} alt="" className={icon.includes("/flags/") ? "h-full w-full object-cover" : "h-5 w-5 object-contain"} />
+                                </span>
+                              ) : (
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold" style={{ background: "var(--brand)", color: "var(--brand-ink)" }}>
+                                  {symbol.slice(0, 1)}
+                                </span>
+                              )}
+                              <span className="min-w-0 leading-tight">
+                                <span className="block text-sm font-semibold" style={{ color: "var(--text)" }}>
+                                  {coinName(symbol)}
+                                </span>
+                                <span className="block text-xs">{p === "direct" ? "this drive" : (COIN_HINT[p] ?? "swap")}</span>
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -642,6 +780,12 @@ export function DrivePage() {
 
                   {swapping && (
                     <div className="mt-3 rounded-xl p-3 text-sm leading-relaxed" style={{ background: "var(--accent-soft)" }}>
+                      <p className="mb-2 flex items-center gap-2 text-xs font-semibold" style={{ color: "var(--text)" }}>
+                        <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-black/5">
+                          <img src="/logos/textile.svg" alt="" className="h-4 w-4 object-contain" />
+                        </span>
+                        Textile FX
+                      </p>
                       {cq ? (
                         <>
                           <p>
@@ -759,8 +903,10 @@ export function DrivePage() {
                       className="flex items-center justify-between border-t py-2.5 text-sm tabular-nums first:border-t-0"
                       style={{ borderColor: "var(--line)" }}
                     >
-                      <span className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4" style={{ color: "var(--accent)" }} />
+                      <span className="flex items-center gap-2.5">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold" style={{ background: "var(--brand)", color: "var(--brand-ink)" }}>
+                          {(p.name.replace(/^@+/, "") || "?").slice(0, 1).toUpperCase()}
+                        </span>
                         {p.name}
                       </span>
                       <span style={{ color: "var(--text-muted)" }}>{fmt(p.amount)}</span>
