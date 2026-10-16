@@ -41,7 +41,9 @@ async function viaBuy(messages: Message[]): Promise<{ text: string; tx: string |
     const r = await buyFetch("cencori.chat", {
       method: "POST",
       body: JSON.stringify({ model: env.BUY_MODEL, messages, temperature: 0, max_tokens: 256 }),
-      timeoutMs: TIMEOUT_MS + 8_000,
+      // The catalogue allows 60s for this model. A shorter abort can settle the 0.01
+      // charge and still throw the answer away.
+      timeoutMs: 70_000,
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     let tx: string | null = null;
