@@ -7,6 +7,7 @@ import { startScheduler } from "./scheduler.js";
 import { startX402Sweeper } from "./x402.js";
 import { resumeCorridor } from "./corridorService.js";
 import { startBillSweeper } from "./billService.js";
+import { startDirectScanner } from "./directService.js";
 import { migrate } from "./db.js";
 
 console.log(
@@ -28,3 +29,6 @@ if (env.EARMARK_ADDRESS) {
 
 if (startBot()) startScheduler();
 else console.log("TELEGRAM_BOT_TOKEN not set; bot and instalment nudges disabled");
+
+// After the bot registers its note callback. Counting a transfer does not need Telegram.
+if (env.EARMARK_ADDRESS) startDirectScanner();

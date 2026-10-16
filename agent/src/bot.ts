@@ -43,7 +43,8 @@ import {
   type DriveRow,
   type DueInstalment,
 } from "./db.js";
-import { driveCard, dueLabel, escape, fmt, memoTgId, mention, planText, tallyText } from "./format.js";
+import { driveCard, dueLabel, escape, exactAmount, fmt, memoTgId, mention, planText, shortAddr, tallyText } from "./format.js";
+import { onDirectNote, type DirectNotice } from "./directService.js";
 import { evenSplit } from "./split.js";
 import { offrampUrl } from "./ripio.js";
 import {
@@ -125,8 +126,12 @@ async function ask(ctx: Context, text: string) {
   });
 }
 
+function holdsPool(destination: string): boolean {
+  return destination.toLowerCase() === account.address.toLowerCase();
+}
+
 async function showDrive(ctx: Context, d: DriveRow, header = "") {
-  const card = driveCard(d, await paymentsFor(d.id), env.PUBLIC_URL);
+  const card = driveCard(d, await paymentsFor(d.id), env.PUBLIC_URL, holdsPool(d.destination));
   return ctx.reply(`${header}${card}`, {
     ...HTML,
     reply_markup: driveKeyboard(d.id, { closed: !!d.closed }),
@@ -162,8 +167,12 @@ async function openDrive(
     });
     const d = (await getDrive(Number(id)))!;
     await ctx.api.deleteMessage(working.chat.id, working.message_id).catch(() => {});
+    const pool = holdsPool(args.destination);
+    const next = pool
+      ? "Pay with the button, or send the coin to the address above. Split only when other people are paying a share."
+      : "Next: tap <b>Split evenly</b> to divide it between everyone here, or type <code>/split @ada 40 @emeka 30</code> for set amounts.";
     await ctx.reply(
-      `${driveCard(d, [], env.PUBLIC_URL)}\n\n<a href="https://celoscan.io/tx/${hash}">Onchain receipt</a>\nNext: tap <b>Split evenly</b> to divide it between everyone here, or type <code>/split @ada 40 @emeka 30</code> for set amounts.`,
+      `${driveCard(d, [], env.PUBLIC_URL, pool)}\n\n<a href="https://celoscan.io/tx/${hash}">Onchain receipt</a>\n${next}`,
       { ...HTML, reply_markup: driveKeyboard(d.id) },
     );
     return d.id;
@@ -1079,6 +1088,7 @@ export function startBot(): Bot | null {
   bot = new Bot(env.TELEGRAM_BOT_TOKEN);
   registerHandlers(bot);
   onBillSettled(announceBill);
+  onDirectNote(announceDirect);
   bot.catch((err) => console.error("bot:", err.error));
   void bot.start({
     onStart: async (me) => {
@@ -1127,16 +1137,55 @@ export async function announceContribution(driveId: number, payerName: string, a
   const payments = await paymentsFor(driveId);
   const raised = payments.reduce((a, p) => a + BigInt(p.amount), 0n);
   const target = BigInt(d.target);
-  let text = `✅ <b>${escape(payerName)}</b> paid ${fmt(amount, token)} toward <b>${escape(d.label)}</b>.\nIt landed at the destination directly.`;
+  const pool = holdsPool(d.destination);
+  let text = `✅ <b>${escape(payerName)}</b> paid ${fmt(amount, token)} toward <b>${escape(d.label)}</b>.\n${pool ? "It is in the pool." : "It landed at the destination directly."}`;
   if (target > 0n) {
     const left = target - raised;
     text +=
       left > 0n
         ? `\n\n<b>${fmt(raised, token)}</b> of ${fmt(target, token)}, ${fmt(left, token)} to go.`
         : `\n\n🎉 Fully paid. ${fmt(raised, token)} landed.`;
-    const cashOut = left <= 0n ? offrampUrl(token.symbol, formatUnits(raised, token.decimals)) : undefined;
+    const cashOut = !pool && left <= 0n ? offrampUrl(token.symbol, formatUnits(raised, token.decimals)) : undefined;
     if (cashOut) text += `\nPayee: <a href="${cashOut}">cash it out to your bank with Ripio</a>.`;
   }
   text += `\n<a href="https://celoscan.io/tx/${txHash}">Onchain receipt</a>`;
   await bot.api.sendMessage(d.chat_id, text, { ...HTML, reply_markup: driveKeyboard(d.id, { closed: !!d.closed }) });
+}
+
+export async function announceDirect(note: DirectNotice) {
+  if (!bot) return;
+  const token = tokenByAddress(note.token);
+  const amount = token ? exactAmount(BigInt(note.amount), token) : note.amount;
+  const who = shortAddr(note.payer);
+  if (note.kind === "noted") {
+    if (!note.chatId) return;
+    const why = note.because === "closed" ? "That drive is already closed, so this transfer was not counted." : "That drive is already full, so this transfer was not counted.";
+    await bot.api.sendMessage(
+      note.chatId,
+      [`${amount} came in from ${who} for <b>#${note.driveId} ${escape(note.label)}</b>.`, "", why, "The coins are still in Earmark's wallet."].join("\n"),
+      HTML,
+    );
+    return;
+  }
+  if (note.kind === "overshoot") {
+    if (!note.chatId) return;
+    const needed = token ? exactAmount(BigInt(note.needed), token) : note.needed;
+    await bot.api.sendMessage(
+      note.chatId,
+      [`${amount} came in from ${who}.`, "", `#${note.driveId} ${escape(note.label)} only needs ${needed}, so this transfer was not counted.`, "The coins are still in Earmark's wallet."].join("\n"),
+      HTML,
+    );
+    return;
+  }
+  const lines = note.drives.map((d) => `• #${d.id} ${escape(d.label)}`);
+  const text = [
+    `${amount} came in from ${who}.`,
+    "",
+    "More than one open drive could take it:",
+    ...lines,
+    "",
+    "It stays in Earmark's wallet until only one of them can. Pay the right drive with its button, or close the other.",
+  ].join("\n");
+  const chats = [...new Set(note.drives.map((d) => d.chatId).filter((id): id is string => !!id))];
+  for (const chatId of chats) await bot.api.sendMessage(chatId, text, HTML);
 }

@@ -5,6 +5,7 @@ import { payBill, PROVIDERS, quoteBill, type Bill, type BillResult, type IntlBil
 import { intlCountry, intlNumber, intlOperators, intlPlans, type IntlPlan } from "./abapayIntl.js";
 import { billTarget, maskNumber, returnShares, settleBill, type BillOutcome, type Share } from "./bills.js";
 import { billsWithStatus, getBill, insertBill, paymentsFor, realPayerFor, setBillStatus, type BillRow } from "./db.js";
+import { payerFromDirectMemo } from "./direct.js";
 
 /** The coins a bill drive can collect. USD₮ is the one other currencies can be swapped into. */
 export type BillCoin = "USAT" | "USDT";
@@ -207,7 +208,7 @@ async function realPayments(driveId: number): Promise<Share[]> {
   for (const p of await paymentsFor(driveId)) {
     let payer = getAddress(p.payer);
     if (payer === account.address) {
-      const real = await realPayerFor(p.tx_hash);
+      const real = (await realPayerFor(p.tx_hash)) ?? payerFromDirectMemo(p.memo);
       if (real) payer = getAddress(real);
     }
     out.push({ payer, amount: BigInt(p.amount) });

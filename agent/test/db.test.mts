@@ -19,7 +19,11 @@ import {
   nextInstalment,
   pendingIntents,
   planCountFor,
+  contributeTxTaken,
+  getDirect,
+  insertDirect,
   realPayerFor,
+  updateDirect,
   reconcileInstalments,
   setCorridorStatus,
   rekeyMember,
@@ -152,4 +156,20 @@ test("a payment the agent forwarded is credited to whoever really sent it", asyn
   await setCorridorStatus("swap-real", "contributed", { contribute_tx: "0xfwd2" });
   assert.equal(await realPayerFor("0xfwd2"), emeka);
   assert.equal(await realPayerFor("0xnobody"), undefined);
+  assert.equal(
+    await insertDirect({ pay_tx: "0xPlain", payer: ada, token: USDT, amount: "390000", block: 1, block_time: 1, status: "crediting" }),
+    true,
+  );
+  assert.equal(
+    await insertDirect({ pay_tx: "0xplain", payer: ada, token: USDT, amount: "390000", block: 1, block_time: 1, status: "crediting" }),
+    false,
+    "the same transfer is recorded once",
+  );
+  await updateDirect("0xplain", { contribute_tx: "0xfwd3", status: "credited", credit: "387384", refund_amount: "2616" });
+  assert.equal(await realPayerFor("0xfwd3"), ada);
+  assert.equal((await getDirect("0xPLAIN"))?.status, "credited");
+  assert.equal(await contributeTxTaken("0xfwd1"), true);
+  assert.equal(await contributeTxTaken("0xfwd2"), true);
+  assert.equal(await contributeTxTaken("0xFWD3"), true);
+  assert.equal(await contributeTxTaken("0xnobody"), false);
 });

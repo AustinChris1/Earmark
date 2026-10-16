@@ -11,9 +11,16 @@ export function shortAddr(a: string): string {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
+/** The exact amount, without the two-decimal rounding `fmt` uses on ordinary totals. */
+export function exactAmount(amount: bigint | string, token: TokenInfo): string {
+  return `${formatUnits(BigInt(amount), token.decimals)} ${token.symbol}`;
+}
+
 export function memoName(memo: string, payer: string): string {
   const m = /^tg:(\d+):(.*)$/.exec(memo);
   if (m && m[2]) return m[2];
+  const direct = /^direct:(0x[0-9a-fA-F]{40})$/i.exec(memo);
+  if (direct) return shortAddr(direct[1]);
   if (memo) return memo;
   return shortAddr(payer);
 }
@@ -35,24 +42,43 @@ export function progressBar(raised: bigint, target: bigint): string {
   return `${"▰".repeat(filled)}${"▱".repeat(10 - filled)}  ${pct}%`;
 }
 
-export function driveCard(d: DriveRow, payments: PaymentRow[], _publicUrl: string): string {
+export function driveCard(d: DriveRow, payments: PaymentRow[], _publicUrl: string, holdsPool = false): string {
   const token = tokenByAddress(d.token)!;
   const raised = sumPaid(payments);
   const target = BigInt(d.target);
+  const show = (n: bigint) => (holdsPool ? exactAmount(n, token) : fmt(n, token));
   const lines = [`📌 <b>${escape(d.label)}</b>`, ""];
   if (target > 0n) {
     lines.push(`<code>${progressBar(raised, target)}</code>`);
-    lines.push(`<b>${fmt(raised, token)}</b> of ${fmt(target, token)}`);
+    lines.push(`<b>${show(raised)}</b> of ${show(target)}`);
   } else {
-    lines.push(`Raised so far: <b>${fmt(raised, token)}</b>`);
+    lines.push(`Raised so far: <b>${show(raised)}</b>`);
   }
   // The full address, in <code> so Telegram copies it on tap, plus the explorer so it can be checked.
-  lines.push(
-    "",
-    `🔒 Pays only to this address, locked when the drive opened:`,
-    `<code>${d.destination}</code>`,
-    `<a href="https://celoscan.io/address/${d.destination}">Check it on Celoscan</a>`,
-  );
+  // A bill drive's pool really does sit at this address. A wallet drive still pays the person directly.
+  if (holdsPool) {
+    const left = target > raised ? target - raised : 0n;
+    lines.push(
+      "",
+      "The pool waits in Earmark's wallet until the bill is paid:",
+      `<code>${d.destination}</code>`,
+      `<a href="https://celoscan.io/address/${d.destination}">Check it on Celoscan</a>`,
+    );
+    if (!d.closed && target === 0n) {
+      lines.push("Send this coin here, or pay with the button. A transfer counts when only one open drive can take it.");
+    } else if (!d.closed && left > 0n) {
+      lines.push(
+        `Send <b>${exactAmount(left, token)}</b> here, or pay with the button. A transfer counts when only one open drive can take it.`,
+      );
+    }
+  } else {
+    lines.push(
+      "",
+      `🔒 Pays only to this address, locked when the drive opened:`,
+      `<code>${d.destination}</code>`,
+      `<a href="https://celoscan.io/address/${d.destination}">Check it on Celoscan</a>`,
+    );
+  }
   if (d.deadline) lines.push(`Closes ${new Date(d.deadline * 1000).toUTCString()}`);
   if (d.closed) lines.push("Status: closed");
   return lines.join("\n");
