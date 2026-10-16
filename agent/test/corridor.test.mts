@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Address, Hex } from "viem";
-import { settle, localToBuy, payOptions, routeFor, withHeadroom, type CorridorDeps, type CorridorIntent } from "../src/corridor.js";
+import { settle, localToBuy, payOptions, routeFor, textileMinimumMessage, withHeadroom, type CorridorDeps, type CorridorIntent } from "../src/corridor.js";
 import { tokenBySymbol } from "../src/config.js";
 
 const USDT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as Address;
@@ -106,6 +106,14 @@ test("a share bigger than what is left is trimmed, and the extra dollars come ba
   const r = await settle(intent(), deps);
   assert.equal(r.status, "contributed");
   assert.ok(log.includes("contribute 1000000000"), log.join(" | "));
+});
+
+test("a swap below Textile's minimum is returned without calling Textile", async () => {
+  const { deps, log } = fakeDeps({}, { token: USDT, target: 78_294n, raised: 0n, closed: false });
+  const r = await settle(intent({ pay_token: CNGN, pay_amount: 110_000_000n, want_local: 78_294n }), deps);
+  assert.equal(r.status, "refunded");
+  if (r.status === "refunded") assert.equal(r.reason, textileMinimumMessage(tokenBySymbol("USDT")!));
+  assert.ok(!log.some((l) => l.startsWith("swap") || l.startsWith("status swapping")), log.join(" | "));
 });
 
 test("a failed swap returns the dollars", async () => {

@@ -677,7 +677,7 @@ export function DrivePage() {
                   <animated.button
                     {...payBtn.bind}
                     onClick={swapping ? payCorridor : pay}
-                    disabled={busy}
+                    disabled={busy || (swapping && !cq)}
                     className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-[15px] font-semibold disabled:opacity-60"
                     style={{ ...payBtn.style, background: "var(--brand)", color: "var(--brand-ink)" }}
                   >

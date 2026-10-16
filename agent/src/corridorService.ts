@@ -4,7 +4,7 @@ import { decodeEventLog, formatUnits, getAddress, isHex, parseAbi, parseUnits, t
 import { tokenByAddress, tokenBySymbol, type TokenInfo } from "./config.js";
 import { account, contributeFromAgent, publicClient, readDrive, refundFromAgent } from "./chain.js";
 import { cancel, execute, preview, requestFirm, type FirmQuote } from "./textile.js";
-import { PAY_COINS, routeFor, settle, withHeadroom, type CorridorDeps, type CorridorIntent, type IntentStatus } from "./corridor.js";
+import { belowTextileMinimum, PAY_COINS, routeFor, settle, textileMinimumMessage, withHeadroom, type CorridorDeps, type CorridorIntent, type IntentStatus } from "./corridor.js";
 import { addCorridorIntent, getCorridorIntent, setCorridorStatus, unsettledCorridorIntents, type CorridorRow } from "./db.js";
 
 const USDT = tokenBySymbol("USDT")!;
@@ -34,6 +34,7 @@ const deps: CorridorDeps<FirmQuote> = {
 export async function corridorQuote(drive: TokenInfo, want: bigint, pay: TokenInfo) {
   const route = routeFor(pay, drive);
   if (!route) throw new Error(`Earmark cannot swap ${pay.symbol} into ${drive.symbol}.`);
+  if (belowTextileMinimum(want)) throw new Error(textileMinimumMessage(drive));
   let payAmount: bigint;
   if (route === "direct") {
     payAmount = (await preview(pay.address, drive.address, { buyAmount: want })).takerPays;
