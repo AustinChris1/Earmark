@@ -2,7 +2,7 @@ import "./setup-env.mts";
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { checkChallenge } from "../src/abapay.js";
+import { acceptsFrom, checkChallenge, v1PaymentHeader } from "../src/abapay.js";
 
 const USAT = "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771";
 const USDC = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C";
@@ -24,4 +24,24 @@ test("the silent USDC fallback is refused, so a USA₮ pool is never asked to si
 test("a challenge with no price, or a zero one, is refused", () => {
   assert.throws(() => checkChallenge([], USAT));
   assert.throws(() => checkChallenge([{ network: "eip155:42220", asset: USAT, maxAmountRequired: "0", payTo: ABAPAY }], USAT));
+});
+
+test("the price is read from the 402 body, not from a version-2 header", () => {
+  const body = { x402Version: 1, accepts: [{ scheme: "exact", network: "eip155:42220", asset: USAT, maxAmountRequired: "390000", payTo: ABAPAY }] };
+  const q = checkChallenge(acceptsFrom(body), USAT);
+  assert.equal(q.amount, 390000n);
+  assert.equal(acceptsFrom({ x402Version: 2 }).length, 0);
+});
+
+test("the payment AbaPay is given is the flat version-1 envelope on network celo", () => {
+  const header = v1PaymentHeader(
+    { from: ABAPAY, to: ABAPAY, value: "390000", validAfter: "1", validBefore: "2", nonce: `0x${"ab".repeat(32)}` },
+    `0x${"cd".repeat(65)}`,
+  );
+  const decoded = JSON.parse(Buffer.from(header, "base64").toString());
+  assert.equal(decoded.x402Version, 1);
+  assert.equal(decoded.scheme, "exact");
+  assert.equal(decoded.network, "celo");
+  assert.equal(decoded.payload.authorization.value, "390000");
+  assert.equal(decoded.accepted, undefined);
 });

@@ -1,9 +1,6 @@
 import { getAddress, type Address, type Hex } from "viem";
-import { x402Client } from "@x402/core/client";
-import { x402HTTPClient } from "@x402/core/http";
-import { registerExactEvmScheme } from "@x402/evm/exact/client";
-import { tokenBySymbol } from "./config.js";
 import { account } from "./chain.js";
+import { CELO_CHAIN_ID, tokenBySymbol } from "./config.js";
 import { TOP_UP } from "./abapayIntl.js";
 
 /**
@@ -14,6 +11,11 @@ import { TOP_UP } from "./abapayIntl.js";
  * One trap, verified live: the token must be the exact string "USA₮" or "USD₮". Anything else,
  * plain "USAT" included, silently settles in USDC. So the asset AbaPay names is checked against the
  * coin the drive collected before anything is signed.
+ *
+ * A second trap: AbaPay's 402 body is x402 version 1, and Celo's facilitator only settles the
+ * flat envelope {version 1, scheme exact, network "celo"} sent in the X-PAYMENT header. The
+ * version 2 header on the same response, and the @x402 client that signs it, come back
+ * "Unsupported scheme". The signature itself is still EIP-3009 over chain id 42220.
  */
 
 const ENDPOINT = process.env.ABAPAY_X402 ?? "https://agents.abapays.com/api/pay/x402";
@@ -104,9 +106,27 @@ export function body(bill: Bill, symbol: string) {
   };
 }
 
-const http = new x402HTTPClient(
-  registerExactEvmScheme(new x402Client().setSpendControls(false), { signer: account, networks: ["eip155:42220"] }),
-);
+type Accept = {
+  scheme?: string;
+  network?: string;
+  asset?: string;
+  amount?: string;
+  maxAmountRequired?: string;
+  payTo?: string;
+  maxTimeoutSeconds?: number;
+  extra?: { name?: string; version?: string };
+};
+
+const AUTH_TYPES = {
+  TransferWithAuthorization: [
+    { name: "from", type: "address" },
+    { name: "to", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "validAfter", type: "uint256" },
+    { name: "validBefore", type: "uint256" },
+    { name: "nonce", type: "bytes32" },
+  ],
+} as const;
 
 async function post(payload: object, headers: Record<string, string> = {}) {
   return fetch(ENDPOINT, {
@@ -117,12 +137,20 @@ async function post(payload: object, headers: Record<string, string> = {}) {
   });
 }
 
+/** The price is in the JSON body. The Payment-Required header on the same response is version 2, which AbaPay will not settle. */
+export function acceptsFrom(body: unknown): Accept[] {
+  const listed = (body as { accepts?: Accept[] } | null)?.accepts;
+  return Array.isArray(listed) ? listed : [];
+}
+
+function pickAccept(accepts: Accept[]): Accept | undefined {
+  const usable = (x: Accept) => x.scheme === undefined || x.scheme === "exact";
+  return accepts.find((x) => usable(x) && (x.network === "eip155:42220" || x.network === "celo")) ?? accepts.find(usable) ?? accepts[0];
+}
+
 /** Reads the 402 challenge and refuses it unless it asks for the coin the drive actually holds. */
-export function checkChallenge(
-  accepts: { asset?: string; amount?: string; maxAmountRequired?: string; payTo?: string; network?: string }[],
-  expected: Address,
-): BillQuote {
-  const a = accepts.find((x) => x.network === "eip155:42220" || x.network === "celo") ?? accepts[0];
+export function checkChallenge(accepts: Accept[], expected: Address): BillQuote {
+  const a = pickAccept(accepts);
   if (!a?.asset || !a.payTo) throw new Error("AbaPay did not name a price.");
   if (a.asset.toLowerCase() !== expected.toLowerCase()) {
     throw new Error(`AbaPay asked for ${a.asset}, not the ${expected} this drive collected; nothing was signed.`);
@@ -132,13 +160,34 @@ export function checkChallenge(
   return { asset: getAddress(a.asset), amount, payTo: getAddress(a.payTo) };
 }
 
-/** The live price of a bill in `symbol`, from AbaPay's 402. Nothing is paid. */
+/**
+ * The flat version-1 envelope Celo's facilitator settles. network is the name "celo", not the
+ * CAIP id used in the challenge: the facilitator rejects the other combination.
+ */
+export function v1PaymentHeader(
+  authorization: { from: Address; to: Address; value: string; validAfter: string; validBefore: string; nonce: Hex },
+  signature: Hex,
+): string {
+  return Buffer.from(JSON.stringify({
+    x402Version: 1,
+    scheme: "exact",
+    network: "celo",
+    payload: { signature, authorization },
+  })).toString("base64");
+}
+
+function randomNonce(): Hex {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return `0x${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** The live price of a bill in `symbol`, from AbaPay's 402 body. Nothing is paid. */
 export async function quoteBill(bill: Bill, symbol: "USAT" | "USDT"): Promise<BillQuote> {
   const coin = tokenBySymbol(symbol)!;
   const r = await post(body(bill, symbol));
   if (r.status !== 402) throw new Error(`AbaPay answered ${r.status} where a price was expected.`);
-  const required = http.getPaymentRequiredResponse((h) => r.headers.get(h), await r.json().catch(() => undefined));
-  return checkChallenge(required.accepts as never, coin.address);
+  return checkChallenge(acceptsFrom(await r.json().catch(() => undefined)), coin.address);
 }
 
 export type BillResult = {
@@ -162,21 +211,50 @@ export async function payBill(bill: Bill, symbol: "USAT" | "USDT", maxAmount: bi
   const payload = body(bill, symbol);
   const first = await post(payload);
   if (first.status !== 402) throw new Error(`AbaPay answered ${first.status} where a price was expected.`);
-  const required = http.getPaymentRequiredResponse((h) => first.headers.get(h), await first.json().catch(() => undefined));
-  const quote = checkChallenge(required.accepts as never, coin.address);
+  const accepts = acceptsFrom(await first.json().catch(() => undefined));
+  const quote = checkChallenge(accepts, coin.address);
   if (quote.amount > maxAmount) {
     throw new Error(`The bill now costs ${quote.amount} and the drive raised ${maxAmount}; nothing was paid.`);
   }
-  const signed = await http.createPaymentPayload(required);
-  const auth = (signed.payload as { authorization?: { nonce?: Hex; validBefore?: string } }).authorization;
-  const authorization = auth?.nonce ? { nonce: auth.nonce, validBefore: Number(auth.validBefore ?? 0) } : null;
+  const accept = pickAccept(accepts)!;
+  const now = Math.floor(Date.now() / 1000);
+  const validAfter = now - 60;
+  const validBefore = now + (accept.maxTimeoutSeconds || 3600);
+  const nonce = randomNonce();
+  const authorization = {
+    from: account.address,
+    to: quote.payTo,
+    value: quote.amount.toString(),
+    validAfter: String(validAfter),
+    validBefore: String(validBefore),
+    nonce,
+  };
+  const signature = await account.signTypedData({
+    domain: {
+      name: accept.extra?.name || coin.eip712!.name,
+      version: accept.extra?.version || coin.eip712!.version,
+      chainId: CELO_CHAIN_ID,
+      verifyingContract: quote.asset,
+    },
+    types: AUTH_TYPES,
+    primaryType: "TransferWithAuthorization",
+    message: {
+      from: account.address,
+      to: quote.payTo,
+      value: quote.amount,
+      validAfter: BigInt(validAfter),
+      validBefore: BigInt(validBefore),
+      nonce,
+    },
+  });
+  const signed = { nonce, validBefore };
   // From here a signature is out: a lost answer must not read as "nothing was signed".
   let paid: Response;
   try {
-    paid = await post(payload, http.encodePaymentSignatureHeader(signed));
+    paid = await post(payload, { "X-PAYMENT": v1PaymentHeader(authorization, signature) });
   } catch (e) {
     const status = `no answer from AbaPay: ${(e as Error).message}`;
-    return { ok: false, status, purchasedCode: null, units: null, settleTx: null, requestId: null, quote, authorization };
+    return { ok: false, status, purchasedCode: null, units: null, settleTx: null, requestId: null, quote, authorization: signed };
   }
   const result = (await paid.json().catch(() => ({}))) as {
     success?: boolean;
@@ -195,6 +273,6 @@ export async function payBill(bill: Bill, symbol: "USAT" | "USDT", maxAmount: bi
     settleTx: result.tx_hash ?? null,
     requestId: result.request_id ?? null,
     quote,
-    authorization,
+    authorization: signed,
   };
 }
