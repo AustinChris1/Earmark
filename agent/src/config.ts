@@ -109,6 +109,11 @@ export const env = {
   BUY_TOKEN: process.env.BUY_TOKEN ?? "USDC",
   BUY_DAILY_USD: process.env.BUY_DAILY_USD ?? "0",
   BUY_MODEL: process.env.BUY_MODEL ?? "maximo-atlas-1.3",
+  // Bitrefill: a second source for phone top-ups. Reading the catalogue needs only the key;
+  // BITREFILL_SPEND=1 is a separate switch, because Bitrefill settles off Celo and a top-up
+  // bought from the account balance cannot be undone.
+  BITREFILL_API_KEY: process.env.BITREFILL_API_KEY ?? "",
+  BITREFILL_SPEND: process.env.BITREFILL_SPEND ?? "0",
 };
 
 export const ERC8004_IDENTITY_REGISTRY: Address = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";
