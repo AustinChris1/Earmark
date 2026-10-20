@@ -36,6 +36,7 @@ To earmark money is to set it aside for one purpose. The word comes from farming
 
 ## Read next
 
+- [What people use it for](./usecases.md): ten situations, and when it is the wrong tool
 - [How it works](./how-it-works.md): what happens to a payment, step by step
 - [Using it](./usage.md): the buttons, the website, and how to test it
 - [Architecture](./architecture.md): for anyone reading the code

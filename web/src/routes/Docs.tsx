@@ -9,6 +9,7 @@ import {
   Clock,
   Cpu,
   HelpCircle,
+  Lightbulb,
   ListTree,
   Map,
   Shield,
@@ -21,6 +22,7 @@ import { Shell } from "../components/Shell";
 
 // The site renders the repo's own docs, so the two can never drift apart.
 import overview from "../../../docs/README.md?raw";
+import usecases from "../../../docs/usecases.md?raw";
 import howItWorks from "../../../docs/how-it-works.md?raw";
 import usage from "../../../docs/usage.md?raw";
 import architecture from "../../../docs/architecture.md?raw";
@@ -32,6 +34,7 @@ type Page = { slug: string; title: string; blurb: string; icon: LucideIcon; cove
 
 const PAGES: Page[] = [
   { slug: "", title: "Overview", blurb: "What Earmark is, and the one limit worth knowing.", icon: Sparkles, cover: "/images/friends.webp", body: overview },
+  { slug: "usecases", title: "What people use it for", blurb: "Ten situations the one rule fits, and when it is the wrong tool.", icon: Lightbulb, cover: "/images/buenos-aires.webp", body: usecases },
   { slug: "how-it-works", title: "How it works", blurb: "What happens to a payment, from the chat to the meter.", icon: Workflow, cover: "/images/compound.webp", body: howItWorks },
   { slug: "usage", title: "Using it", blurb: "The buttons, the website, and how to test it.", icon: BookOpen, cover: "/images/phone-yellow.webp", body: usage },
   { slug: "architecture", title: "Architecture", blurb: "The contract, the agent, and how held money is kept safe.", icon: Cpu, cover: "/images/meter.webp", body: architecture },
