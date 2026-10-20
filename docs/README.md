@@ -40,6 +40,7 @@ To earmark money is to set it aside for one purpose. The word comes from farming
 - [Using it](./usage.md): the buttons, the website, and how to test it
 - [Architecture](./architecture.md): for anyone reading the code
 - [FAQ](./faq.md): what people ask before they pay
+- [Roadmap](./roadmap.md): what is built, what it depends on, and what is next
 - [Privacy and terms](./privacy.md): what Earmark keeps, and what is public
 
 ## What is live

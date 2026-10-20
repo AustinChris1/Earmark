@@ -10,6 +10,7 @@ import {
   Cpu,
   HelpCircle,
   ListTree,
+  Map,
   Shield,
   Sparkles,
   Workflow,
@@ -24,6 +25,7 @@ import howItWorks from "../../../docs/how-it-works.md?raw";
 import usage from "../../../docs/usage.md?raw";
 import architecture from "../../../docs/architecture.md?raw";
 import faq from "../../../docs/faq.md?raw";
+import roadmap from "../../../docs/roadmap.md?raw";
 import privacy from "../../../docs/privacy.md?raw";
 
 type Page = { slug: string; title: string; blurb: string; icon: LucideIcon; cover?: string; body: string };
@@ -34,6 +36,7 @@ const PAGES: Page[] = [
   { slug: "usage", title: "Using it", blurb: "The buttons, the website, and how to test it.", icon: BookOpen, cover: "/images/phone-yellow.webp", body: usage },
   { slug: "architecture", title: "Architecture", blurb: "The contract, the agent, and how held money is kept safe.", icon: Cpu, cover: "/images/meter.webp", body: architecture },
   { slug: "faq", title: "FAQ", blurb: "What people ask before they send money.", icon: HelpCircle, cover: "/images/house-chat.webp", body: faq },
+  { slug: "roadmap", title: "Roadmap", blurb: "What is built, what Earmark depends on, and what is next.", icon: Map, cover: "/images/school.webp", body: roadmap },
   { slug: "privacy", title: "Privacy and terms", blurb: "What Earmark keeps, and what is public on the chain.", icon: Shield, body: privacy },
 ];
 
