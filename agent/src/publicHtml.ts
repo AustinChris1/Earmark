@@ -1,3 +1,4 @@
+import { driveCode } from "./driveCode.js";
 import { formatUnits } from "viem";
 
 const CONTRACT = "0x93316de31b4f891c56cf3b65a3f96aa6b04192ae";
@@ -161,14 +162,14 @@ export function drivePageHtml(d: {
       ? `closes ${new Date(d.deadline * 1000).toISOString().slice(0, 10)}`
       : "until the collector closes it";
   const status = target > 0n && raised >= target ? "Paid in full" : d.closed ? "Closed" : `Open, ${when}`;
-  const title = `${d.label} - Earmark drive #${d.id}`;
+  const title = `${d.label} - Earmark drive ${driveCode(d.id)}`;
   return shell({
     title,
     canonical: `${ORIGIN}/live`,
     body: `
 <div class="card">
 <h1>${escapeHtml(d.label)}</h1>
-<p class="meta">Drive #${d.id} on Celo. You are paying this named obligation, not a person in the middle.</p>
+<p class="meta">Drive ${driveCode(d.id)} on Celo. You are paying this named obligation, not a person in the middle.</p>
 <div class="lock">
   <strong>Pays only to this address</strong>
   <code>${d.destination}</code>
@@ -181,7 +182,7 @@ ${
     : ""
 }
 <div class="actions">
-  ${d.closed ? "" : `<a class="btn primary" href="/d/${d.id}">Pay this drive</a>`}
+  ${d.closed ? "" : `<a class="btn primary" href="/d/${driveCode(d.id)}">Pay this drive</a>`}
   <a class="btn quiet" href="${d.explorer}/address/${d.destination}">Payee on Celoscan</a>
 </div>
 <h2>Who the payee is</h2>
@@ -191,7 +192,7 @@ ${
     ? ""
     : `<h2>What happens when you pay</h2>
 <ol class="steps">
-  <li>Open <a href="/d/${d.id}">Pay this drive</a> in a Celo wallet browser (MetaMask, Rabby, Valora, MiniPay). Enter any amount${target > 0n ? ` up to ${fmtToken(remaining, d.decimals, d.tokenSymbol)}` : ""}; your share, if the group set one, is filled in for you.</li>
+  <li>Open <a href="/d/${driveCode(d.id)}">Pay this drive</a> in a Celo wallet browser (MetaMask, Rabby, Valora, MiniPay). Enter any amount${target > 0n ? ` up to ${fmtToken(remaining, d.decimals, d.tokenSymbol)}` : ""}; your share, if the group set one, is filled in for you.</li>
   <li>Press Pay now. Your wallet asks you to approve the token once, then to confirm the payment.</li>
   <li>The tokens go from your wallet to the address above in that one transaction. The page shows the Celoscan receipt, and the group chat tally marks you paid.</li>
   ${target > 0n ? `<li>If your amount would push the total past ${fmtToken(target, d.decimals, d.tokenSymbol)}, or the drive is closed or past its date, the contract rejects it and nothing leaves your wallet. When the total reaches ${fmtToken(target, d.decimals, d.tokenSymbol)} the drive closes itself.</li>` : `<li>If the drive is closed or past its date, the contract rejects the payment and nothing leaves your wallet.</li>`}
@@ -230,9 +231,9 @@ export function homepageLiveSnippet(d: {
   const raised = BigInt(d.raised);
   return `<section id="live-drive">
 <h2>Live drive: ${escapeHtml(d.label)}</h2>
-<p>Drive #${d.id} on Celo. You are paying this named obligation, not a person in the middle.</p>
+<p>Drive ${driveCode(d.id)} on Celo. You are paying this named obligation, not a person in the middle.</p>
 <p><strong>Pays only to</strong> <a href="${d.explorer}/address/${d.destination}"><code>${d.destination}</code></a></p>
-<p>Token ${escapeHtml(d.tokenSymbol)}. Raised ${fmtToken(raised, d.decimals, d.tokenSymbol)}${target > 0n ? ` of ${fmtToken(target, d.decimals, d.tokenSymbol)}` : ""}. After you pay, tokens leave your wallet and arrive at that address in the same transaction; the page shows the Celoscan receipt and the chat tally updates. A payment that would pass the target, or one to a closed or expired drive, is rejected by the contract and nothing leaves your wallet. The drive closes itself when the target is reached. Full page: <a href="/live">/live</a>. Pay: <a href="/d/${d.id}">/d/${d.id}</a>.</p>
+<p>Token ${escapeHtml(d.tokenSymbol)}. Raised ${fmtToken(raised, d.decimals, d.tokenSymbol)}${target > 0n ? ` of ${fmtToken(target, d.decimals, d.tokenSymbol)}` : ""}. After you pay, tokens leave your wallet and arrive at that address in the same transaction; the page shows the Celoscan receipt and the chat tally updates. A payment that would pass the target, or one to a closed or expired drive, is rejected by the contract and nothing leaves your wallet. The drive closes itself when the target is reached. Full page: <a href="/live">/live</a>. Pay: <a href="/d/${driveCode(d.id)}">/d/${driveCode(d.id)}</a>.</p>
 ${receiptsHtml(d.receipts, d.decimals, d.tokenSymbol, d.explorer)}
 </section>`;
 }

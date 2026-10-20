@@ -8,6 +8,7 @@ import { formatUnits, getAddress, isAddress, isHex, parseAbi, parseUnits, type A
 import { env, tokenByAddress, X402_FACILITATOR, X402_NETWORK } from "./config.js";
 import { account, contributeFromAgent, publicClient, readDrive } from "./chain.js";
 import { addIntent, getIntent, markForwarded, pendingIntents } from "./db.js";
+import { parseDriveRef } from "./driveCode.js";
 
 const facilitator = new HTTPFacilitatorClient({
   url: X402_FACILITATOR,
@@ -19,8 +20,9 @@ const facilitator = new HTTPFacilitatorClient({
 });
 
 function driveIdFrom(path: string): number {
-  const m = /\/x402\/drive\/(\d+)/.exec(path);
-  return m ? Number(m[1]) : 0;
+  // a drive code, or a plain number for agents still using the old form
+  const m = /\/x402\/drive\/([^/?#]+)/.exec(path);
+  return m ? parseDriveRef(m[1]) ?? 0 : 0;
 }
 
 // Resolves what this request must pay: the drive's own token, for the amount asked for in ?amt=.

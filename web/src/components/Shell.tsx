@@ -1,16 +1,21 @@
 import { Link, NavLink } from "react-router-dom";
-import { Moon, Sun } from "lucide-react";
+import { BookOpen, Moon, PiggyBank, Sun, type LucideIcon } from "lucide-react";
 import { Wordmark } from "../brand/Logo";
 import { useTheme } from "../lib/theme";
 
-function NavItem({ to, children }: { to: string; children: React.ReactNode }) {
+function NavItem({ to, icon: Icon, children }: { to: string; icon: LucideIcon; children: React.ReactNode }) {
   return (
     <NavLink
       to={to}
-      className="rounded-lg px-2 py-1 text-sm font-medium transition-colors"
+      className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium transition-colors"
       style={({ isActive }) => ({ color: isActive ? "var(--text)" : "var(--text-muted)" })}
     >
-      {children}
+      {({ isActive }) => (
+        <>
+          <Icon className="h-4 w-4" aria-hidden style={{ color: isActive ? "var(--accent)" : "currentColor" }} />
+          {children}
+        </>
+      )}
     </NavLink>
   );
 }
@@ -25,8 +30,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <Wordmark className="gap-2 [&_.font-display]:text-[1.35rem] sm:[&_.font-display]:text-[1.6rem]" />
           </Link>
           <nav className="flex shrink-0 items-center gap-0.5 sm:gap-1" aria-label="Site">
-            <NavItem to="/app">Drives</NavItem>
-            <NavItem to="/docs">Docs</NavItem>
+            <NavItem to="/app" icon={PiggyBank}>Drives</NavItem>
+            <NavItem to="/docs" icon={BookOpen}>Docs</NavItem>
             <button
               onClick={toggle}
               aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}

@@ -9,6 +9,8 @@ export type Instalment = { seq: number; count: number; paid: number; amount: str
 export type Drive = {
   you: Instalment | null;
   id: number;
+  /** The drive's short public name, used in links ("5SgW6W"). */
+  code: string;
   label: string;
   token: TokenInfo;
   destination: Address;

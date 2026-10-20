@@ -40,6 +40,7 @@ import { PayQr } from "../components/PayQr";
 import { ensureChain } from "../lib/wallet";
 import { coinName, getBillReceipt, getDrive, type BillReceipt, type Drive } from "../lib/api";
 import { useLift } from "../lib/springs";
+import { driveCode } from "../lib/driveCode";
 
 const EARMARK_ABI = parseAbi(["function contribute(uint256 id, uint256 amount, string memo)"]);
 const ERC20_ABI = parseAbi([
@@ -108,24 +109,52 @@ function pathMarks(drive: Drive): { src: string; name: string }[] {
   const marks: { src: string; name: string }[] = [{ src: "/logos/celo.png", name: "Celo" }];
   const coin = COIN_ICON[drive.token.symbol];
   if (coin) marks.push({ src: coin, name: coinName(drive.token.symbol) });
-  if (drive.payOptions.length > 0) marks.push({ src: "/logos/textile.svg", name: "Textile" });
+  // Textile only while a swap is still on offer; a closed drive was never swapped into.
+  if (drive.payOptions.length > 0 && !drive.closed) marks.push({ src: "/logos/textile.svg", name: "Textile" });
   if (drive.bill) marks.push({ src: "/logos/abapay.png", name: "AbaPay" });
   if (drive.ramp) marks.push({ src: "/logos/ripio.png", name: "Ripio" });
   if (drive.chat) marks.push({ src: "/logos/telegram.svg", name: "Telegram" });
   return marks;
 }
 
-function Mark({ src, name, size = "h-9 w-9" }: { src: string; name: string; size?: string }) {
-  const flag = src.includes("/flags/");
+/** The rails this drive actually runs on, as one quiet line, not a wall of sponsor logos. */
+function RunsOn({ marks }: { marks: { src: string; name: string }[] }) {
   return (
-    <span className="inline-flex items-center gap-2">
-      <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-black/5 ${size}`}>
-        <img src={src} alt="" className={flag ? "h-full w-full object-cover" : "h-[62%] w-[62%] object-contain"} />
-      </span>
-      <span className="text-xs font-semibold">{name}</span>
-    </span>
+    <div className="mt-6 flex flex-wrap items-center gap-x-3.5 gap-y-2 border-t pt-4 text-xs" style={{ borderColor: "var(--line)", color: "var(--text-muted)" }}>
+      <span className="font-semibold tracking-wide uppercase">Runs on</span>
+      {marks.map((m) => (
+        <span key={m.name} className="inline-flex items-center gap-1.5">
+          <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-black/5">
+            <img src={m.src} alt="" className={m.src.includes("/flags/") ? "h-full w-full object-cover" : "h-3.5 w-3.5 object-contain"} />
+          </span>
+          {m.name}
+        </span>
+      ))}
+    </div>
   );
 }
+
+/** A pattern drawn from the wallet address itself, so the payee is recognised by sight, not by reading hex. */
+function AddressAvatar({ address, size = 48 }: { address: string; size?: number }) {
+  const hex = address.toLowerCase().replace(/^0x/, "");
+  const byte = (i: number) => parseInt(hex.slice((i * 2) % 40, ((i * 2) % 40) + 2), 16);
+  const hue = Math.round((byte(0) / 255) * 360);
+  const cells: React.ReactNode[] = [];
+  for (let y = 0; y < 5; y++) {
+    for (let x = 0; x < 3; x++) {
+      if (byte(1 + y * 3 + x) % 2) continue;
+      cells.push(<rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" />);
+      if (x < 2) cells.push(<rect key={`m${x}-${y}`} x={4 - x} y={y} width="1" height="1" />);
+    }
+  }
+  return (
+    <svg viewBox="-0.6 -0.6 6.2 6.2" width={size} height={size} aria-hidden className="shrink-0 rounded-xl" style={{ background: `hsl(${(hue + 30) % 360} 70% 93%)` }}>
+      <g fill={`hsl(${hue} 60% 42%)`} shapeRendering="crispEdges">{cells}</g>
+    </svg>
+  );
+}
+
+const shortAddress = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 export function DrivePage() {
   const { id } = useParams();
@@ -193,7 +222,10 @@ export function DrivePage() {
 
   const fmt = (v: bigint | string) =>
     drive
-      ? `${Number(formatUnits(BigInt(v), drive.token.decimals)).toLocaleString("en-US", { maximumFractionDigits: 6 })} ${coinName(drive.token.symbol)}`
+      ? (() => {
+          const n = Number(formatUnits(BigInt(v), drive.token.decimals));
+          return `${n.toLocaleString("en-US", { maximumFractionDigits: n !== 0 && Math.abs(n) < 1 ? 4 : 2 })} ${coinName(drive.token.symbol)}`;
+        })()
       : "";
 
   const raised = drive ? BigInt(drive.raised) : 0n;
@@ -419,7 +451,7 @@ export function DrivePage() {
   async function copyLink() {
     if (!drive) return;
     try {
-      await navigator.clipboard.writeText(`${location.origin}/d/${drive.id}`);
+      await navigator.clipboard.writeText(`${location.origin}/d/${driveCode(drive.id)}`);
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 1600);
     } catch {
@@ -442,10 +474,20 @@ export function DrivePage() {
   const marks = drive ? pathMarks(drive) : [];
   const SceneIcon = scene?.icon ?? Users;
   const full = target > 0n && remaining === 0n;
+  // A bill's header says what is being paid; the number and amount sit under it instead of wrapping the title.
+  const heroTitle = drive?.bill ? drive.bill.provider : (drive?.label ?? "");
+  const heroDetail = drive?.bill ? `for ${drive.bill.number} · ${drive.bill.amountLabel}` : null;
+  const status = !drive
+    ? null
+    : full || drive.bill?.status === "paid"
+      ? { text: "Fully paid", bg: "#56df7c", fg: "#0a0a08" }
+      : drive.closed
+        ? { text: "Closed", bg: "rgb(255 255 255 / 0.18)", fg: "#ffffff" }
+        : { text: "Open", bg: "var(--brand)", fg: "var(--brand-ink)" };
 
   return (
     <Shell>
-      <main className="mx-auto max-w-lg px-5 pb-16">
+      <main className="mx-auto max-w-lg px-5 pb-16 lg:max-w-6xl">
         {loadError && (
           <div className="surface mt-6 rounded-2xl p-6">
             <TriangleAlert className="h-5 w-5" style={{ color: "var(--pending)" }} />
@@ -464,11 +506,16 @@ export function DrivePage() {
         )}
 
         {drive && scene && (
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <header className="relative mt-6 overflow-hidden rounded-[1.5rem]" style={{ background: "#0a0a08" }}>
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-start lg:gap-x-6"
+          >
+            <header className="relative mt-6 overflow-hidden rounded-[1.5rem] lg:col-start-1 lg:row-start-1" style={{ background: "#0a0a08" }}>
               <img src={scene.img} alt={scene.alt} className="absolute inset-0 h-full w-full object-cover opacity-85" />
               <span aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/20" />
-              <div className="relative flex min-h-[14.5rem] flex-col p-5 text-white">
+              <div className="relative flex min-h-[14.5rem] flex-col p-5 text-white lg:min-h-[19rem] lg:p-7">
                 <div className="flex items-start justify-between gap-3">
                   <span className="flex h-11 w-11 items-center justify-center rounded-2xl" style={{ background: "var(--brand)", color: "var(--brand-ink)" }}>
                     <SceneIcon className="h-5 w-5" />
@@ -484,12 +531,15 @@ export function DrivePage() {
                   </button>
                 </div>
                 <div className="mt-auto pt-8">
-                  <p className="text-xs font-semibold tracking-wide text-white/80 uppercase">
-                    {full || drive.bill?.status === "paid" ? "Fully paid" : drive.closed ? "Closed" : "Open"}
-                  </p>
-                  <h1 className="mt-1 font-display text-3xl leading-tight tracking-tight">{drive.label}</h1>
+                  {status && (
+                    <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold tracking-wide uppercase" style={{ background: status.bg, color: status.fg }}>
+                      {status.text}
+                    </span>
+                  )}
+                  <h1 className="mt-2 font-display text-3xl leading-tight tracking-tight lg:text-[2.6rem]">{heroTitle}</h1>
+                  {heroDetail && <p className="mt-1 text-base font-semibold text-white/90 tabular-nums">{heroDetail}</p>}
                   <p className="mt-1.5 text-sm text-white/80 tabular-nums">
-                    {drive.you ? `Instalment ${drive.you.seq} of ${drive.you.count}` : `Drive #${drive.id}`}
+                    {drive.you ? `Instalment ${drive.you.seq} of ${drive.you.count}` : `Drive ${driveCode(drive.id)}`}
                     {drive.closed ? " · closed" : ""}
                     {!drive.closed && drive.deadline > 0
                       ? ` · closes ${new Date(drive.deadline * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`
@@ -499,23 +549,19 @@ export function DrivePage() {
               </div>
             </header>
 
-            <div className="surface mt-4 rounded-2xl p-5">
-              <ul className="flex flex-wrap gap-x-4 gap-y-2">
-                {marks.map((m) => (
-                  <li key={m.name}>
-                    <Mark src={m.src} name={m.name} />
-                  </li>
-                ))}
-              </ul>
-
-              <div className="mt-5 flex items-start gap-3 rounded-xl p-3" style={{ background: "color-mix(in srgb, var(--accent) 10%, transparent)" }}>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--brand)", color: "var(--brand-ink)" }}>
-                  <Lock className="h-4 w-4" />
+            <div className="surface mt-4 rounded-2xl p-5 lg:col-start-1 lg:row-start-2 lg:p-6">
+              <div className="flex items-start gap-3.5 rounded-xl p-3.5" style={{ background: "color-mix(in srgb, var(--accent) 10%, transparent)" }}>
+                <span className="relative">
+                  <AddressAvatar address={drive.destination} />
+                  <span className="absolute -right-1.5 -bottom-1.5 flex h-6 w-6 items-center justify-center rounded-full ring-2" style={{ background: "var(--brand)", color: "var(--brand-ink)", ["--tw-ring-color" as string]: "var(--bg-raised)" }}>
+                    <Lock className="h-3 w-3" />
+                  </span>
                 </span>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
                     {drive.bill ? "The pool waits at this address" : "Pays only to this address"}
                   </p>
+                  <p className="mt-0.5 font-mono text-[15px] font-semibold">{shortAddress(drive.destination)}</p>
                   <p className="mt-0.5 font-mono text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
                     {drive.destination.slice(0, 22)}
                     <wbr />
@@ -623,9 +669,9 @@ export function DrivePage() {
               )}
 
               {target > 0n && (
-                <p className="mt-5 text-[15px]">
-                  <strong className="tabular-nums">{fmt(remaining)}</strong>{" "}
-                  <span style={{ color: "var(--text-muted)" }}>still needed of {fmt(target)}</span>
+                <p className="mt-6 flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-display text-[2rem] leading-none tabular-nums">{fmt(full ? raised : remaining)}</span>
+                  <span className="text-sm" style={{ color: "var(--text-muted)" }}>{full ? "raised, the full amount" : `still needed of ${fmt(target)}`}</span>
                 </p>
               )}
               <ul className="mt-3 grid gap-1.5 text-sm" style={{ color: "var(--text-muted)" }}>
@@ -683,6 +729,14 @@ export function DrivePage() {
                 </div>
               )}
 
+              <RunsOn marks={marks} />
+            </div>
+
+            <div className="surface mt-4 rounded-2xl p-5 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:mt-6 lg:p-6">
+              <p className="flex items-center gap-2 text-sm font-semibold">
+                <Wallet className="h-4 w-4" style={{ color: "var(--accent)" }} aria-hidden />
+                {drive.closed || full ? "Payment" : "Pay your share"}
+              </p>
               {drive.unattached ? (
                 <p role="alert" className="mt-6 text-sm" style={{ color: "var(--danger)" }}>
                   This drive pays Earmark's own wallet but has no bill attached, so nothing would pay it out. Do not pay into it;
@@ -886,7 +940,7 @@ export function DrivePage() {
             </div>
 
             {drive.payments.length > 0 && (
-              <div className="surface mt-4 rounded-2xl p-6">
+              <div className="surface mt-4 rounded-2xl p-6 lg:col-start-1 lg:row-start-3">
                 <p className="text-sm font-semibold">
                   Who has paid{" "}
                   <span className="font-normal tabular-nums" style={{ color: "var(--text-muted)" }}>

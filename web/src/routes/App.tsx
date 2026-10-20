@@ -6,6 +6,7 @@ import { ArrowRight, ChevronDown, Link2, Loader2, Lock, Plus, RefreshCw, Wallet,
 import { formatUnits, isAddress, parseAbi, parseEventLogs, parseUnits, type Address, type Hex } from "viem";
 import { toDataSuffix } from "@celo/attribution-tags";
 import { Shell } from "../components/Shell";
+import { driveCode, parseDriveRef } from "../lib/driveCode";
 import {
   attachBill,
   coinName,
@@ -111,7 +112,7 @@ function DriveRow({ d, mine, onClose, agent }: { d: DriveSummary; mine: boolean;
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <Link
-          to={`/d/${d.id}`}
+          to={`/d/${driveCode(d.id)}`}
           className="pressable inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold"
           style={
             d.closed
@@ -280,7 +281,7 @@ export function AppPage() {
     const signature = await walletFor(cfg, account).signMessage({ account, message: p.quote.sign.replace("{id}", String(p.id)) });
     await attachBill({ ...p.choice, driveId: p.id, number: p.quote.number, coin: p.quote.coin, signature });
     setUnattached(null);
-    navigate(`/d/${p.id}`);
+    navigate(`/d/${driveCode(p.id)}`);
   }
 
   async function createBillDrive(b: BillDraft) {
@@ -376,7 +377,7 @@ export function AppPage() {
         {unattached && !busy && (
           <div className="surface mt-4 rounded-2xl p-4 text-sm">
             <p>
-              Drive #{unattached.id} is open, but its bill is not attached yet, so nobody should pay into it until it is.
+              Drive {driveCode(unattached.id)} is open, but its bill is not attached yet, so nobody should pay into it until it is.
             </p>
             <button
               onClick={retryAttach}
@@ -522,13 +523,6 @@ export function AppPage() {
   );
 }
 
-function parseDriveRef(raw: string): string | null {
-  const text = raw.trim();
-  const fromPath = text.match(/\/d\/(\d+)/);
-  if (fromPath && fromPath[1] !== "0") return fromPath[1];
-  if (/^\d+$/.test(text) && text !== "0") return text;
-  return null;
-}
 
 function OpenLink() {
   const navigate = useNavigate();
@@ -542,7 +536,7 @@ function OpenLink() {
       setBad(true);
       return;
     }
-    navigate(`/d/${id}`);
+    navigate(`/d/${driveCode(id)}`);
   }
 
   return (

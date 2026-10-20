@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { parseDriveRef } from "./driveCode.js";
 import type { RequestHandler } from "express";
 import { decodeEventLog, formatUnits, getAddress, isHex, parseAbi, parseUnits, type Address, type Hex } from "viem";
 import { tokenByAddress, tokenBySymbol, type TokenInfo } from "./config.js";
@@ -107,8 +108,9 @@ export async function resumeCorridor() {
 
 export const corridorQuoteHandler: RequestHandler = async (req, res) => {
   try {
-    const driveId = String(req.params.id);
-    if (!/^\d+$/.test(driveId)) return res.status(400).json({ error: "Bad drive." });
+    const ref = parseDriveRef(String(req.params.id));
+    if (!ref) return res.status(400).json({ error: "Bad drive." });
+    const driveId = String(ref);
     const drive = await readDrive(BigInt(driveId));
     const local = tokenByAddress(drive.token);
     const pay = tokenBySymbol(String(req.query.pay ?? "USDT"));

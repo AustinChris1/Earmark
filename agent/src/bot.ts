@@ -72,6 +72,7 @@ import {
 } from "./keyboards.js";
 import { collectorIsHuman } from "./verify.js";
 import { aiEnabled, parseDriveRequest } from "./ai.js";
+import { driveCode, parseDriveRef } from "./driveCode.js";
 
 let bot: Bot | null = null;
 
@@ -105,7 +106,7 @@ function displayName(ctx: Context): string {
  */
 function agentPayLine(d: DriveRow, token: TokenInfo, tgId: string, name: string, amount: string | undefined): string {
   if (!token.eip712 || !amount) return "";
-  const url = `${env.PUBLIC_URL}/x402/drive/${d.id}?amt=${amount}&u=${tgId}&name=${encodeURIComponent(name)}`;
+  const url = `${env.PUBLIC_URL}/x402/drive/${driveCode(d.id)}?amt=${amount}&u=${tgId}&name=${encodeURIComponent(name)}`;
   const coin = token.symbol === "USDC" ? "" : ` --token ${token.symbol}`;
   return `
 Or let your AI agent pay it with buy:
@@ -113,7 +114,7 @@ Or let your AI agent pay it with buy:
 }
 
 function payLink(driveId: number, tgId: number | string, name: string, amount?: string): string {
-  const base = `${env.PUBLIC_URL}/d/${driveId}?u=${tgId}&n=${encodeURIComponent(name)}`;
+  const base = `${env.PUBLIC_URL}/d/${driveCode(driveId)}?u=${tgId}&n=${encodeURIComponent(name)}`;
   return amount ? `${base}&amt=${amount}` : base;
 }
 
@@ -801,9 +802,10 @@ function registerHandlers(b: Bot) {
 
   b.command("close", async (ctx) => {
     // "/close" closes this chat's latest drive; "/close 2" closes drive 2, from wherever it was opened.
-    const wanted = Number((ctx.match ?? "").trim());
-    const d = Number.isInteger(wanted) && wanted > 0 ? await getDrive(wanted) : await latestDriveForChat(chatId(ctx));
-    if (!d) return ctx.reply(wanted ? `There is no drive #${wanted}.` : "No open drive here.");
+    const typed = (ctx.match ?? "").trim();
+    const wanted = typed ? parseDriveRef(typed) : null;
+    const d = wanted ? await getDrive(wanted) : await latestDriveForChat(chatId(ctx));
+    if (!d) return ctx.reply(typed ? `There is no drive ${escape(typed)}.` : "No open drive here.");
     return closeDrive(ctx, d);
   });
 
@@ -1107,7 +1109,7 @@ export function startBot(): Bot | null {
         { command: "remind", description: "Nudge whoever is outstanding" },
         { command: "menu", description: "Show the button menu" },
         { command: "verify", description: "Prove you are a real person, once" },
-        { command: "close", description: "Close the drive, or /close <id>" },
+        { command: "close", description: "Close the drive, or /close <code>" },
         { command: "help", description: "What Earmark does" },
       ];
       await bot!.api.setMyCommands(commands).catch(() => {});
@@ -1164,7 +1166,7 @@ export async function announceDirect(note: DirectNotice) {
     const why = note.because === "closed" ? "That drive is already closed, so this transfer was not counted." : "That drive is already full, so this transfer was not counted.";
     await bot.api.sendMessage(
       note.chatId,
-      [`${amount} came in from ${who} for <b>#${note.driveId} ${escape(note.label)}</b>.`, "", why, "The coins are still in Earmark's wallet."].join("\n"),
+      [`${amount} came in from ${who} for <b>#${driveCode(note.driveId)} ${escape(note.label)}</b>.`, "", why, "The coins are still in Earmark's wallet."].join("\n"),
       HTML,
     );
     return;
@@ -1174,12 +1176,12 @@ export async function announceDirect(note: DirectNotice) {
     const needed = token ? exactAmount(BigInt(note.needed), token) : note.needed;
     await bot.api.sendMessage(
       note.chatId,
-      [`${amount} came in from ${who}.`, "", `#${note.driveId} ${escape(note.label)} only needs ${needed}, so this transfer was not counted.`, "The coins are still in Earmark's wallet."].join("\n"),
+      [`${amount} came in from ${who}.`, "", `#${driveCode(note.driveId)} ${escape(note.label)} only needs ${needed}, so this transfer was not counted.`, "The coins are still in Earmark's wallet."].join("\n"),
       HTML,
     );
     return;
   }
-  const lines = note.drives.map((d) => `• #${d.id} ${escape(d.label)}`);
+  const lines = note.drives.map((d) => `• #${driveCode(d.id)} ${escape(d.label)}`);
   const text = [
     `${amount} came in from ${who}.`,
     "",

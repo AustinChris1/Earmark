@@ -8,6 +8,7 @@ import { chainId, env, explorerUrl, publicRpcUrl, TOKENS, tokenByAddress, tokenB
 import { account, driveCount, listDrives, readDrive, readTokenInfo } from "./chain.js";
 import { counts, getDrive, hasPlan, nextInstalment, paymentsFor, planCountFor, reconcileInstalments } from "./db.js";
 import { memoName } from "./format.js";
+import { driveCode, parseDriveRef } from "./driveCode.js";
 import { x402Guard, x402Handler, x402Middleware } from "./x402.js";
 import { linkHandler, nonceHandler, sessionHandler, statusHandler } from "./verify.js";
 import { isTestDrive, pickFeatured } from "./featured.js";
@@ -346,7 +347,7 @@ app.post("/api/drive/:id/receipt", async (req, res) => {
   try {
     const sig = (req.body ?? {}).signature;
     if (!isHex(sig)) return res.status(400).json({ error: "Sign the message in your wallet." });
-    res.json(await billReceipt(Number(req.params.id), sig as Hex));
+    res.json(await billReceipt(parseDriveRef(String(req.params.id)) ?? 0, sig as Hex));
   } catch (e) {
     res.status(400).json({ error: (e as Error).message });
   }
@@ -357,7 +358,8 @@ app.post("/api/corridor", corridorSubmitHandler);
 app.get("/api/corridor/:id", corridorStatusHandler);
 
 app.get("/api/drive/:id", async (req, res) => {
-  const id = Number(req.params.id);
+  // a code ("5SgW6W") or, for links shared before codes, a plain number
+  const id = parseDriveRef(String(req.params.id)) ?? 0;
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Bad drive id." });
   try {
     const onchain = await readDrive(BigInt(id));
@@ -378,6 +380,7 @@ app.get("/api/drive/:id", async (req, res) => {
     res.json({
       you,
       id,
+      code: driveCode(id),
       label: onchain.label,
       token: tokenByAddress(onchain.token) ?? (await readTokenInfo(onchain.token)),
       destination: onchain.destination,

@@ -1,3 +1,4 @@
+import { driveCode } from "../lib/driveCode";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
@@ -12,7 +13,7 @@ export function LivePage() {
   useEffect(() => {
     getStats()
       .then((s) => {
-        if (s.featured?.id) nav(`/d/${s.featured.id}`, { replace: true });
+        if (s.featured?.id) nav(`/d/${driveCode(s.featured.id)}`, { replace: true });
         else setError("No open drive on chain yet.");
       })
       .catch((e: Error) => setError(e.message));
