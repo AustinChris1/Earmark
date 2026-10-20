@@ -85,19 +85,17 @@ export function newTokenKeyboard(all = false) {
   if (symbols.length % 3) kb.row();
   if (!all) kb.text("More coins", CB.newMoreTokens).row();
   return kb
-    .text("⚡ It is a Nigerian bill", CB.billStart)
-    .row()
-    .text("🌍 It is airtime abroad", "ab:start")
+    .text("⚡ It's a bill: a phone top-up or electricity", CB.billStart)
     .row()
     .text("Cancel", CB.cancelNew);
 }
 
 export function billCategoryKeyboard() {
   return new InlineKeyboard()
-    .text("⚡ Electricity", CB.billCategory("E"))
-    .text("📱 Airtime", CB.billCategory("A"))
+    .text("📱 Phone top-up", "bl:phone")
+    .text("💡 Electricity · Nigeria", CB.billCategory("E"))
     .row()
-    .text("🌍 Bill outside Nigeria?", "bl:out")
+    .text("🌍 Another kind of bill?", "bl:out")
     .row()
     .text("Cancel", CB.billCancel);
 }
@@ -123,6 +121,16 @@ const COUNTRIES: [string, string][] = [
   ["GB", "🇬🇧 UK"],
   ["US", "🇺🇸 USA"],
 ];
+
+/** A phone top-up: Nigeria is one country in the list, and goes to the Nigerian airtime flow. */
+export function phoneCountryKeyboard() {
+  const kb = new InlineKeyboard().text("🇳🇬 Nigeria", "bl:ng");
+  COUNTRIES.forEach(([code, label], i) => {
+    kb.text(label, `ab:c:${code}`);
+    if (i % 3 === 1) kb.row();
+  });
+  return kb.row().text("Another country", "ab:c:other").row().text("Cancel", "ab:no");
+}
 
 export function abroadCountryKeyboard() {
   const kb = new InlineKeyboard();
@@ -190,7 +198,7 @@ export function billConfirmKeyboard() {
 
 export const MENU = {
   new: "➕ New drive",
-  bill: "⚡ Pay a Nigerian Bill",
+  bill: "⚡ Pay a bill",
   abroad: "🌍 Airtime abroad",
   split: "➗ Split evenly",
   pay: "💳 Pay my share",
@@ -205,8 +213,6 @@ export function menuKeyboard() {
   return new InlineKeyboard()
     .text(MENU.new, "m:new")
     .text(MENU.bill, "m:bill")
-    .row()
-    .text(MENU.abroad, "m:abroad")
     .row()
     .text(MENU.pay, "m:pay")
     .text(MENU.split, "m:split")
@@ -226,7 +232,6 @@ export function replyMenu() {
   return {
     keyboard: [
       [{ text: MENU.new }, { text: MENU.bill }],
-      [{ text: MENU.abroad }],
       [{ text: MENU.pay }, { text: MENU.split }],
       [{ text: MENU.tally }, { text: MENU.remind }],
       [{ text: MENU.plan }, { text: MENU.verify }],

@@ -56,6 +56,7 @@ import {
   billConfirmKeyboard,
   billProviderKeyboard,
   abroadCountryKeyboard,
+  phoneCountryKeyboard,
   abroadOperatorKeyboard,
   abroadPlanKeyboard,
   outsideNigeriaKeyboard,
@@ -206,7 +207,7 @@ async function startBillWizard(ctx: Context) {
   pending.delete(pkey(chatId(ctx), ctx.from.id));
   billDrafts.set(pkey(chatId(ctx), ctx.from.id), { step: "category" });
   return ctx.reply(
-    "<b>Pay a Nigerian bill together.</b>\nEarmark collects everyone's share and pays the provider itself when the drive is full.\n\nWhat kind of bill?",
+    "<b>Pay a bill together.</b>\nEveryone chips in, and when the drive is full Earmark pays the bill itself.\n\nWhat kind of bill?",
     { ...HTML, reply_markup: billCategoryKeyboard() },
   );
 }
@@ -226,7 +227,7 @@ async function startAbroadWizard(ctx: Context) {
 function explainOutsideNigeria(ctx: Context) {
   return ctx.reply(
     [
-      "<b>Earmark pays two kinds of bill itself:</b> Nigerian electricity and airtime, and phone top-ups in 140+ countries.",
+      "<b>Earmark pays two kinds of bill itself:</b> phone top-ups in 140+ countries, and electricity in Nigeria.",
       "",
       "For anything else, like rent, school fees or a power bill abroad, open a normal drive locked to the wallet of the person who will pay it. Nobody can redirect the money on the way, and when the drive is full they get a Ripio link to cash it out to their bank in Argentina, Brazil, Mexico or Colombia.",
     ].join("\n"),
@@ -583,8 +584,7 @@ function registerHandlers(b: Bot) {
       ``,
       `Everything works from the buttons:`,
       `${MENU.new}: pick a coin, say how much, paste where it goes`,
-      `${MENU.bill}: electricity or airtime; Earmark pays the provider itself`,
-      `${MENU.abroad}: airtime for a phone in 140+ countries, bought by Earmark`,
+      `${MENU.bill}: a phone top-up in 140+ countries, or electricity in Nigeria; Earmark pays it itself`,
       `${MENU.split}, ${MENU.pay}, ${MENU.tally}, ${MENU.remind}`,
       ``,
       `People abroad can pay in their own money: pesos, reais, naira or dollars.`,
@@ -826,9 +826,11 @@ function registerHandlers(b: Bot) {
   }
 
   // Private chats get a persistent keyboard, which sends plain text; groups use the inline menu.
-  b.hears(Object.values(MENU), async (ctx) => {
-    const entry = Object.entries(MENU).find(([, label]) => label === ctx.message?.text);
-    if (entry) await runMenuAction(ctx, entry[0]);
+  const LEGACY_MENU: Record<string, string> = { "⚡ Pay a Nigerian Bill": "bill" };
+  b.hears([...Object.values(MENU), ...Object.keys(LEGACY_MENU)], async (ctx) => {
+    const text = ctx.message?.text ?? "";
+    const action = Object.entries(MENU).find(([, label]) => label === text)?.[0] ?? LEGACY_MENU[text];
+    if (action) await runMenuAction(ctx, action);
   });
 
   b.on("callback_query:data", async (ctx) => {
@@ -888,6 +890,16 @@ function registerHandlers(b: Bot) {
         await ctx.answerCallbackQuery();
         await ctx.deleteMessage().catch(() => {});
         return flow === "ab" ? startAbroadWizard(ctx) : startBillWizard(ctx);
+      }
+      if (act === "phone") {
+        await ctx.answerCallbackQuery();
+        billDrafts.set(key, { step: "country", abroad: {} });
+        return ctx.editMessageText("Which country is the phone in?", { reply_markup: phoneCountryKeyboard() }).catch(() => {});
+      }
+      if (act === "ng") {
+        await ctx.answerCallbackQuery();
+        billDrafts.set(key, { step: "provider", category: "AIRTIME" });
+        return ctx.editMessageText("Which network?", { reply_markup: billProviderKeyboard("AIRTIME") }).catch(() => {});
       }
       if (act === "out") {
         await ctx.answerCallbackQuery();
