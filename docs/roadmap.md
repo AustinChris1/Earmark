@@ -27,13 +27,30 @@ AbaPay is the single point of failure worth naming. It has already happened once
 
 **A second source for top-ups.** Bills go through one provider today. The plan is a provider interface so a top-up can be bought from whoever is up, with AbaPay staying the provider for Nigerian electricity.
 
-[Bitrefill](https://www.bitrefill.com) is the likely second: mobile refills in 180+ countries, payable by an agent. Its agent catalogue is top-ups, gift cards and eSIMs, so it does not replace AbaPay for utility bills. It settles in USDC on Base, Arbitrum or Polygon, not on Celo, so Earmark would keep a small balance there to pay top-ups from. **Collections, locked destinations and swaps stay on Celo.**
+[Bitrefill](https://www.bitrefill.com) is the likely second: mobile refills in 180+ countries, payable by an agent. Its agent catalogue is top-ups, gift cards and eSIMs, so it does not replace AbaPay for utility bills. It settles in USDC on Base, Arbitrum or Polygon, not on Celo, so Earmark would keep a small balance on one of those to pay top-ups from. **Collections, locked destinations and swaps stay on Celo.** This is a bill being paid elsewhere, not Earmark moving house.
 
 **Fewer ways for a bill to be stuck.** Every failure path now ends in a refund, but some wait on a provider's own refund. More of that should resolve without waiting.
 
 ## Later
 
-- **Earmark on another chain.** Base has many more people on it than Celo. That means deploying the contract there and letting collections open on either chain, and it is a real project, not a configuration change.
+Nothing below is built, and none of it has a date.
+
+### Earmark on more than one chain
+
+A group should not have to care which chain anyone is on. The aim is to open a collection wherever the money already is, starting with the EVM chains people actually hold stablecoins on: Base, Arbitrum, Polygon, Optimism. **Celo stays home**, because it is where the fee abstraction, the local currencies and the bill rails are.
+
+This is a real project, not a setting. What it involves:
+
+- **The contract on each chain.** `Earmark.sol` has no owner and no upgrade path, so each chain gets its own deployment at its own address, verified the same way.
+- **The agent watching each chain.** One watcher per chain, each with its own last-seen block, and codes that say which chain a collection is on.
+- **Different money on each chain.** The 25 Celo stablecoins are a Celo list. Base has USDC, Arbitrum has its own, and each needs checking on chain before it is offered.
+- **Swaps stay where the liquidity is.** Textile FX is on Celo, so paying in another currency stays a Celo feature until there is somewhere else to do it.
+- **Gas paid in the coin you hold** is a Celo feature. On other chains, a payer needs that chain's gas token.
+
+The honest version: a collection on Base would be a locked destination, shares and a tally, without the local currencies or the bill rails. Those stay on Celo until the same pieces exist elsewhere.
+
+### Also wanted
+
 - **Recurring collections,** for rent and bills that come every month.
 - **Organisations.** One organiser, many payers: schools collecting fees, residents' associations collecting service charges, savings groups.
 
