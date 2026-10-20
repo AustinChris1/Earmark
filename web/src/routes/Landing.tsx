@@ -23,7 +23,8 @@ import { getStats, type Stats } from "../lib/api";
 
 const AGENT_ID = 9806;
 const CONTRACT = "0x93316de31b4f891c56cf3b65a3f96aa6b04192ae";
-const HACKATHON_URL = "https://celobuilders.xyz/hackathons/agents-at-work";
+// Celo's own winners announcement for Agents at Work, September 2026.
+const AWARD_URL = "https://x.com/celo/status/2103473354309337550";
 const SOURCE_URL = "https://repo.sourcify.dev/42220/0x93316DE31b4f891C56cf3b65A3f96AA6b04192Ae";
 const BOT_URL = "https://t.me/Earmarked_bot";
 
@@ -373,7 +374,7 @@ export function Landing() {
                   { href: `https://celoscan.io/address/${contract}`, label: "Contract", value: short(contract) },
                   { href: SOURCE_URL, label: "Source", value: "Verified, exact match" },
                   { href: `https://8004scan.io/agents/celo/${AGENT_ID}`, label: "Agent identity", value: `ERC-8004 #${AGENT_ID}` },
-                  { href: HACKATHON_URL, label: "Award", value: "Celo Builders" },
+                  { href: AWARD_URL, label: "Award", value: "Best Stablecoin Adoption" },
                 ].map((p) => (
                   <li key={p.label}>
                     <a
