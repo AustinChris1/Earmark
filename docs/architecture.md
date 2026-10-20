@@ -72,12 +72,12 @@ The agent wallet also holds other people's money, so buy is kept apart from it:
 - **The catalogue price, no more.** A 402 asking for more than the catalogue says is refused before anything is signed.
 - **A daily cap**, `BUY_DAILY_USD`. Past it, or with no USDC to spare, Earmark falls back to its own Cencori key and its own nodes.
 
-Every call is logged with its settlement at [`/api/buy`](https://earmark-agent.onrender.com/api/buy).
+Every call is logged with its settlement at [`/api/buy`](https://earmark.chat/api/buy).
 
 It works the other way too. Every open USD₮, USDC or USA₮ drive is an x402 endpoint, so a member's own agent can pay their share with buy. **Pay my share** in the bot prints the command, with the member's Telegram id in it so the payment ticks their instalments:
 
 ```
-npx @celo/buy curl --max-amount 5 --token USDT "https://earmark-agent.onrender.com/x402/drive/9?amt=5&u=…&name=…"
+npx @celo/buy curl --max-amount 5 --token USDT "https://earmark.chat/x402/drive/9?amt=5&u=…&name=…"
 ```
 
 ## The rest

@@ -21,7 +21,7 @@ services:
       - key: NODE_VERSION
         value: "24"
       - key: PUBLIC_URL
-        value: https://earmark-agent.onrender.com
+        value: https://earmark.chat
       # Chainstack is the primary endpoint; the agent falls back to Forno on its own.
       # Set this in the dashboard, not here: a Chainstack URL carries its key in the path.
       - key: CELO_RPC_URL

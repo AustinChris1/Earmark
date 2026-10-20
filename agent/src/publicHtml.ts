@@ -3,7 +3,7 @@ import { formatUnits } from "viem";
 
 const CONTRACT = "0x93316de31b4f891c56cf3b65a3f96aa6b04192ae";
 const SOURCE = "https://repo.sourcify.dev/42220/0x93316DE31b4f891C56cf3b65A3f96AA6b04192Ae";
-const ORIGIN = "https://earmark-agent.onrender.com";
+const ORIGIN = "https://earmark.chat";
 
 // The same mark as web/src/brand/Logo.tsx: a notch cut into an ear.
 const MARK =

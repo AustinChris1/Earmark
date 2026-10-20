@@ -50,4 +50,4 @@ To earmark money is to set it aside for one purpose. The word comes from farming
 | Contract | [`0x93316de3…92ae`](https://celoscan.io/address/0x93316de31b4f891c56cf3b65a3f96aa6b04192ae) on Celo mainnet, [verified on Sourcify](https://repo.sourcify.dev/42220/0x93316DE31b4f891C56cf3b65A3f96AA6b04192Ae) |
 | Agent identity | ERC-8004 [agent 9806](https://8004scan.io/agents/celo/9806) |
 | Bot | [@Earmarked_bot](https://t.me/Earmarked_bot) |
-| Web | <https://earmark-agent.onrender.com> |
+| Web | <https://earmark.chat> |

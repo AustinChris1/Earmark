@@ -30,7 +30,7 @@ The name: to earmark money is to set it aside for one purpose. The word comes fr
 3. Tap **➗ Split evenly**, then **Pay my share**. The pay page works in MetaMask, Rabby, Valora or MiniPay's built-in wallet, and offers pesos, reais, naira or dollars where the drive can swap them.
 4. Tap **Who has paid**. Open the Celoscan link on any payment: **To** is the locked wallet, never the Earmark contract.
 
-No Telegram? All of it, bill drives included, works from the browser at <https://earmark-agent.onrender.com/app> with your own wallet. Typed shortcuts still work in the bot (`/new 2 USDT 0xYourWallet September rent`, `/bill mtn 08031234567 500`).
+No Telegram? All of it, bill drives included, works from the browser at <https://earmark.chat/app> with your own wallet. Typed shortcuts still work in the bot (`/new 2 USDT 0xYourWallet September rent`, `/bill mtn 08031234567 500`).
 
 ## What is live
 
@@ -41,7 +41,7 @@ No Telegram? All of it, bill drives included, works from the browser at <https:/
 | Source | [Verified on Sourcify](https://repo.sourcify.dev/42220/0x93316DE31b4f891C56cf3b65A3f96AA6b04192Ae), exact match of the deployed bytecode |
 | Agent identity | [ERC-8004 agent 9806](https://8004scan.io/agents/celo/9806) |
 | Bot | [@Earmarked_bot](https://t.me/Earmarked_bot) |
-| Site | <https://earmark-agent.onrender.com>, docs at [/docs](https://earmark-agent.onrender.com/docs), live drive at [/live](https://earmark-agent.onrender.com/live) |
+| Site | <https://earmark.chat>, docs at [/docs](https://earmark.chat/docs), live drive at [/live](https://earmark.chat/live). The original address, earmark-agent.onrender.com, still works |
 | Tokens | 25 Celo stablecoins, every address checked on chain before listing; see [usage](docs/usage.md) |
 | Bill payments | Nigerian electricity and airtime, and airtime in 140+ countries, through [AbaPay](https://agents.abapays.com) over x402, settled in USA₮ or USD₮ |
 | FX | [Textile FX](https://textilecredit.com) RFQ swaps: wARS, wBRL, cNGN, USD₮ and USA₮ into whatever coin a drive collects |
@@ -101,7 +101,7 @@ That is the whole trust story: the destination is fixed before the first naira a
 - **Cencori** reads a free-text `/new`. The model may only locate values that appear in the message,
   never supply them: the address, the digits and the ticker are all checked back against what was typed.
 - **Chainstack** RPC as the primary endpoint with Forno as fallback; browsers are only ever given the public one.
-- **buy** ([usebuy.ai](https://usebuy.ai)): Earmark buys the model that reads a sentence, and a backup Celo node, per call over x402 from its own wallet, in USDC, under a daily cap. Every paid call is listed at [`/api/buy`](https://earmark-agent.onrender.com/api/buy). A member's own agent can pay their share the same way: **Pay my share** prints the `npx @celo/buy curl` command.
+- **buy** ([usebuy.ai](https://usebuy.ai)): Earmark buys the model that reads a sentence, and a backup Celo node, per call over x402 from its own wallet, in USDC, under a daily cap. Every paid call is listed at [`/api/buy`](https://earmark.chat/api/buy). A member's own agent can pay their share the same way: **Pay my share** prints the `npx @celo/buy curl` command.
 
 ### Token addresses (Celo mainnet, verified on chain)
 
@@ -137,7 +137,7 @@ Open <http://localhost:3010>. The landing page is at `/`, a funded drive is at `
 local chain rather than from fixtures.
 
 For front end work with hot reload, run `pnpm dev:web` (port 5173) alongside the agent; Vite proxies `/api`
-to 3010, or set `EARMARK_API=https://earmark-agent.onrender.com` to work on the UI against the live API.
+to 3010, or set `EARMARK_API=https://earmark.chat` to work on the UI against the live API.
 Paying from the browser needs an injected wallet, so the pay button is the one part that wants MetaMask
 or another Celo wallet.
 
@@ -170,7 +170,7 @@ Two things are required for a free instance to behave:
 1. A **Turso database**. Create one, then set `DATABASE_URL` and `DATABASE_AUTH_TOKEN` in the Render
    dashboard. Unset locally, the same code opens a local libSQL file instead, so development needs
    no account.
-2. A **cron ping** to `https://earmark-agent.onrender.com/api/health` every 10 minutes (cron-job.org
+2. A **cron ping** to `https://earmark.chat/api/health` every 10 minutes (cron-job.org
    is enough). Render suspends a free service after 15 idle minutes, and the Telegram long poll is
    outbound traffic, so without an inbound ping the bot stops answering, instalment nudges never
    fire and the x402 sweeper stalls.

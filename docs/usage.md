@@ -20,7 +20,7 @@ Every drive card also carries **Set instalments** and **Close drive**. Only the 
 
 ## On the website
 
-Open <https://earmark-agent.onrender.com/app> and connect a wallet.
+Open <https://earmark.chat/app> and connect a wallet.
 
 - **New drive, Pay an address:** the same as the bot, from your own wallet. You can close it yourself.
 - **New drive, Pay a bill:** Nigerian electricity, Nigerian airtime or airtime abroad, with a live price. The drive opens from your wallet with Earmark as the locked payee, then you sign once to attach the bill. Only your wallet can see the token afterwards.
