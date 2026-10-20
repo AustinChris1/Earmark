@@ -474,6 +474,8 @@ export function DrivePage() {
   const marks = drive ? pathMarks(drive) : [];
   const SceneIcon = scene?.icon ?? Users;
   const full = target > 0n && remaining === 0n;
+  // The contract refuses payments after the closing date, so the page must not offer to take one.
+  const expired = !!drive && !drive.closed && drive.deadline > 0 && Date.now() / 1000 > drive.deadline;
   // A bill's header says what is being paid; the number and amount sit under it instead of wrapping the title.
   const heroTitle = drive?.bill ? drive.bill.provider : (drive?.label ?? "");
   const heroDetail = drive?.bill ? `for ${drive.bill.number} · ${drive.bill.amountLabel}` : null;
@@ -481,7 +483,7 @@ export function DrivePage() {
     ? null
     : full || drive.bill?.status === "paid"
       ? { text: "Fully paid", bg: "#56df7c", fg: "#0a0a08" }
-      : drive.closed
+      : drive.closed || expired
         ? { text: "Closed", bg: "rgb(255 255 255 / 0.18)", fg: "#ffffff" }
         : { text: "Open", bg: "var(--brand)", fg: "var(--brand-ink)" };
 
@@ -542,7 +544,7 @@ export function DrivePage() {
                     {drive.you ? `Instalment ${drive.you.seq} of ${drive.you.count}` : `Drive ${driveCode(drive.id)}`}
                     {drive.closed ? " · closed" : ""}
                     {!drive.closed && drive.deadline > 0
-                      ? ` · closes ${new Date(drive.deadline * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`
+                      ? ` · ${expired ? "closed" : "closes"} ${new Date(drive.deadline * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`
                       : ""}
                   </p>
                 </div>
@@ -735,19 +737,21 @@ export function DrivePage() {
             <div className="surface mt-4 rounded-2xl p-5 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:mt-6 lg:p-6">
               <p className="flex items-center gap-2 text-sm font-semibold">
                 <Wallet className="h-4 w-4" style={{ color: "var(--accent)" }} aria-hidden />
-                {drive.closed || full ? "Payment" : "Pay your share"}
+                {drive.closed || full || expired ? "Payment" : "Pay your share"}
               </p>
               {drive.unattached ? (
                 <p role="alert" className="mt-6 text-sm" style={{ color: "var(--danger)" }}>
                   This drive pays Earmark's own wallet but has no bill attached, so nothing would pay it out. Do not pay into it;
                   whoever opened it can open a new bill drive.
                 </p>
-              ) : drive.closed || full ? (
+              ) : drive.closed || full || expired ? (
                 <div className="mt-6 flex items-center gap-3 rounded-xl p-3" style={{ background: "var(--accent-soft)" }}>
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--brand)", color: "var(--brand-ink)" }}>
                     <Check className="h-5 w-5" />
                   </span>
-                  <p className="text-sm font-semibold">{full ? "This drive is fully paid." : "This drive is closed."}</p>
+                  <p className="text-sm font-semibold">
+                    {full ? "This drive is fully paid." : expired ? "Its closing date has passed, so it can't take payments." : "This drive is closed."}
+                  </p>
                 </div>
               ) : (
                 <div className="mt-6">

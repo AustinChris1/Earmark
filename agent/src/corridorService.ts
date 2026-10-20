@@ -3,7 +3,7 @@ import { parseDriveRef } from "./driveCode.js";
 import type { RequestHandler } from "express";
 import { decodeEventLog, formatUnits, getAddress, isHex, parseAbi, parseUnits, type Address, type Hex } from "viem";
 import { tokenByAddress, tokenBySymbol, type TokenInfo } from "./config.js";
-import { account, contributeFromAgent, publicClient, readDrive, refundFromAgent } from "./chain.js";
+import { account, contributeFromAgent, pastDeadline, publicClient, readDrive, refundFromAgent } from "./chain.js";
 import { cancel, execute, preview, requestFirm, type FirmQuote } from "./textile.js";
 import { belowTextileMinimum, PAY_COINS, routeFor, settle, textileMinimumMessage, withHeadroom, type CorridorDeps, type CorridorIntent, type IntentStatus } from "./corridor.js";
 import { addCorridorIntent, getCorridorIntent, setCorridorStatus, unsettledCorridorIntents, type CorridorRow } from "./db.js";
@@ -17,7 +17,8 @@ const deps: CorridorDeps<FirmQuote> = {
   usat: USAT.address,
   readDrive: async (id) => {
     const d = await readDrive(BigInt(id));
-    return { token: d.token, target: d.target, raised: d.raised, closed: d.closed };
+    // past its deadline the contract would refuse the contribution, so never swap into it
+    return { token: d.token, target: d.target, raised: d.raised, closed: d.closed || pastDeadline(d) };
   },
   firmExactIn: (sell, buy, sellAmount) => requestFirm(sell, buy, { sellAmount }),
   firmExactOut: (sell, buy, buyAmount) => requestFirm(sell, buy, { buyAmount }),
@@ -112,6 +113,7 @@ export const corridorQuoteHandler: RequestHandler = async (req, res) => {
     if (!ref) return res.status(400).json({ error: "Bad drive." });
     const driveId = String(ref);
     const drive = await readDrive(BigInt(driveId));
+    if (drive.closed || pastDeadline(drive)) return res.status(400).json({ error: "This drive has closed." });
     const local = tokenByAddress(drive.token);
     const pay = tokenBySymbol(String(req.query.pay ?? "USDT"));
     if (!local || !pay || !routeFor(pay, local)) {

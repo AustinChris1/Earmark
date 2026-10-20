@@ -6,7 +6,7 @@ import { decodePaymentSignatureHeader } from "@x402/core/http";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { formatUnits, getAddress, isAddress, isHex, parseAbi, parseUnits, type Address, type Hex } from "viem";
 import { env, tokenByAddress, X402_FACILITATOR, X402_NETWORK } from "./config.js";
-import { account, contributeFromAgent, publicClient, readDrive } from "./chain.js";
+import { account, contributeFromAgent, pastDeadline, publicClient, readDrive } from "./chain.js";
 import { addIntent, getIntent, markForwarded, pendingIntents } from "./db.js";
 import { parseDriveRef } from "./driveCode.js";
 
@@ -31,7 +31,8 @@ async function quote(path: string, amt: string | undefined) {
   if (!id) throw new Error("No drive id in path.");
   const drive = await readDrive(BigInt(id));
   if (drive.destination === "0x0000000000000000000000000000000000000000") throw new Error(`Drive ${id} does not exist.`);
-  if (drive.closed) throw new Error(`Drive ${id} is closed.`);
+  // the forward would revert after the payer's money had already settled to the agent
+  if (drive.closed || pastDeadline(drive)) throw new Error(`Drive ${id} is closed.`);
   const token = tokenByAddress(drive.token);
   if (!token?.eip712) {
     throw new Error("This drive's token cannot settle over x402; the facilitator handles USDC, USDT and USAT.");

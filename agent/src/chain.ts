@@ -211,6 +211,12 @@ export async function listDrives(limit = 100) {
   return rows.filter((d) => d.destination !== "0x0000000000000000000000000000000000000000");
 }
 
+/** The contract refuses contributions after a drive's deadline, so past it a drive is as good as closed. */
+export function pastDeadline(d: { deadline: bigint | number }): boolean {
+  const at = Number(d.deadline);
+  return at > 0 && Date.now() / 1000 > at;
+}
+
 export async function readDrive(id: bigint) {
   return publicClient.readContract({ address: requireEarmark(), abi: EARMARK_ABI, functionName: "drive", args: [id] });
 }
