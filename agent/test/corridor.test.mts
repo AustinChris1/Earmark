@@ -132,8 +132,14 @@ test("if the drive will not take the swapped coin, the coin and the change both 
 });
 
 test("which coins each drive can be paid in", () => {
-  assert.deepEqual(payOptions(tokenBySymbol("USDT")), ["USAT", "cNGN", "wARS", "wBRL"]);
-  assert.deepEqual(payOptions(tokenBySymbol("cNGN")), ["USDT", "USAT", "wARS", "wBRL"]);
+  assert.deepEqual(payOptions(tokenBySymbol("USDT")), ["USAT", "cNGN", "wARS", "wBRL", "IDRX"]);
+  assert.deepEqual(payOptions(tokenBySymbol("USDC")), ["USDT", "USAT", "cNGN", "wARS", "wBRL", "IDRX"]);
+  assert.deepEqual(payOptions(tokenBySymbol("cNGN")), ["USDT", "USAT", "wARS", "wBRL", "IDRX"]);
+  assert.deepEqual(payOptions(tokenBySymbol("wARS")), ["USDT", "USAT", "cNGN", "wBRL", "IDRX"]);
+  assert.deepEqual(payOptions(tokenBySymbol("IDRX")), ["USDT", "USAT", "cNGN", "wARS", "wBRL"]);
+  assert.deepEqual(payOptions(tokenBySymbol("KESm")), []);
+  assert.equal(routeFor(tokenBySymbol("IDRX"), tokenBySymbol("USDT")), "direct");
+  assert.equal(routeFor(tokenBySymbol("IDRX"), tokenBySymbol("wARS")), "via-usdt");
   assert.deepEqual(payOptions(tokenBySymbol("USAT")), [], "Textile has no corridor into USA₮");
   assert.equal(routeFor(tokenBySymbol("wARS"), tokenBySymbol("USDT")), "direct");
   assert.equal(routeFor(tokenBySymbol("wARS"), tokenBySymbol("cNGN")), "via-usdt");

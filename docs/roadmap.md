@@ -43,7 +43,7 @@ This is a real project, not a setting. What it involves:
 
 - **The contract on each chain.** `Earmark.sol` has no owner and no upgrade path, so each chain gets its own deployment at its own address, verified the same way.
 - **The agent watching each chain.** One watcher per chain, each with its own last-seen block, and codes that say which chain a collection is on.
-- **Different money on each chain.** The 25 Celo stablecoins are a Celo list. Base has USDC, Arbitrum has its own, and each needs checking on chain before it is offered.
+- **Different money on each chain.** The 26 Celo stablecoins are a Celo list. Base has USDC, Arbitrum has its own, and each needs checking on chain before it is offered.
 - **Swaps stay where the liquidity is.** Textile FX is on Celo, so paying in another currency stays a Celo feature until there is somewhere else to do it.
 - **Gas paid in the coin you hold** is a Celo feature. On other chains, a payer needs that chain's gas token.
 

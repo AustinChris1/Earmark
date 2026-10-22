@@ -301,7 +301,7 @@ Fix the state off camera, then restart from the top of that scene. Scenes 1 and 
 ## 9. Claims you may make, and the exact wording
 
 - "Live on Celo mainnet." True.
-- "25 Celo stablecoins." True, every address checked on chain.
+- "26 Celo stablecoins." True, every address checked on chain. Rupiah (IDRX) is listed because Textile quotes it.
 - "Airtime top-ups in 140+ countries." True as a capability, **but no foreign top-up has ever been delivered.** If the pre-flight did not prove one, say "airtime in Nigeria today, and the same rail reaches 140-plus countries" rather than implying you have done it.
 - "Nigerian electricity." True, and it has run on mainnet.
 - "Won Best Stablecoin Adoption at Agents at Work." True, September 2026.

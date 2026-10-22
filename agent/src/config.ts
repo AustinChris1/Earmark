@@ -52,6 +52,9 @@ export const TOKENS: Record<string, TokenInfo> = {
   AUDm: { symbol: "AUDm", address: "0x7175504C455076F15c04A2F90a8e352281F492F9", decimals: 18, feeCurrency: "0x7175504C455076F15c04A2F90a8e352281F492F9" },
   CADm: { symbol: "CADm", address: "0xff4Ab19391af240c311c54200a492233052B6325", decimals: 18, feeCurrency: "0xff4Ab19391af240c311c54200a492233052B6325" },
 
+  // Indonesian rupiah. Textile quotes it against USD₮. Symbol and 2 decimals checked on chain.
+  IDRX: { symbol: "IDRX", address: "0x18Bc5bcC660cf2B9cE3cd51a404aFe1a0cBD3C22", decimals: 2, feeCurrency: null },
+
   // Ripio wFIAT, Latin America
   wARS: { symbol: "wARS", address: "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D", decimals: 18, feeCurrency: null },
   wBRL: { symbol: "wBRL", address: "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0", decimals: 18, feeCurrency: null },

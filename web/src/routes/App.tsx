@@ -5,6 +5,7 @@ import { animated } from "@react-spring/web";
 import { ArrowRight, ChevronDown, Link2, Loader2, Lock, Plus, RefreshCw, Wallet, X, Zap } from "lucide-react";
 import { formatUnits, isAddress, parseAbi, parseEventLogs, parseUnits, type Address, type Hex } from "viem";
 import { toDataSuffix } from "@celo/attribution-tags";
+import { CoinPicker } from "../components/CoinPicker";
 import { Shell } from "../components/Shell";
 import { driveCode, parseDriveRef } from "../lib/driveCode";
 import {
@@ -639,23 +640,15 @@ function NewDriveForm({
       </p>
 
       <div className="mt-4 grid gap-3">
-        <div className="flex gap-3">
-          <input
-            className="field tabular-nums"
-            inputMode="decimal"
-            aria-label="Amount"
-            placeholder="450"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-          <select className="field" style={{ maxWidth: 130 }} aria-label="Token" value={symbol} onChange={(e) => setSymbol(e.target.value)}>
-            {symbols.map((s) => (
-              <option key={s} value={s}>
-                {coinName(s)}
-              </option>
-            ))}
-          </select>
-        </div>
+        <input
+          className="field tabular-nums"
+          inputMode="decimal"
+          aria-label="Amount"
+          placeholder="450"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+        <CoinPicker symbols={symbols} value={symbol} onChange={setSymbol} label="The drive collects" />
         <input
           className="field"
           placeholder="Destination address, 0x…"
@@ -978,8 +971,8 @@ function BillDriveForm({ onSubmit }: { onSubmit: (b: BillDraft) => void }) {
           </div>
           <p className="mt-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
             {coin === "USDT"
-              ? "People can also pay in pesos (wARS), reais (wBRL) or naira (cNGN); Earmark swaps it on Textile FX."
-              : "Everyone pays in USA₮. Pick USD₮ if someone will pay in pesos, reais or naira."}
+              ? "People can also pay in pesos, reais, naira or rupiah. Earmark swaps it on Textile FX."
+              : "Everyone pays in USA₮. Pick USD₮ if someone will pay in another coin."}
           </p>
         </div>
 

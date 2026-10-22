@@ -35,10 +35,12 @@ import {
   type Hex,
 } from "viem";
 import { toDataSuffix } from "@celo/attribution-tags";
+import { CoinMark, CoinPicker } from "../components/CoinPicker";
 import { Shell } from "../components/Shell";
 import { PayQr } from "../components/PayQr";
 import { ensureChain } from "../lib/wallet";
 import { coinName, getBillReceipt, getDrive, type BillReceipt, type Drive } from "../lib/api";
+import { coinFace, coinIcon, COIN_FACES } from "../lib/coins";
 import { useLift } from "../lib/springs";
 import { driveCode } from "../lib/driveCode";
 
@@ -73,15 +75,7 @@ const LOCAL_MONEY: Record<string, string> = { AR: "pesos", BR: "reais", MX: "pes
 // Coins Ripio sells for local money, so someone paying in them can buy them first.
 const RAMP_COUNTRY: Record<string, string> = { wARS: "AR", wBRL: "BR" };
 // The flag or logo for a coin, so people pick their money by sight.
-const COIN_ICON: Record<string, string> = {
-  cNGN: "/flags/ng.svg",
-  wARS: "/flags/ar.svg",
-  wBRL: "/flags/br.svg",
-  USDT: "/logos/tether.svg",
-  USAT: "/flags/us.svg",
-};
-// What each swappable coin is, for people who know their money and not the ticker.
-const COIN_HINT: Record<string, string> = { wARS: "pesos", wBRL: "reais", cNGN: "naira", USDT: "dollars", USAT: "dollars" };
+
 const money = (v: string) => Number(v).toLocaleString("en-US", { maximumFractionDigits: 4 });
 
 // The photograph that says what this drive is for, before the address and the amounts.
@@ -107,7 +101,7 @@ function sceneFor(drive: Drive): { img: string; alt: string; icon: LucideIcon } 
 
 function pathMarks(drive: Drive): { src: string; name: string }[] {
   const marks: { src: string; name: string }[] = [{ src: "/logos/celo.png", name: "Celo" }];
-  const coin = COIN_ICON[drive.token.symbol];
+  const coin = coinIcon(drive.token.symbol);
   if (coin) marks.push({ src: coin, name: coinName(drive.token.symbol) });
   // Textile only while a swap is still on offer; a closed drive was never swapped into.
   if (drive.payOptions.length > 0 && !drive.closed) marks.push({ src: "/logos/textile.svg", name: "Textile" });
@@ -698,15 +692,7 @@ export function DrivePage() {
                   </div>
                   <div className="mt-2 flex items-center justify-between text-sm tabular-nums">
                     <span className="inline-flex items-center gap-2 font-semibold">
-                      {COIN_ICON[drive.token.symbol] && (
-                        <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-black/5">
-                          <img
-                            src={COIN_ICON[drive.token.symbol]}
-                            alt=""
-                            className={COIN_ICON[drive.token.symbol].includes("/flags/") ? "h-full w-full object-cover" : "h-3.5 w-3.5 object-contain"}
-                          />
-                        </span>
-                      )}
+                      <CoinMark symbol={drive.token.symbol} className="h-5 w-5" />
                       {fmt(raised)}
                     </span>
                     <span style={{ color: "var(--text-muted)" }}>of {fmt(target)}</span>
@@ -755,51 +741,15 @@ export function DrivePage() {
                 </div>
               ) : (
                 <div className="mt-6">
-                  {corridor && (
-                    <div className="mb-4">
-                      <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                        Pay in {swapping && COIN_HINT[payIn] ? <span>({COIN_HINT[payIn]}; Earmark swaps it)</span> : null}
-                      </p>
-                      <div role="radiogroup" aria-label="Pay in" className="mt-2 grid grid-cols-2 gap-2">
-                        {["direct", ...drive.payOptions].map((p) => {
-                          const symbol = p === "direct" ? drive.token.symbol : p;
-                          const icon = COIN_ICON[symbol];
-                          const picked = payIn === p;
-                          return (
-                            <button
-                              key={p}
-                              type="button"
-                              role="radio"
-                              aria-checked={picked}
-                              onClick={() => setPayIn(p)}
-                              className="pressable flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left"
-                              style={
-                                picked
-                                  ? { background: "var(--bg-raised)", color: "var(--text)", boxShadow: "0 0 0 2px var(--accent)" }
-                                  : { background: "var(--bg-sunken)", color: "var(--text-muted)" }
-                              }
-                            >
-                              {icon ? (
-                                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-black/5">
-                                  <img src={icon} alt="" className={icon.includes("/flags/") ? "h-full w-full object-cover" : "h-5 w-5 object-contain"} />
-                                </span>
-                              ) : (
-                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold" style={{ background: "var(--brand)", color: "var(--brand-ink)" }}>
-                                  {symbol.slice(0, 1)}
-                                </span>
-                              )}
-                              <span className="min-w-0 leading-tight">
-                                <span className="block text-sm font-semibold" style={{ color: "var(--text)" }}>
-                                  {coinName(symbol)}
-                                </span>
-                                <span className="block text-xs">{p === "direct" ? "this drive" : (COIN_HINT[p] ?? "swap")}</span>
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  <div className="mb-4">
+                    <CoinPicker
+                      label={swapping ? `Pay in ${coinFace(payIn).money}. Earmark swaps it.` : "Pay in"}
+                      symbols={[...new Set([drive.token.symbol, ...COIN_FACES.map((c) => c.symbol)])]}
+                      value={payIn === "direct" ? drive.token.symbol : payIn}
+                      payable={[drive.token.symbol, ...drive.payOptions]}
+                      onChange={(s) => setPayIn(s === drive.token.symbol ? "direct" : s)}
+                    />
+                  </div>
 
                   <label htmlFor="amt" className="text-sm" style={{ color: "var(--text-muted)" }}>
                     {drive.you

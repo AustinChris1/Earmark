@@ -15,7 +15,7 @@ A group chat collects money for one named bill, and the money can only go where 
 
 ## Pay in your own money
 
-A drive collects one coin, but people do not all hold it. A share can be paid in **naira (cNGN), pesos (wARS), reais (wBRL), USD₮ or USA₮**, and Earmark swaps it into the drive's coin on Textile FX. No pesos on chain yet? The pay page links straight into Ripio to buy some.
+A drive collects one coin, but people do not all hold it. A share can be paid in **naira (cNGN), pesos (wARS), reais (wBRL), rupiah (IDRX), USD₮ or USA₮**, and Earmark swaps it into the drive's coin on Textile FX. No pesos on chain yet? The pay page links straight into Ripio to buy some.
 
 So an aunt in Buenos Aires can pay her share of a Lagos light bill in pesos, and the meter still gets paid in naira.
 

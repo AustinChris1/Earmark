@@ -18,12 +18,13 @@ const DIRECT = new Set([
   "USDT>wARS", "wARS>USDT",
   "USDT>wBRL", "wBRL>USDT",
   "USDC>USDT", "USDT>USDC",
+  "USDT>IDRX", "IDRX>USDT",
   // USA₮ only goes one way: there is no corridor into it, so a USA₮ drive can only be paid in USA₮.
   "USAT>USDT",
 ]);
 
 /** Coins a payer can send to be swapped. */
-export const PAY_COINS = ["USDT", "USAT", "cNGN", "wARS", "wBRL"] as const;
+export const PAY_COINS = ["USDT", "USAT", "cNGN", "wARS", "wBRL", "IDRX"] as const;
 
 /** Headroom over the quoted price that the payer is asked to send; the unused part is refunded. */
 export const HEADROOM_BPS = 100n;

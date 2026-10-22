@@ -345,7 +345,7 @@ async function showBillConfirm(ctx: Context, draft: BillDraft) {
       q.what,
       `The drive collects <b>${fmt(q.target, coin)}</b>: AbaPay's price now, plus 2% in case the rate moves. Anything unused goes back to whoever paid.`,
     ];
-    if (draft.coin === "USDT") lines.push(`People can pay in USD₮, USA₮, pesos (wARS), reais (wBRL) or naira (cNGN); Earmark swaps it.`);
+    if (draft.coin === "USDT") lines.push(`People can pay in USD₮, USA₮, pesos (wARS), reais (wBRL), naira (cNGN) or rupiah (IDRX); Earmark swaps it.`);
     lines.push(``, `Opening the drive cannot be undone.`);
     return ctx.reply(lines.join("\n"), { ...HTML, reply_markup: billConfirmKeyboard() });
   } catch (e) {
