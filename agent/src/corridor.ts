@@ -24,7 +24,7 @@ const DIRECT = new Set([
 ]);
 
 /** Coins a payer can send to be swapped. */
-export const PAY_COINS = ["USDT", "USAT", "cNGN", "wARS", "wBRL", "IDRX"] as const;
+export const PAY_COINS = ["USDT", "USDC", "USAT", "cNGN", "wARS", "wBRL", "IDRX"] as const;
 
 /** Headroom over the quoted price that the payer is asked to send; the unused part is refunded. */
 export const HEADROOM_BPS = 100n;

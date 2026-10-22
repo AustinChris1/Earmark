@@ -30,22 +30,22 @@ Bill drives cover Nigerian electricity (Ikeja, Eko, Abuja and nine more), Nigeri
 
 ## Paying in another currency
 
-Say the drive collects USD₮ and you hold pesos.
+Say the drive collects USD₮ and you hold Argentine pesos.
 
 1. The pay page asks Textile FX for a price and shows **the most you will send**: the quote plus 1%.
 2. You send that to Earmark.
 3. Earmark buys exactly the USD₮ your share needs on Textile, pays it into the drive, and **sends back the pesos it did not use**.
 4. If the market moved past your maximum, nothing is swapped and everything comes back.
 
-Where Textile has no direct route, Earmark goes through USDT: pesos into a naira drive is pesos to USDT to cNGN. The one coin nothing can swap into is USA₮, so a USA₮ drive is paid in USA₮. Shillings, euros, soles and the other listed coins are paid in that same coin, because Textile does not quote them. The pay page still shows every coin and its mark. A faded one cannot settle this drive.
+Where Textile has no direct route, Earmark goes through USD₮: Argentine pesos into a naira drive is wARS to USD₮ to cNGN. Nothing swaps into USA₮, so a USA₮ drive is paid in USA₮. Mexican pesos, Colombian pesos, Chilean pesos, soles, shillings, euros and the other listed coins can be the coin a drive collects, and people pay that same coin, because Textile does not quote a swap for them. The pay page opens on the coins that can pay this drive. Search finds every coin Earmark accepts. A coin that cannot pay is marked not accepted, with its country on it.
 
 | The drive collects | It can also be paid in |
 |---|---|
-| USD₮ | USA₮, cNGN, wARS, wBRL, IDRX |
+| USD₮ | USDC, USA₮, cNGN, wARS, wBRL, IDRX |
 | USDC | USD₮, USA₮, cNGN, wARS, wBRL, IDRX |
-| cNGN | USD₮, USA₮, wARS, wBRL, IDRX |
-| wARS or wBRL | USD₮, USA₮, cNGN, IDRX and each other |
-| IDRX | USD₮, USA₮, cNGN, wARS, wBRL |
+| cNGN | USD₮, USDC, USA₮, wARS, wBRL, IDRX |
+| wARS or wBRL | USD₮, USDC, USA₮, cNGN, IDRX and each other |
+| IDRX | USD₮, USDC, USA₮, cNGN, wARS, wBRL |
 | USA₮ | USA₮ only |
 | Anything else | That coin only |
 

@@ -971,7 +971,7 @@ function BillDriveForm({ onSubmit }: { onSubmit: (b: BillDraft) => void }) {
           </div>
           <p className="mt-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
             {coin === "USDT"
-              ? "People can also pay in pesos, reais, naira or rupiah. Earmark swaps it on Textile FX."
+              ? "People can also pay in USDC, USA₮, Argentine pesos, reais, naira or rupiah. Earmark swaps it on Textile FX."
               : "Everyone pays in USA₮. Pick USD₮ if someone will pay in another coin."}
           </p>
         </div>

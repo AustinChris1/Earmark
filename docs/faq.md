@@ -28,7 +28,7 @@ On a bill drive, unused money comes back after the provider is paid. If the bill
 
 ## Which wallets and tokens work?
 
-Any Celo wallet with a browser or a connect button: MetaMask, Rabby, Valora and MiniPay's injected wallet. Twenty six Celo stablecoins, each checked on chain before it was listed: the dollar coins (USDT, USDC, USAT, USDm), cNGN and NGNm for naira, IDRX for rupiah, the Mento local currencies (KESm, GHSm, ZARm, XOFm, BRLm, COPm and more) and Ripio's wFIAT for Latin America (wARS, wBRL, wMXN, wCOP, wPEN, wCLP). A drive is opened in one token. A USD₮ drive can also be paid in pesos (wARS), reais (wBRL), naira (cNGN), rupiah (IDRX) or USA₮, and Earmark swaps those in. Earmark is not yet listed in MiniPay Discover, so open the pay link in MiniPay's browser rather than through a Discover wrapper.
+Any Celo wallet with a browser or a connect button: MetaMask, Rabby, Valora and MiniPay's injected wallet. Twenty six Celo stablecoins, each checked on chain before it was listed: the dollar coins (USDT, USDC, USAT, USDm), cNGN and NGNm for naira, IDRX for rupiah, the Mento local currencies (KESm, GHSm, ZARm, XOFm, BRLm, COPm and more) and Ripio's wFIAT for Latin America (wARS, wBRL, wMXN, wCOP, wPEN, wCLP). A drive is opened in one token. A USD₮ drive can also be paid in USDC, USA₮, Argentine pesos (wARS), reais (wBRL), naira (cNGN) or rupiah (IDRX), and Earmark swaps those in. The pay page opens on the coins that can pay that drive. Search finds the rest and says when one is not accepted. Earmark is not yet listed in MiniPay Discover, so open the pay link in MiniPay's browser rather than through a Discover wrapper.
 
 ## Can someone outside the chat, or another agent, pay a share?
 

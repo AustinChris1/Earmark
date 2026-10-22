@@ -31,7 +31,7 @@ No Telegram is needed for any of it.
 ## Paying a share
 
 1. Open the link from the chat, or scan its QR code with your phone's wallet browser.
-2. Pick the money you hold. Flags show what each coin is: naira, pesos, reais, dollars.
+2. The list opens on the coins that can pay this drive. Search if you hold another one. Each coin names its country, so Argentine pesos and Mexican pesos stay distinct.
 3. Confirm in your wallet. Paying in the drive's own coin takes two approvals the first time; paying in another coin is one transfer to Earmark, which swaps and pays.
 4. The chat announces it, with a Celoscan receipt.
 
@@ -42,7 +42,7 @@ Wallets that work: MiniPay's browser, MetaMask, Rabby, Valora, or any Celo walle
 | If the group | Collect |
 |---|---|
 | Is all in Nigeria, paying a bill | USA₮ |
-| Has someone paying in pesos, reais, naira or rupiah | USD₮ |
+| Has someone paying in USDC, Argentine pesos, reais, naira or rupiah | USD₮ |
 | Is paying a person who wants naira | cNGN |
 | Is paying a person in Argentina or Brazil | wARS or wBRL, so they can cash out with Ripio |
 

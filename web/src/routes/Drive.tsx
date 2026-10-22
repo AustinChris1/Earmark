@@ -747,6 +747,7 @@ export function DrivePage() {
                       symbols={[...new Set([drive.token.symbol, ...COIN_FACES.map((c) => c.symbol)])]}
                       value={payIn === "direct" ? drive.token.symbol : payIn}
                       payable={[drive.token.symbol, ...drive.payOptions]}
+                      collects={drive.token.symbol}
                       onChange={(s) => setPayIn(s === drive.token.symbol ? "direct" : s)}
                     />
                   </div>
