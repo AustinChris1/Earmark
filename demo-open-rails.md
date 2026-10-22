@@ -81,7 +81,7 @@ Recordly zooms toward where the cursor rests. Every scene below has a **Cursor**
 ### Layout on the 1080p desktop
 
 - [ ] **Telegram Desktop**, left ~45%. **The Family 🌍** open, font large, other chats hidden.
-- [ ] **Chrome**, right ~55%. Three tabs, in this order: the drive page, Celoscan, `earmark.chat/api/buy`.
+- [ ] **Chrome**, right ~55%. Two tabs: the drive page, then Celoscan. Do not open `earmark.chat/api/buy`.
 - [ ] **A clean terminal** for Scene 7, large font, no scrollback, no secrets on screen.
 - [ ] **Phone mirror** via [scrcpy](https://github.com/Genymobile/scrcpy) for the wallet. If that is impossible, use a wallet extension in Chrome and skip the phone.
 
@@ -108,7 +108,7 @@ These prove the two unproven rails. Do them with tiny amounts. If one fails, do 
 
 ## 4. Before pressing Record
 
-1. Close every tab except the three. No bookmarks bar, no email, no music.
+1. Close every tab except the drive page and Celoscan. No bookmarks bar, no email, no music.
 2. Browser zoom 110%.
 3. Notifications off everywhere. Phone on Do Not Disturb.
 4. Record a 30-second test with narration. Listen back. Hiss or echo makes the whole take unusable.
@@ -119,6 +119,8 @@ These prove the two unproven rails. Do them with tiny amounts. If one fails, do 
 ## 5. The script
 
 9 scenes. Each has **Show**, **Do**, **Say** and **Cursor**. Talk in first person. You built this.
+
+One or two sentences, then stop. The screen does the rest. Silence while a wallet confirms, or while Celoscan loads, is the right read. Do not fill it.
 
 ---
 
@@ -132,7 +134,7 @@ These prove the two unproven rails. Do them with tiny amounts. If one fails, do 
 
 **Say:**
 
-> Earmark is a group payment agent on Celo. A family names one bill, locks who gets paid, and everyone sends their share. It can only pay that destination. It cannot hold the money and it cannot change the payee later.
+> One bill. One address. Everyone pays their share.
 
 ---
 
@@ -146,7 +148,7 @@ These prove the two unproven rails. Do them with tiny amounts. If one fails, do 
 
 **Say:**
 
-> One family, four cities. Ana is in São Paulo, Kofi is in Lagos, I'm in New York, and Mum is in Buenos Aires. Three things get paid for here, and every one of them currently runs on trusting whoever collects.
+> Mum's rent is due. Right now someone in this chat has to collect it.
 
 ---
 
@@ -160,7 +162,7 @@ These prove the two unproven rails. Do them with tiny amounts. If one fails, do 
 
 **Say:**
 
-> Mum's rent is in pesos, so the collection is in pesos. Her wallet is written into the contract the moment it opens. Not a setting, not a preference. Nobody can point this somewhere else afterwards, including me.
+> Pesos, because the rent is in pesos. This address is locked. I can't change it.
 
 ---
 
@@ -178,9 +180,11 @@ These prove the two unproven rails. Do them with tiny amounts. If one fails, do 
 
 **Say:**
 
-> Kofi pays in dollars. Earmark swaps it on Textile FX in the seconds the payment takes, and Mum receives pesos, because pesos is what the rent is in. The swap is on chain, the arrival is on chain, and Ripio takes it the last step to her bank.
+> Dollars in. Pesos land in Mum's wallet. Ripio can cash that out to her bank.
 
-If the pre-flight peso payment failed, skip the swap and pay in wARS directly, and say "everyone can pay in the currency they hold" without claiming the swap on camera.
+Say it once, over the quote. Stay quiet through the wallet confirm and the Celoscan hold.
+
+If the pre-flight peso payment failed, skip the swap and pay in wARS directly. Say "paid in pesos, straight to her wallet" and do not mention a swap.
 
 ---
 
@@ -194,7 +198,7 @@ If the pre-flight peso payment failed, skip the swap and pay in wARS directly, a
 
 **Say:**
 
-> The agent watches the chain and reads the tally back into the chat. Who has paid, who has not. That is what actually collects a bill: the group can see it. No spreadsheet, no one chasing.
+> Who has paid. The group can see it.
 
 ---
 
@@ -208,7 +212,7 @@ If the pre-flight peso payment failed, skip the swap and pay in wARS directly, a
 
 **Say:**
 
-> A phone top-up has no wallet to lock to. So Earmark pays the provider itself, through AbaPay over x402, and posts the receipt back to the group. This is the only time it holds the money, and only until the bill is paid. Anything unused goes back to whoever paid it.
+> A top-up has no wallet. Earmark pays it, and the receipt comes back here.
 
 Film a **Nigerian** top-up unless the pre-flight proved a foreign one. Nigerian airtime is the flow that has actually delivered.
 
@@ -224,7 +228,7 @@ Film a **Nigerian** top-up unless the pre-flight proved a foreign one. Nigerian 
 
 **Say:**
 
-> Leo never opens a wallet. His own agent pays his share over x402 with one command, through buy, Celo's marketplace for agents. Same collection, same locked destination. Earmark buys its own tools the same way, and every call it pays for is public.
+> His agent pays his share. One command. Same locked address.
 
 Only film this if the pre-flight ran it for real. Do not fake a terminal.
 
@@ -232,15 +236,15 @@ Only film this if the pre-flight ran it for real. Do not fake a terminal.
 
 ### Scene 8: Why this is the product (3:20–3:45)
 
-**Show:** Chrome, the drive page. The lock box with the address pattern and `Pays only to this address`. Then `earmark.chat/api/buy` briefly.
+**Show:** Chrome, the drive page. Scroll once and stop on the lock box: the address, and `Pays only to this address`. Hold.
 
-**Do:** One scroll, stop on the lock. Hold.
+**Do:** One scroll, stop on the lock. Hold in silence for a beat after the line.
 
 **Cursor:** On the lock box.
 
 **Say:**
 
-> One job. Collect for a named thing, pay that thing, never a person in the middle. The contract has no owner and no withdraw, so there is no key that can move this money. Live on Celo mainnet, 25 stablecoins, fee abstraction so nobody touches CELO, ERC-8004 identity, and every transaction tagged. It is not an assistant. It is the treasurer that cannot steal.
+> It can only pay this address.
 
 ---
 
@@ -252,7 +256,7 @@ Only film this if the pre-flight ran it for real. Do not fake a terminal.
 
 **Say:**
 
-> Earmark. The group pot nobody can pocket. earmark dot chat, or @Earmarked_bot on Telegram.
+> Earmark. The group pot nobody can pocket.
 
 ---
 
@@ -290,6 +294,7 @@ Fix the state off camera, then restart from the top of that scene. Scenes 1 and 
 - Fighting Self. It is not enforced; do not mention it as a gate.
 - A terminal with `.env`, a private key, or the Render dashboard in view.
 - Bitrefill. The client exists but nothing has been bought with it and nothing in the live path uses it.
+- `earmark.chat/api/buy`. Leave it out. The closer is the lock box.
 
 ---
 
