@@ -45,7 +45,7 @@ import {
 } from "./db.js";
 import { driveCard, dueLabel, escape, exactAmount, fmt, memoTgId, mention, planText, shortAddr, tallyText } from "./format.js";
 import { onDirectNote, type DirectNotice } from "./directService.js";
-import { evenSplit } from "./split.js";
+import { evenSplit, splitSlots } from "./split.js";
 import { offrampUrl } from "./ripio.js";
 import {
   CB,
@@ -122,10 +122,61 @@ function payLink(driveId: number, tgId: number | string, name: string, amount?: 
 const HTML = { parse_mode: "HTML" as const, link_preview_options: { is_disabled: true } };
 
 async function ask(ctx: Context, text: string) {
-  return ctx.reply(text, {
-    ...HTML,
-    reply_markup: { force_reply: true, selective: true },
-  });
+  // Privacy mode hides a normal group message. A leading slash is delivered, so nobody taps Reply.
+  const slash = await groupNeedsSlash(ctx);
+  const hint = slash ? "\n\nSend it with a / in front, so it reaches me in this group." : "";
+  return ctx.reply(`${text}${hint}`, HTML);
+}
+
+const BILL_FREE_TEXT = new Set(["country", "number", "amount"]);
+const WIZARD_FREE_TEXT = new Set(["amount", "destination", "label"]);
+const MENU_LABELS = new Set<string>(Object.values(MENU));
+const KNOWN_COMMANDS = new Set([
+  "start",
+  "help",
+  "new",
+  "menu",
+  "split",
+  "bill",
+  "abroad",
+  "plan",
+  "pay",
+  "tally",
+  "remind",
+  "verify",
+  "close",
+]);
+
+/**
+ * A typed answer to an open question. Real commands and menu buttons keep their own handlers.
+ * In a group, Telegram only delivers a normal message when it is a reply, a mention, or a slash,
+ * so `/450` and `@Earmarked_bot 450` count as the answer too.
+ */
+export function plainAnswer(text: string, botUsername?: string): string | null {
+  let t = text.trim();
+  if (botUsername) t = t.replace(new RegExp(`^@${botUsername}\\b`, "i"), "").trim();
+  if (!t || MENU_LABELS.has(t)) return null;
+  if (t.startsWith("/")) {
+    const body = t.slice(1).trim();
+    const [head, ...rest] = body.split(/\s+/);
+    const cmd = (head ?? "").split("@")[0].toLowerCase();
+    if (!cmd || KNOWN_COMMANDS.has(cmd)) return null;
+    const word = head.includes("@") ? head.split("@")[0] : head;
+    const answer = [word, ...rest].join(" ").trim();
+    return answer || null;
+  }
+  return t;
+}
+
+// A group admin, or a bot whose privacy mode is off, already receives the next plain message.
+async function groupNeedsSlash(ctx: Context): Promise<boolean> {
+  const type = ctx.chat?.type;
+  if (type !== "group" && type !== "supergroup") return false;
+  const me = ctx.me as { id?: number; can_read_all_group_messages?: boolean } | undefined;
+  if (me?.can_read_all_group_messages) return false;
+  if (!me?.id || !ctx.chat) return true;
+  const member = await ctx.api.getChatMember(ctx.chat.id, me.id).catch(() => null);
+  return member?.status !== "administrator" && member?.status !== "creator";
 }
 
 function holdsPool(destination: string): boolean {
@@ -238,7 +289,7 @@ function explainOutsideNigeria(ctx: Context) {
 async function askBillNumber(ctx: Context, draft: BillDraft) {
   const p = PROVIDERS[draft.provider!];
   const what = p.category === "ELECTRICITY" ? "prepaid meter number" : "phone number to top up";
-  const prompt = await ask(ctx, `<b>${escape(p.label)}</b>\nReply with the ${what}.`);
+  const prompt = await ask(ctx, `<b>${escape(p.label)}</b>\nSend the ${what}.`);
   draft.step = "number";
   draft.promptId = prompt.message_id;
 }
@@ -246,7 +297,7 @@ async function askBillNumber(ctx: Context, draft: BillDraft) {
 async function chooseCountry(ctx: Context, draft: BillDraft, code: string) {
   const country = await intlCountry(code).catch(() => undefined);
   if (!country) {
-    const again = await ask(ctx, "I could not find that country. Reply with its name, like <code>Argentina</code>, or its code, like <code>AR</code>.");
+    const again = await ask(ctx, "I could not find that country. Send its name, like <code>Argentina</code>, or its code, like <code>AR</code>.");
     draft.promptId = again.message_id;
     return;
   }
@@ -488,7 +539,7 @@ async function startNewWizard(ctx: Context) {
 async function askAmount(ctx: Context, token: TokenInfo) {
   const prompt = await ask(
     ctx,
-    `<b>Step 1 of 3.</b>\nHow much in total, in ${coinName(token.symbol)}? Reply with a number, for example <code>450</code>.`,
+    `<b>Step 1 of 3.</b>\nHow much in total, in ${coinName(token.symbol)}? Send a number, for example <code>450</code>.`,
   );
   pending.set(pkey(chatId(ctx), ctx.from!.id), { step: "amount", promptId: prompt.message_id, token });
 }
@@ -541,20 +592,58 @@ async function splitEvenly(ctx: Context, d: DriveRow) {
     return ctx.reply("This drive has no target to divide. Set shares by hand: /split @ada 40 @emeka 30");
   }
   const members = await membersFor(chatId(ctx));
-  const shares = evenSplit(target, members.length);
+  // The count includes this bot. The other people in the chat still hold a share, even before they speak.
+  const humans = await ctx.api.getChatMemberCount(ctx.chat!.id).then((n) => Math.max(0, n - 1)).catch(() => null);
+  const slots = splitSlots(members.length, humans);
+  if (slots === 0) return ctx.reply("Send a message here first, then split again. I can only name people I have heard from.");
+  const shares = evenSplit(target, slots);
   const lines: string[] = [];
   for (const [i, m] of members.entries()) {
     await setShare({ drive_id: d.id, tg_id: m.tg_id, name: m.name, amount: shares[i].toString() });
     lines.push(`• ${mention(m.tg_id, m.name)} — ${fmt(shares[i], token)}`);
   }
-  const total = await ctx.api.getChatMemberCount(ctx.chat!.id).then((n) => n - 1).catch(() => null);
-  const missing = total !== null && total > members.length ? total - members.length : 0;
-  const note = missing
-    ? `\n\nThat is the ${members.length} of ${total} people I have heard from. The other ${missing} can tap below to be counted and I will split again.`
+  const waiting = slots - members.length;
+  const note = waiting
+    ? `\n\nThat is ${members.length} of ${slots} people in this chat, so this is only their part. The other ${waiting} can tap below to take a share.`
     : "";
   return ctx.reply(`<b>${escape(d.label)}</b>, split evenly:\n${lines.join("\n")}${note}`, {
     ...HTML,
     reply_markup: driveKeyboard(d.id).row().text("Count me in", CB.join),
+  });
+}
+
+// Adds the person who tapped, at one equal part. People who already have a share keep it,
+// including after someone has paid, so a late tap cannot move a share that money already covered.
+async function countMeIn(ctx: Context, d: DriveRow) {
+  if (d.closed) return ctx.reply("That drive is closed.");
+  if (!ctx.from) return;
+  const token = tokenByAddress(d.token)!;
+  const target = BigInt(d.target);
+  if (target === 0n) return ctx.reply("This drive has no target to divide.");
+  const members = await membersFor(chatId(ctx));
+  const humans = await ctx.api.getChatMemberCount(ctx.chat!.id).then((n) => Math.max(0, n - 1)).catch(() => null);
+  const slots = splitSlots(members.length, humans);
+  if (slots === 0) return ctx.reply("Send a message here first, then tap Count me in.");
+  const me = String(ctx.from.id);
+  const existing = await sharesFor(d.id);
+  const mine = existing.find((s) => s.tg_id === me);
+  if (mine) {
+    return ctx.reply(`${escape(displayName(ctx))}, your share is already <b>${fmt(mine.amount, token)}</b>.`, {
+      ...HTML,
+      reply_markup: driveKeyboard(d.id),
+    });
+  }
+  const shares = evenSplit(target, slots);
+  const idx = members.findIndex((m) => m.tg_id === me);
+  const slice = shares[idx >= 0 ? idx : 0] ?? 0n;
+  const assigned = existing.reduce((sum, s) => sum + BigInt(s.amount), 0n);
+  if (slice <= 0n || assigned + slice > target) {
+    return ctx.reply("The shares already add up to the whole drive. If nobody has paid yet, type /split all to divide it again.");
+  }
+  await setShare({ drive_id: d.id, tg_id: me, name: displayName(ctx), amount: slice.toString() });
+  return ctx.reply(`${escape(displayName(ctx))}, your share is <b>${fmt(slice, token)}</b>.`, {
+    ...HTML,
+    reply_markup: driveKeyboard(d.id),
   });
 }
 
@@ -660,17 +749,16 @@ function registerHandlers(b: Bot) {
 
   b.command("menu", (ctx) => showMenu(ctx));
 
-  // Only replies to our own force-reply prompts are consumed, which also works under privacy mode.
+  // An open question takes the person's next message. It does not have to be a reply.
   b.on("message:text", async (ctx, next) => {
-    if (!ctx.from || !ctx.message.reply_to_message) return next();
+    if (!ctx.from) return next();
+    const text = plainAnswer(ctx.message.text, ctx.me?.username);
+    if (!text) return next();
     const key = pkey(chatId(ctx), ctx.from.id);
     const draft = billDrafts.get(key);
-    if (draft?.promptId && ctx.message.reply_to_message.message_id === draft.promptId) {
-      return billReply(ctx, key, draft, ctx.message.text.trim());
-    }
+    if (draft && BILL_FREE_TEXT.has(draft.step)) return billReply(ctx, key, draft, text);
     const p = pending.get(key);
-    if (!p || ctx.message.reply_to_message.message_id !== p.promptId) return next();
-    const text = ctx.message.text.trim();
+    if (!p || !WIZARD_FREE_TEXT.has(p.step)) return next();
 
     if (p.step === "amount") {
       const [amountStr, symbolRaw] = text.replace(/,/g, "").split(/\s+/);
@@ -690,7 +778,7 @@ function registerHandlers(b: Bot) {
       }
       const prompt = await ask(
         ctx,
-        `<b>Step 2 of 3.</b>\nReply with the address this must be paid to.\nThis is locked for the life of the drive, so paste the school, landlord or vendor wallet, not your own.`,
+        `<b>Step 2 of 3.</b>\nSend the address this must be paid to.\nThis is locked for the life of the drive, so paste the school, landlord or vendor wallet, not your own.`,
       );
       pending.set(key, { step: "destination", promptId: prompt.message_id, amount: target, token });
       return;
@@ -704,7 +792,7 @@ function registerHandlers(b: Bot) {
       }
       const prompt = await ask(
         ctx,
-        `<b>Step 3 of 3.</b>\nReply with what this is for, in a few words.\nFor example: <code>Term 1 fees for Chioma</code>`,
+        `<b>Step 3 of 3.</b>\nSend what this is for, in a few words.\nFor example: <code>Term 1 fees for Chioma</code>`,
       );
       pending.set(key, { ...p, step: "label", promptId: prompt.message_id, destination: getAddress(text) });
       return;
@@ -822,7 +910,7 @@ function registerHandlers(b: Bot) {
     if (action === "remind") return ctx.reply(await remindBody(d), { ...HTML, reply_markup: driveKeyboard(d.id) });
     if (action === "plan") return ctx.reply("How should the shares be spread?", { reply_markup: planMenuKeyboard(d.id) });
     // noteMember already recorded whoever tapped; split again while nobody has paid.
-    if (action === "join") return splitIfUnpaid(ctx, d);
+    if (action === "join") return countMeIn(ctx, d);
   }
 
   // Private chats get a persistent keyboard, which sends plain text; groups use the inline menu.
@@ -932,7 +1020,7 @@ function registerHandlers(b: Bot) {
       if (act === "n" && draft.step === "amount") {
         if (arg === "other") {
           await ctx.deleteMessage().catch(() => {});
-          const prompt = await ask(ctx, "Reply with the amount in naira, for example <code>15000</code>.");
+          const prompt = await ask(ctx, "Send the amount in naira, for example <code>15000</code>.");
           draft.promptId = prompt.message_id;
           return;
         }
@@ -943,7 +1031,7 @@ function registerHandlers(b: Bot) {
       if (act === "c" && draft.step === "country") {
         await ctx.deleteMessage().catch(() => {});
         if (arg === "other") {
-          const prompt = await ask(ctx, "Reply with the country, like <code>Ghana</code> or <code>GH</code>.");
+          const prompt = await ask(ctx, "Send the country, like <code>Ghana</code> or <code>GH</code>.");
           draft.promptId = prompt.message_id;
           return;
         }
@@ -958,7 +1046,7 @@ function registerHandlers(b: Bot) {
         await ctx.deleteMessage().catch(() => {});
         const prompt = await ask(
           ctx,
-          `<b>${escape(operator.name)}</b>\nReply with the phone number to top up, with the country code: <code>+${country.prefix} …</code>`,
+          `<b>${escape(operator.name)}</b>\nSend the phone number to top up, with the country code: <code>+${country.prefix} …</code>`,
         );
         draft.promptId = prompt.message_id;
         return;
