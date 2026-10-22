@@ -132,12 +132,15 @@ test("if the drive will not take the swapped coin, the coin and the change both 
 });
 
 test("which coins each drive can be paid in", () => {
-  assert.deepEqual(payOptions(tokenBySymbol("USDT")), ["USDC", "USAT", "cNGN", "wARS", "wBRL", "IDRX"]);
-  assert.deepEqual(payOptions(tokenBySymbol("USDC")), ["USDT", "USAT", "cNGN", "wARS", "wBRL", "IDRX"]);
-  assert.deepEqual(payOptions(tokenBySymbol("cNGN")), ["USDT", "USDC", "USAT", "wARS", "wBRL", "IDRX"]);
-  assert.deepEqual(payOptions(tokenBySymbol("wARS")), ["USDT", "USDC", "USAT", "cNGN", "wBRL", "IDRX"]);
-  assert.deepEqual(payOptions(tokenBySymbol("IDRX")), ["USDT", "USDC", "USAT", "cNGN", "wARS", "wBRL"]);
+  assert.deepEqual(payOptions(tokenBySymbol("USDT")), ["USDC", "USAT", "cNGN", "wARS", "wBRL", "wCOP", "IDRX"]);
+  assert.deepEqual(payOptions(tokenBySymbol("USDC")), ["USDT", "USAT", "cNGN", "wARS", "wBRL", "wCOP", "IDRX"]);
+  assert.deepEqual(payOptions(tokenBySymbol("cNGN")), ["USDT", "USDC", "USAT", "wARS", "wBRL", "wCOP", "IDRX"]);
+  assert.deepEqual(payOptions(tokenBySymbol("wARS")), ["USDT", "USDC", "USAT", "cNGN", "wBRL", "wCOP", "IDRX"]);
+  assert.deepEqual(payOptions(tokenBySymbol("wCOP")), ["USDT", "USDC", "USAT", "cNGN", "wARS", "wBRL", "IDRX"]);
+  assert.deepEqual(payOptions(tokenBySymbol("IDRX")), ["USDT", "USDC", "USAT", "cNGN", "wARS", "wBRL", "wCOP"]);
   assert.deepEqual(payOptions(tokenBySymbol("KESm")), []);
+  assert.equal(routeFor(tokenBySymbol("wCOP"), tokenBySymbol("USDT")), "direct");
+  assert.equal(routeFor(tokenBySymbol("wCOP"), tokenBySymbol("wARS")), "via-usdt");
   assert.equal(routeFor(tokenBySymbol("IDRX"), tokenBySymbol("USDT")), "direct");
   assert.equal(routeFor(tokenBySymbol("IDRX"), tokenBySymbol("wARS")), "via-usdt");
   assert.deepEqual(payOptions(tokenBySymbol("USAT")), [], "Textile has no corridor into USA₮");

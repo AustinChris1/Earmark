@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from "react";
 import { coinName } from "../lib/api";
-import { COIN_GROUPS, coinFace, coinMatches, orderCoins } from "../lib/coins";
+import { coinFace, coinMatches, orderCoins } from "../lib/coins";
 
 export function CoinMark({ symbol, className = "h-8 w-8" }: { symbol: string; className?: string }) {
   const face = coinFace(symbol);
@@ -43,26 +43,22 @@ function CoinCell({
       aria-disabled={blocked}
       aria-label={blocked ? `${name}, ${face.place}, not accepted on this drive` : `${name}, ${face.place}`}
       onClick={onPick}
-      className={`${blocked ? "" : "pressable"} flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-center`}
+      className={`${blocked ? "" : "pressable"} inline-flex max-w-full items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5 text-left`}
       style={{
         background: picked ? "var(--bg-raised)" : "transparent",
-        boxShadow: picked ? "0 0 0 2px var(--accent)" : undefined,
+        boxShadow: picked ? "0 0 0 2px var(--accent)" : "inset 0 0 0 1px var(--line)",
+        opacity: blocked ? 0.5 : 1,
       }}
     >
-      <span className={blocked ? "opacity-40" : undefined}>
-        <CoinMark symbol={symbol} className="h-9 w-9" />
-      </span>
-      <span className="text-xs font-semibold leading-none" style={{ color: "var(--text)", opacity: blocked ? 0.45 : 1 }}>
-        {name}
-      </span>
-      <span className="text-[10px] leading-tight" style={{ color: "var(--text-muted)" }}>
-        {face.place}
-      </span>
-      {blocked && (
-        <span className="text-[10px] font-medium leading-tight" style={{ color: "var(--text)" }}>
-          Not accepted
+      <CoinMark symbol={symbol} className="h-6 w-6" />
+      <span className="min-w-0">
+        <span className="block whitespace-nowrap text-xs font-semibold leading-none" style={{ color: "var(--text)" }}>
+          {name}
         </span>
-      )}
+        <span className="mt-0.5 block whitespace-nowrap text-[10px] leading-none" style={{ color: "var(--text-muted)" }}>
+          {blocked ? `${face.place} · not accepted` : face.place}
+        </span>
+      </span>
     </button>
   );
 }
@@ -105,8 +101,6 @@ export function CoinPicker({
     if (paySet && !query.trim()) return matched.filter((s) => paySet.has(s));
     return matched;
   }, [ordered, query, paySet]);
-  const grouped = !query.trim();
-
   function pick(symbol: string) {
     if (paySet && !paySet.has(symbol)) {
       const held = heldLine(symbol);
@@ -121,13 +115,7 @@ export function CoinPicker({
     onChange(symbol);
   }
 
-  const cells = (rows: string[]) => (
-    <div className="grid grid-cols-4 gap-1">
-      {rows.map((s) => (
-        <CoinCell key={s} symbol={s} picked={s === value} blocked={!!paySet && !paySet.has(s)} onPick={() => pick(s)} />
-      ))}
-    </div>
-  );
+  const faded = shown.some((s) => paySet && !paySet.has(s));
 
   return (
     <div>
@@ -148,30 +136,19 @@ export function CoinPicker({
         }}
         autoComplete="off"
       />
-      <div id={listId} role="listbox" aria-label={label} className="mt-2 max-h-80 space-y-3 overflow-y-auto overscroll-contain pr-1">
+      <div id={listId} role="listbox" aria-label={label} className="mt-2 flex flex-wrap gap-1.5 p-0.5">
         {shown.length === 0 && (
-          <p className="px-1 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
+          <p className="px-1 py-2 text-sm" style={{ color: "var(--text-muted)" }}>
             No coin matches.
           </p>
         )}
-        {grouped
-          ? COIN_GROUPS.map((group) => {
-              const rows = shown.filter((s) => coinFace(s).group === group);
-              if (!rows.length) return null;
-              return (
-                <div key={group}>
-                  <p className="px-1 pb-1 text-xs" style={{ color: "var(--text-muted)" }}>
-                    {group}
-                  </p>
-                  {cells(rows)}
-                </div>
-              );
-            })
-          : cells(shown)}
+        {shown.map((s) => (
+          <CoinCell key={s} symbol={s} picked={s === value} blocked={!!paySet && !paySet.has(s)} onPick={() => pick(s)} />
+        ))}
       </div>
-      {(note || (paySet && !query.trim())) && (
+      {(note || (paySet && !query.trim()) || faded) && (
         <p className="mt-2 text-xs" style={{ color: note ? "var(--text)" : "var(--text-muted)" }}>
-          {note ?? "These can pay this drive. Search if you hold another coin."}
+          {note ?? (faded ? "Faded coins are not accepted on this drive." : "These can pay this drive. Search if you hold another coin.")}
         </p>
       )}
     </div>

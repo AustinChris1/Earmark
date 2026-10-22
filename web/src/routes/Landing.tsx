@@ -84,7 +84,7 @@ const FAQ: { q: string; a: string }[] = [
   { q: "What if the bill cannot be paid?", a: "Everyone who paid into that bill drive gets their share back." },
   {
     q: "Which money?",
-    a: "A drive collects one coin. A USD₮ drive can also be paid in USDC, USA₮, Argentine pesos, reais, naira or rupiah; Earmark swaps them in.",
+    a: "A drive collects one coin. A USD₮ drive can also be paid in USDC, USA₮, Argentine pesos, reais, Colombian pesos, naira or rupiah; Earmark swaps them in.",
   },
 ];
 

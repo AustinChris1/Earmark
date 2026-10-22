@@ -42,7 +42,7 @@ Wallets that work: MiniPay's browser, MetaMask, Rabby, Valora, or any Celo walle
 | If the group | Collect |
 |---|---|
 | Is all in Nigeria, paying a bill | USA₮ |
-| Has someone paying in USDC, Argentine pesos, reais, naira or rupiah | USD₮ |
+| Has someone paying in USDC, Argentine pesos, reais, Colombian pesos, naira or rupiah | USD₮ |
 | Is paying a person who wants naira | cNGN |
 | Is paying a person in Argentina or Brazil | wARS or wBRL, so they can cash out with Ripio |
 

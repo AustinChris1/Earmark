@@ -345,7 +345,7 @@ async function showBillConfirm(ctx: Context, draft: BillDraft) {
       q.what,
       `The drive collects <b>${fmt(q.target, coin)}</b>: AbaPay's price now, plus 2% in case the rate moves. Anything unused goes back to whoever paid.`,
     ];
-    if (draft.coin === "USDT") lines.push(`People can pay in USD₮, USDC, USA₮, Argentine pesos (wARS), reais (wBRL), naira (cNGN) or rupiah (IDRX); Earmark swaps it.`);
+    if (draft.coin === "USDT") lines.push(`People can pay in USD₮, USDC, USA₮, Argentine pesos (wARS), reais (wBRL), Colombian pesos (wCOP), naira (cNGN) or rupiah (IDRX); Earmark swaps it.`);
     lines.push(``, `Opening the drive cannot be undone.`);
     return ctx.reply(lines.join("\n"), { ...HTML, reply_markup: billConfirmKeyboard() });
   } catch (e) {
@@ -373,7 +373,7 @@ async function createBillDrive(ctx: Context, draft: Parameters<typeof priceDraft
     "",
     `The money waits in Earmark's wallet until the bill is paid. Whatever is not used goes back to the people who paid, and if the bill cannot be paid, everyone gets their share back.`,
   ];
-  if (coinSymbol === "USDT") lines.push("", `Paying from abroad? Open your pay link. USDC, USA₮, Argentine pesos, reais, naira and rupiah can pay it; Earmark swaps them on Textile FX.`);
+  if (coinSymbol === "USDT") lines.push("", `Paying from abroad? Open your pay link. USDC, USA₮, Argentine pesos, reais, Colombian pesos, naira and rupiah can pay it; Earmark swaps them on Textile FX.`);
   await ctx.reply(lines.join("\n"), HTML);
 }
 

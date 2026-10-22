@@ -71,9 +71,9 @@ function onrampLink(country: string, symbol: string, amount: string, wallet?: st
   return `https://ramp.ripio.com/?${q.toString()}`;
 }
 
-const LOCAL_MONEY: Record<string, string> = { AR: "pesos", BR: "reais", MX: "pesos", CO: "pesos" };
+const LOCAL_MONEY: Record<string, string> = { AR: "Argentine pesos", BR: "reais", MX: "Mexican pesos", CO: "Colombian pesos" };
 // Coins Ripio sells for local money, so someone paying in them can buy them first.
-const RAMP_COUNTRY: Record<string, string> = { wARS: "AR", wBRL: "BR" };
+const RAMP_COUNTRY: Record<string, string> = { wARS: "AR", wBRL: "BR", wMXN: "MX", wCOP: "CO" };
 // The flag or logo for a coin, so people pick their money by sight.
 
 const money = (v: string) => Number(v).toLocaleString("en-US", { maximumFractionDigits: 4 });
