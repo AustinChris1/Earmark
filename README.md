@@ -1,5 +1,7 @@
 # Earmark
 
+[![CI](https://github.com/AustinChris1/Earmark/actions/workflows/ci.yml/badge.svg)](https://github.com/AustinChris1/Earmark/actions/workflows/ci.yml)
+
 **A group chat collects money for one bill, and the money can only go to the wallet the group locked in.**
 
 Built for the [Celo Agents at Work Hackathon](https://celoplatform.notion.site/Agents-at-Work-Hackathon-3c1d5cb803de81139de7f4f3d09e55dc) (28 Aug - 21 Sep 2026), where it won **Best Stablecoin Adoption**. Live on Celo mainnet.
@@ -72,6 +74,32 @@ Earmark pays a wallet address, not a bank account. It guarantees the money reach
 ## For builders
 
 Everything below is for people reading the code.
+
+### How to run it
+
+Node 24 and pnpm 11. Nothing here needs an API key, a wallet or any funds.
+
+```bash
+pnpm install
+pnpm test        # contract tests, 117 agent tests, askbots
+pnpm build:web   # the website
+pnpm compile     # the contract
+```
+
+The whole suite runs offline on a clean checkout: the tests bring their own fixtures and never
+reach the network, a chain or a real database. CI runs exactly these commands with no `.env`
+present, so a green badge means it works for you too.
+
+To run the agent itself, which does need secrets, copy `.env.example` to `.env` and fill it in.
+`PUBLIC_URL`, `TELEGRAM_BOT_TOKEN`, `AGENT_PRIVATE_KEY`, `EARMARK_ADDRESS` and `DATABASE_URL`
+are the minimum; everything else degrades gracefully when missing. Then:
+
+```bash
+pnpm dev:agent   # bot + HTTP + x402 on :3010
+pnpm dev:web     # the website on :5173, proxying /api to the agent
+```
+
+Set `EARMARK_API=https://earmark.chat` to work on the UI against the live API instead.
 
 ### The mechanism
 
