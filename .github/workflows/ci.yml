@@ -1,0 +1,55 @@
+name: CI
+
+# Everything here runs on a clean checkout with no secrets, no wallet and no network calls,
+# which is how a reviewer or a judge will see the repo. If this is green, `pnpm test` is green
+# for them too.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck the agent
+        run: pnpm -F @earmark/agent typecheck
+
+      - name: Typecheck the website
+        run: pnpm -F @earmark/web exec tsc --noEmit -p .
+
+      - name: Build the website
+        run: pnpm build:web
+
+      - name: Compile the contract
+        run: pnpm compile
+
+      # No .env exists here. The tests must bring their own fixtures.
+      - name: Test
+        run: pnpm test
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan the history for committed secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
