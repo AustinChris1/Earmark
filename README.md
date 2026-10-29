@@ -4,7 +4,7 @@
 
 **A group chat collects money for one bill, and the money can only go to the wallet the group locked in.**
 
-Built for the [Celo Agents at Work Hackathon](https://celoplatform.notion.site/Agents-at-Work-Hackathon-3c1d5cb803de81139de7f4f3d09e55dc) (28 Aug - 21 Sep 2026), where it won **Best Stablecoin Adoption**. Live on Celo mainnet.
+Live on Celo mainnet. Built for the [Celo Agents at Work Hackathon](https://celoplatform.notion.site/Agents-at-Work-Hackathon-3c1d5cb803de81139de7f4f3d09e55dc) (28 Aug – 21 Sep 2026), where it won **Best Stablecoin Adoption**, and extended since for [Agents on Open Rails](https://www.loops.house/agents-on-open-rails): bills the agent pays itself, payment in whatever currency you hold, and a share an AI agent can settle over x402.
 
 ## In one minute
 
