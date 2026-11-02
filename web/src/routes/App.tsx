@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { toast } from "sonner";
+import { friendlyError, notify } from "../lib/notify";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { animated } from "@react-spring/web";
@@ -192,18 +194,20 @@ export function AppPage() {
 
   async function onConnect() {
     if (!cfg) return;
-    setError("");
     try {
-      setAccount(await connect(cfg));
+      const a = await connect(cfg);
+      setAccount(a);
+      notify.connected(a);
     } catch (e) {
-      setError((e as Error).message);
+      notify.error(e, "Could not connect the wallet.");
     }
   }
 
   async function closeDrive(id: number) {
     if (!cfg || !account) return;
-    setError("");
     setBusy(`Closing drive ${id}`);
+    const t = notify.tx(`Closing drive ${driveCode(id)}`, cfg.explorer);
+    let sent: Hex | undefined;
     try {
       const wallet = walletFor(cfg, account);
       const pub = publicFor(cfg);
@@ -215,13 +219,15 @@ export function AppPage() {
         chain: chainFor(cfg),
         dataSuffix: cfg.tag ? toDataSuffix(cfg.tag) : undefined,
       } as never);
-      if ((await pub.waitForTransactionReceipt({ hash: hash as Hex })).status !== "success") {
+      sent = hash as Hex;
+      t.sent(sent);
+      if ((await pub.waitForTransactionReceipt({ hash: sent })).status !== "success") {
         throw new Error("Closing failed on chain. The drive is still open.");
       }
+      t.done("Drive closed", "Nobody can pay into it any more.", sent);
       await load();
     } catch (e) {
-      const err = e as { shortMessage?: string; message?: string };
-      setError(err.shortMessage ?? err.message ?? "Could not close that drive.");
+      t.failed(e, "Could not close that drive.", sent);
     } finally {
       setBusy("");
     }
@@ -229,28 +235,29 @@ export function AppPage() {
 
   async function createDrive(form: { amount: string; symbol: string; destination: string; label: string; deadline: string }) {
     if (!cfg || !account) return;
-    setError("");
     const token = Object.values(cfg.tokens).find((t) => t.symbol.toLowerCase() === form.symbol.toLowerCase());
-    if (!token) return setError("Pick a token.");
-    if (!isAddress(form.destination)) return setError("That destination is not a wallet address.");
-    if (!form.label.trim()) return setError("Give the drive a name.");
+    if (!token) return void notify.error("Pick a token.");
+    if (!isAddress(form.destination)) return void notify.error("That destination is not a wallet address.");
+    if (!form.label.trim()) return void notify.error("Give the drive a name.");
     let target: bigint;
     try {
       target = parseUnits(form.amount, token.decimals);
     } catch {
-      return setError("The amount must be a number.");
+      return void notify.error("The amount must be a number.");
     }
-    if (target <= 0n) return setError("The amount must be greater than zero.");
+    if (target <= 0n) return void notify.error("The amount must be greater than zero.");
     // A date is the end of that day, UTC, so "by the 30th" still accepts a payment on the 30th.
     let deadline = 0n;
     if (form.deadline) {
       const t = Date.parse(`${form.deadline}T23:59:59Z`);
-      if (Number.isNaN(t)) return setError("That closing date is not valid.");
-      if (t < Date.now()) return setError("The closing date has already passed.");
+      if (Number.isNaN(t)) return void notify.error("That closing date is not valid.");
+      if (t < Date.now()) return void notify.error("The closing date has already passed.");
       deadline = BigInt(Math.floor(t / 1000));
     }
 
     setBusy("Opening the drive");
+    const t = notify.tx(`Opening "${form.label.trim()}"`, cfg.explorer);
+    let sent: Hex | undefined;
     try {
       const wallet = walletFor(cfg, account);
       const pub = publicFor(cfg);
@@ -262,14 +269,24 @@ export function AppPage() {
         chain: chainFor(cfg),
         dataSuffix: cfg.tag ? toDataSuffix(cfg.tag) : undefined,
       } as never);
-      if ((await pub.waitForTransactionReceipt({ hash: hash as Hex })).status !== "success") {
+      sent = hash as Hex;
+      t.sent(sent);
+      const receipt = await pub.waitForTransactionReceipt({ hash: sent });
+      if (receipt.status !== "success") {
         throw new Error("Opening the drive failed on chain. Nothing was created.");
       }
+      const created = parseEventLogs({ abi: EARMARK_ABI, logs: receipt.logs, eventName: "DriveCreated" }).find(
+        (l) => l.address.toLowerCase() === cfg.earmark.toLowerCase(),
+      );
+      t.done(
+        "Drive created",
+        created ? `Drive ${driveCode(Number(created.args.id))} is open. Share its link to collect.` : "It is open. Share its link to collect.",
+        sent,
+      );
       setShowNew(false);
       await load();
     } catch (e) {
-      const err = e as { shortMessage?: string; message?: string };
-      setError(err.shortMessage ?? err.message ?? "Could not open the drive.");
+      t.failed(e, "Could not open the drive.", sent);
     } finally {
       setBusy("");
     }
@@ -279,17 +296,21 @@ export function AppPage() {
   async function attach(p: BillDraft & { id: number }) {
     if (!cfg || !account) return;
     setBusy("Sign to attach the bill");
+    toast.loading("Attaching the bill", { id: "attach", description: "Sign in your wallet. It costs nothing." });
     const signature = await walletFor(cfg, account).signMessage({ account, message: p.quote.sign.replace("{id}", String(p.id)) });
     await attachBill({ ...p.choice, driveId: p.id, number: p.quote.number, coin: p.quote.coin, signature });
     setUnattached(null);
+    toast.success("Bill drive ready", { id: "attach", description: `Drive ${driveCode(p.id)} pays the bill when it fills.` });
     navigate(`/d/${driveCode(p.id)}`);
   }
 
   async function createBillDrive(b: BillDraft) {
     if (!cfg || !account) return;
-    setError("");
-    if (b.quote.payee.toLowerCase() !== cfg.agent.toLowerCase()) return setError("That price did not come from Earmark. Reload and try again.");
+    if (b.quote.payee.toLowerCase() !== cfg.agent.toLowerCase()) return void notify.error("That price did not come from Earmark. Reload and try again.");
     setBusy("Opening the bill drive");
+    const t = notify.tx(`Opening "${b.quote.label}"`, cfg.explorer);
+    let sent: Hex | undefined;
+    let opened = false;
     try {
       const wallet = walletFor(cfg, account);
       const pub = publicFor(cfg);
@@ -301,19 +322,24 @@ export function AppPage() {
         chain: chainFor(cfg),
         dataSuffix: cfg.tag ? toDataSuffix(cfg.tag) : undefined,
       } as never);
-      const receipt = await pub.waitForTransactionReceipt({ hash: hash as Hex });
+      sent = hash as Hex;
+      t.sent(sent);
+      const receipt = await pub.waitForTransactionReceipt({ hash: sent });
       if (receipt.status !== "success") throw new Error("Opening the drive failed on chain. Nothing was created.");
       const created = parseEventLogs({ abi: EARMARK_ABI, logs: receipt.logs, eventName: "DriveCreated" }).find(
         (l) => l.address.toLowerCase() === cfg.earmark.toLowerCase(),
       );
       if (!created) throw new Error("The drive opened but Earmark could not read its number. Refresh the list.");
       const pending = { ...b, id: Number(created.args.id) };
+      opened = true;
+      t.done("Drive created", `Drive ${driveCode(pending.id)} is open. One more signature attaches the bill.`, sent);
       setUnattached(pending);
       setShowNew(false);
       await attach(pending);
     } catch (e) {
-      const err = e as { shortMessage?: string; message?: string };
-      setError(err.shortMessage ?? err.message ?? "Could not open the bill drive.");
+      // Once the drive exists, what failed is attaching the bill, and that toast says so.
+      if (opened) toast.error(friendlyError(e, "Could not attach the bill."), { id: "attach" });
+      else t.failed(e, "Could not open the bill drive.", sent);
     } finally {
       setBusy("");
     }
@@ -321,12 +347,10 @@ export function AppPage() {
 
   async function retryAttach() {
     if (!unattached) return;
-    setError("");
     try {
       await attach(unattached);
     } catch (e) {
-      const err = e as { shortMessage?: string; message?: string };
-      setError(err.shortMessage ?? err.message ?? "Could not attach the bill.");
+      toast.error(friendlyError(e, "Could not attach the bill."), { id: "attach" });
     } finally {
       setBusy("");
     }
@@ -365,11 +389,7 @@ export function AppPage() {
           )}
         </div>
 
-        {busy && (
-          <p className="mt-4 flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
-            <Loader2 className="h-4 w-4 animate-spin" /> {busy}. Confirm in your wallet.
-          </p>
-        )}
+        {/* What is in progress shows as a toast, which follows the transaction to its end. */}
         {error && (
           <p role="alert" className="mt-4 text-sm" style={{ color: "var(--danger)" }}>
             {error}

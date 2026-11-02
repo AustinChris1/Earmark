@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { friendlyError, notify } from "../lib/notify";
 import { useParams } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { animated, useSpring } from "@react-spring/web";
@@ -271,6 +273,7 @@ export function DrivePage() {
     try {
       const [raw] = (await window.ethereum.request({ method: "eth_requestAccounts" })) as string[];
       const account = getAddress(raw);
+      notify.connected(account);
       await ensureChain({ chainId: drive.chainId, rpcUrl: drive.rpcUrl, explorer: drive.explorer });
       const pub = createPublicClient({ chain, transport: http(drive.rpcUrl) });
       const wallet = createWalletClient({ chain, account, transport: custom(window.ethereum) });
@@ -329,8 +332,7 @@ export function DrivePage() {
       setMessage("Still working on it. The tally in your group will show it when it lands.");
     } catch (e) {
       setStage("error");
-      const err = e as { shortMessage?: string; message?: string };
-      setMessage(err.shortMessage ?? err.message ?? "Something went wrong.");
+      setMessage(friendlyError(e));
     }
   }
 
@@ -365,6 +367,7 @@ export function DrivePage() {
     try {
       const [raw] = (await window.ethereum.request({ method: "eth_requestAccounts" })) as string[];
       const account = getAddress(raw);
+      notify.connected(account);
       await ensureChain({ chainId: drive.chainId, rpcUrl: drive.rpcUrl, explorer: drive.explorer });
       const pub = createPublicClient({ chain, transport: http(drive.rpcUrl) });
       const wallet = createWalletClient({ chain, account, transport: custom(window.ethereum) });
@@ -418,12 +421,29 @@ export function DrivePage() {
       refresh();
     } catch (e) {
       setStage("error");
-      const err = e as { shortMessage?: string; message?: string };
-      setMessage(err.shortMessage ?? err.message ?? "Something went wrong.");
+      setMessage(friendlyError(e));
     }
   }
 
   const busy = stage === "approving" || stage === "paying" || stage === "swapping";
+
+  // The step-by-step text stays under the button; the toast carries the outcome wherever the page is.
+  useEffect(() => {
+    if (!drive) return;
+    const link = (h: Hex | null, label: string) =>
+      h ? { action: { label, onClick: () => window.open(`${drive.explorer}/tx/${h}`, "_blank", "noopener,noreferrer") } } : { action: undefined };
+    if (stage === "approving" || stage === "paying" || stage === "swapping") {
+      toast.loading(stage === "swapping" ? "Swapping and paying" : stage === "approving" ? "Approving" : "Paying", {
+        id: "pay",
+        description: message,
+        action: undefined,
+      });
+    } else if (stage === "done") {
+      toast.success("Paid", { id: "pay", description: message, ...link(txHash, "Celoscan") });
+    } else if (stage === "error" && message) {
+      toast.error(message, { id: "pay", description: undefined, ...link(refundHash ?? failedHash, refundHash ? "See refund" : "Celoscan") });
+    }
+  }, [stage, message, txHash, refundHash, failedHash, drive?.explorer]);
 
   // The token of a bill drive opened on the website goes only to the wallet that opened it.
   async function showReceipt() {
@@ -437,8 +457,8 @@ export function DrivePage() {
       const signature = await w.signMessage({ account, message: `Earmark: show me the receipt for drive #${drive.id}.` });
       setReceipt(await getBillReceipt(drive.id, signature));
     } catch (e) {
-      const err = e as { shortMessage?: string; message?: string };
-      setReceiptError(err.shortMessage ?? err.message ?? "Could not show the receipt.");
+      setReceiptError(friendlyError(e, "Could not show the receipt."));
+      notify.error(e, "Could not show the receipt.");
     }
   }
 
@@ -446,6 +466,7 @@ export function DrivePage() {
     if (!drive) return;
     try {
       await navigator.clipboard.writeText(`${location.origin}/d/${driveCode(drive.id)}`);
+      toast.success("Link copied", { description: "Send it to the group." });
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 1600);
     } catch {
@@ -457,6 +478,7 @@ export function DrivePage() {
     if (!drive) return;
     try {
       await navigator.clipboard.writeText(drive.destination);
+      toast.success("Address copied");
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {

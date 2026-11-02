@@ -346,3 +346,31 @@ input::placeholder {
   background: var(--accent-soft);
   color: var(--text);
 }
+
+/* Toasts: Sonner's shell, the site's colours. Sonner's own rules win the cascade, hence !important. */
+.earmark-toast {
+  box-shadow: 0 10px 30px -12px rgb(0 0 0 / 0.25) !important;
+  gap: 10px !important;
+}
+.earmark-toast [data-title] {
+  font-weight: 600 !important;
+}
+.earmark-toast [data-description] {
+  color: var(--text-muted) !important;
+}
+.earmark-toast[data-type="success"] [data-icon] {
+  color: var(--accent) !important;
+}
+.earmark-toast[data-type="error"] [data-icon] {
+  color: var(--danger) !important;
+}
+.earmark-toast[data-type="error"] {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line)) !important;
+}
+.earmark-toast [data-button] {
+  background: var(--brand) !important;
+  color: var(--brand-ink) !important;
+  font-weight: 600 !important;
+  border-radius: 999px !important;
+  padding: 0 12px !important;
+}

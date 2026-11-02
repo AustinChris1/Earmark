@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { friendlyError, notify } from "../lib/notify";
 import { motion } from "framer-motion";
 import { animated } from "@react-spring/web";
 import { BadgeCheck, Check, ExternalLink, Loader2, ShieldCheck, TriangleAlert, Wallet } from "lucide-react";
@@ -48,7 +49,8 @@ export function VerifyPage() {
       if (!r.ok || !body.url) throw new Error(body.error ?? "Could not start verification.");
       window.location.href = body.url;
     } catch (e) {
-      setError((e as Error).message);
+      setError(friendlyError(e, "Could not start verification."));
+      notify.error(e, "Could not start verification.");
     } finally {
       setBusy(false);
     }

@@ -20,6 +20,29 @@ declare global {
   }
 }
 
+type Eip1193 = NonNullable<Window["ethereum"]>;
+
+/**
+ * In-app wallet browsers do not all expose `window.ethereum` the same way. Bitget keeps its own
+ * under `window.bitkeep`, newer wallets announce themselves over EIP-6963, and some inject a beat
+ * after the page starts. Everything else on the site reads `window.ethereum`, so whichever is found
+ * is put there. Call once, before the first render.
+ */
+export function discoverWallet(onFound?: () => void) {
+  const w = window as Window & { bitkeep?: { ethereum?: Eip1193 } };
+  const adopt = (p: Eip1193 | undefined) => {
+    if (!p || window.ethereum) return;
+    window.ethereum = p;
+    onFound?.();
+  };
+  adopt(w.bitkeep?.ethereum);
+  window.addEventListener("eip6963:announceProvider", (ev) => adopt((ev as CustomEvent<{ provider?: Eip1193 }>).detail?.provider));
+  window.dispatchEvent(new Event("eip6963:requestProvider"));
+  window.addEventListener("ethereum#initialized", () => onFound?.(), { once: true });
+  // A late injection: look again shortly after load.
+  setTimeout(() => adopt(w.bitkeep?.ethereum), 600);
+}
+
 export function chainFor(cfg: Config) {
   return defineChain({
     id: cfg.chainId,
