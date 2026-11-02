@@ -45,6 +45,17 @@ export function textileMinimumMessage(token: TokenInfo): string {
   return `Textile will not swap less than ${min} ${token.symbol}. Pay this drive in ${token.symbol}.`;
 }
 
+/**
+ * Textile also refuses a firm sell under each pair's own minimum, which its ladder publishes and
+ * which sits near one dollar's worth (about 1,640 wARS, 5.5 wBRL). The preview prices any size, so
+ * without this a payer is charged, refused and refunded. Returns why, or null when it can swap.
+ */
+export function sellMinimumMessage(sell: bigint, min: bigint | undefined, sellToken: TokenInfo, drive: TokenInfo): string | null {
+  if (min === undefined || sell >= min) return null;
+  const shown = Number(formatUnits(min, sellToken.decimals)).toLocaleString("en-US", { maximumFractionDigits: 2 });
+  return `Textile's smallest swap from ${sellToken.symbol} is ${shown} ${sellToken.symbol}. Put in more, or pay in ${drive.symbol}.`;
+}
+
 const symbolOf = (a: Address) => tokenByAddress(a)?.symbol ?? "";
 
 export function isDirect(sell: Address, buy: Address): boolean {

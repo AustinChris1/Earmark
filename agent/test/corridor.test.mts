@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Address, Hex } from "viem";
-import { settle, localToBuy, payOptions, routeFor, textileMinimumMessage, withHeadroom, type CorridorDeps, type CorridorIntent } from "../src/corridor.js";
+import { settle, localToBuy, payOptions, routeFor, sellMinimumMessage, textileMinimumMessage, withHeadroom, type CorridorDeps, type CorridorIntent } from "../src/corridor.js";
 import { tokenBySymbol } from "../src/config.js";
 
 const USDT = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as Address;
@@ -183,4 +183,18 @@ test("a swap that shows no coin arriving is left for a person, never refunded by
   await assert.rejects(settle(intent(), deps));
   assert.ok(!log.some((l) => l.startsWith("contribute") || l.startsWith("refund")), log.join(" | "));
   assert.equal(log.at(-1), "status failed");
+});
+
+// 2 Nov: 5 wBRL paid in wARS needed about 1,520 wARS, under Textile's 1,641.78 wARS minimum for
+// wARS>USDT. The preview priced it, so the payer was charged, refused and refunded twice.
+test("a share under Textile's smallest sell is refused before anyone pays", () => {
+  const wars = tokenBySymbol("wARS")!;
+  const wbrl = tokenBySymbol("wBRL")!;
+  const min = 1_641_775_000_000_000_000_000n;
+  const msg = sellMinimumMessage(1_520_074_700_000_000_000_000n, min, wars, wbrl);
+  assert.match(msg ?? "", /smallest swap from wARS is 1,641\.78 wARS/);
+  assert.match(msg ?? "", /pay in wBRL/);
+  assert.equal(sellMinimumMessage(min, min, wars, wbrl), null);
+  // When the ladder cannot be read, nothing is blocked; a refused swap is still refunded.
+  assert.equal(sellMinimumMessage(1n, undefined, wars, wbrl), null);
 });

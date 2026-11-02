@@ -4,8 +4,8 @@ import type { RequestHandler } from "express";
 import { decodeEventLog, formatUnits, getAddress, isHex, parseAbi, parseUnits, type Address, type Hex } from "viem";
 import { tokenByAddress, tokenBySymbol, type TokenInfo } from "./config.js";
 import { account, contributeFromAgent, pastDeadline, publicClient, readDrive, refundFromAgent } from "./chain.js";
-import { cancel, execute, preview, requestFirm, type FirmQuote } from "./textile.js";
-import { belowTextileMinimum, PAY_COINS, routeFor, settle, textileMinimumMessage, withHeadroom, type CorridorDeps, type CorridorIntent, type IntentStatus } from "./corridor.js";
+import { cancel, execute, minSell, preview, requestFirm, type FirmQuote } from "./textile.js";
+import { belowTextileMinimum, PAY_COINS, routeFor, sellMinimumMessage, settle, textileMinimumMessage, withHeadroom, type CorridorDeps, type CorridorIntent, type IntentStatus } from "./corridor.js";
 import { addCorridorIntent, getCorridorIntent, setCorridorStatus, unsettledCorridorIntents, type CorridorRow } from "./db.js";
 
 const USDT = tokenBySymbol("USDT")!;
@@ -38,13 +38,20 @@ export async function corridorQuote(drive: TokenInfo, want: bigint, pay: TokenIn
   if (!route) throw new Error(`Earmark cannot swap ${pay.symbol} into ${drive.symbol}.`);
   if (belowTextileMinimum(want)) throw new Error(textileMinimumMessage(drive));
   let payAmount: bigint;
+  let tooSmall: string | null;
   if (route === "direct") {
     payAmount = (await preview(pay.address, drive.address, { buyAmount: want })).takerPays;
+    tooSmall = sellMinimumMessage(payAmount, await minSell(pay.address, drive.address), pay, drive);
   } else {
     // Two swaps: price the USDT the second one needs, then what buys that USDT.
     const usdtNeeded = (await preview(USDT.address, drive.address, { buyAmount: want })).takerPays;
     payAmount = (await preview(pay.address, USDT.address, { buyAmount: usdtNeeded })).takerPays;
+    // The first hop sells everything sent, headroom included; the second sells the USDT it bought.
+    tooSmall =
+      sellMinimumMessage(withHeadroom(payAmount), await minSell(pay.address, USDT.address), pay, drive) ??
+      sellMinimumMessage(usdtNeeded, await minSell(USDT.address, drive.address), USDT, drive);
   }
+  if (tooSmall) throw new Error(tooSmall);
   return { route, payAmount, maxPay: withHeadroom(payAmount) };
 }
 

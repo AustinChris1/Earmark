@@ -27,3 +27,13 @@ test("the coin a swap delivered is read from its receipt", () => {
   assert.equal(deliveredTo({ logs } as never, CNGN, AGENT), 2_000_000_000n);
   assert.equal(deliveredTo({ logs } as never, CNGN, MAKER), 0n);
 });
+
+// 2 Nov: the first USA₮ swap approved the spender, then its gas estimate hit a node that had not
+// seen the approval and reverted with TRANSFER_FROM_FAILED. That is retried; a real refusal is not.
+test("a swap simulation that only lags the approval is retried", async () => {
+  const { staleSimulation } = await import("../src/textile.js");
+  assert.ok(staleSimulation("Execution reverted with reason: TRANSFER_FROM_FAILED. Request Arguments: ..."));
+  assert.ok(staleSimulation("ERC20: insufficient allowance"));
+  assert.ok(!staleSimulation("execution reverted: quote expired"));
+  assert.ok(!staleSimulation("nonce too low"));
+});

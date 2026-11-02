@@ -91,6 +91,30 @@ export async function preview(sellToken: Address, buyToken: Address, size: Quote
   };
 }
 
+let levelsCache: { at: number; mins: Map<string, bigint> } | undefined;
+
+/**
+ * The smallest firm sell Textile will quote for a pair, from its public ladder. A preview prices
+ * any size, but a firm request under this is refused, so the payer must be stopped before paying.
+ * Undefined when the ladder cannot be read: the payment is then refunded if the swap is refused.
+ */
+export async function minSell(sellToken: Address, buyToken: Address): Promise<bigint | undefined> {
+  if (!levelsCache || Date.now() - levelsCache.at > 60_000) {
+    try {
+      const { pairs } = await call<{ pairs: { sellToken: string; buyToken: string; minSellAmount?: string }[] }>(
+        `/rfq/levels?chainId=${CELO_CHAIN_ID}`,
+      );
+      const mins = new Map<string, bigint>();
+      for (const p of pairs) if (p.minSellAmount) mins.set(`${p.sellToken}>${p.buyToken}`.toLowerCase(), BigInt(p.minSellAmount));
+      levelsCache = { at: Date.now(), mins };
+    } catch (e) {
+      console.error("textile levels:", (e as Error).message);
+      return undefined;
+    }
+  }
+  return levelsCache.mins.get(`${sellToken}>${buyToken}`.toLowerCase());
+}
+
 /** The personal_sign text the spec defines for a taker proof, with address and nonce lowercased. */
 export function takerControlText(taker: Address, chainId: number, nonce: Hex, issuedAt: number): string {
   return [
@@ -174,14 +198,32 @@ function tagged(data: Hex): Hex {
   return tagSuffix ? concat([data, tagSuffix]) : data;
 }
 
-async function send(tx: UnsignedTx): Promise<TransactionReceipt> {
+/**
+ * A simulation that failed because the node running it has not caught up with the agent's own
+ * approval, or with the payment that just arrived. Exported for tests.
+ */
+export function staleSimulation(message: string): boolean {
+  return /TRANSFER_FROM_FAILED|insufficient allowance|exceeds allowance|exceeds balance/i.test(message);
+}
+
+async function send(tx: UnsignedTx, retries = 0): Promise<TransactionReceipt> {
   if (tx.chainId !== CELO_CHAIN_ID) throw new TextileError(`Quote is for chain ${tx.chainId}, not Celo`);
-  const hash = await walletClient.sendTransaction({
-    to: tx.to,
-    data: tagged(tx.data),
-    value: BigInt(tx.value),
-    // Gas in CELO: the dollars in the agent wallet belong to the payer until the swap.
-  } as never);
+  let hash: Hex;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      hash = await walletClient.sendTransaction({
+        to: tx.to,
+        data: tagged(tx.data),
+        value: BigInt(tx.value),
+        // Gas in CELO: the dollars in the agent wallet belong to the payer until the swap.
+      } as never);
+      break;
+    } catch (e) {
+      // The gas estimate failed, so nothing was broadcast and trying again cannot pay twice.
+      if (attempt >= retries || !staleSimulation((e as Error).message)) throw e;
+      await new Promise((r) => setTimeout(r, 2_000));
+    }
+  }
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success") throw new TextileError(`Transaction ${hash} reverted`);
   return receipt;
@@ -215,15 +257,24 @@ export function deliveredTo(receipt: Pick<TransactionReceipt, "logs">, token: Ad
  */
 export async function execute(q: FirmQuote, sellToken: Address, buyToken: Address): Promise<{ swapHash: Hex; received: bigint }> {
   if (q.expiresAt.getTime() < Date.now()) throw new TextileError("Quote expired before it could be executed", "expired");
-  const allowance = await publicClient.readContract({
-    address: sellToken,
-    abi: ERC20_ABI,
-    functionName: "allowance",
-    args: [account.address, q.spender],
-  });
-  if (allowance < q.takerPays) await send(q.approval);
-
-  const receipt = await send(q.swap);
+  let receipt: TransactionReceipt;
+  try {
+    const allowance = await publicClient.readContract({
+      address: sellToken,
+      abi: ERC20_ABI,
+      functionName: "allowance",
+      args: [account.address, q.spender],
+    });
+    const approving = allowance < q.takerPays;
+    if (approving) await send(q.approval);
+    // Straight after an approval the swap's gas estimate can land on a node that has not seen it.
+    receipt = await send(q.swap, approving ? 3 : 1);
+  } catch (e) {
+    // A firm quote holds the agent's balance until it lapses, so a failed one left open makes the
+    // next request for the same money fail with insufficient_funds for a minute.
+    await cancel(q);
+    throw e;
+  }
   const swapHash = receipt.transactionHash;
   const received = deliveredTo(receipt, buyToken, account.address);
   await call(`/rfq/${q.rfqId}/submit`, { method: "POST", claim: q.claimToken, body: JSON.stringify({ txHash: swapHash }) }).catch(
