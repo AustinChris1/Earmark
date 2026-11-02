@@ -20,8 +20,8 @@ const DIRECT = new Set([
   "USDC>USDT", "USDT>USDC",
   "USDT>IDRX", "IDRX>USDT",
   "USDT>wCOP", "wCOP>USDT",
-  // USA₮ only goes one way: there is no corridor into it, so a USA₮ drive can only be paid in USA₮.
-  "USAT>USDT",
+  // Into USA₮ since November 2026, so a USA₮ drive (most bills) takes any of the pay coins too.
+  "USAT>USDT", "USDT>USAT",
 ]);
 
 /** Coins a payer can send to be swapped. */

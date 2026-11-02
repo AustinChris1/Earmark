@@ -37,7 +37,7 @@ Say the drive collects USD₮ and you hold Argentine pesos.
 3. Earmark buys exactly the USD₮ your share needs on Textile, pays it into the drive, and **sends back the pesos it did not use**.
 4. If the market moved past your maximum, nothing is swapped and everything comes back.
 
-Where Textile has no direct route, Earmark goes through USD₮: Argentine pesos into a naira drive is wARS to USD₮ to cNGN. Colombian pesos (wCOP) swap the same way. Nothing swaps into USA₮, so a USA₮ drive is paid in USA₮. Mexican pesos, Chilean pesos, soles, shillings, euros and the Mento coins can be the coin a drive collects, and people pay that same coin, because Textile has no quote for them on Celo. The pay page opens on the coins that can pay this drive. Search finds every coin Earmark accepts. A coin that cannot pay is marked not accepted, with its country on it.
+Where Textile has no direct route, Earmark goes through USD₮: Argentine pesos into a naira drive is wARS to USD₮ to cNGN. Colombian pesos (wCOP) swap the same way. A USA₮ drive, which is what most bills collect in, takes the same coins: USD₮ swaps straight into USA₮, and the rest go through USD₮ first. Mexican pesos, Chilean pesos, soles, shillings, euros and the Mento coins can be the coin a drive collects, and people pay that same coin, because Textile has no quote for them on Celo. The pay page opens on the coins that can pay this drive. Search finds every coin Earmark accepts. A coin that cannot pay is marked not accepted, with its country on it.
 
 | The drive collects | It can also be paid in |
 |---|---|
@@ -46,7 +46,7 @@ Where Textile has no direct route, Earmark goes through USD₮: Argentine pesos 
 | cNGN | USD₮, USDC, USA₮, wARS, wBRL, wCOP, IDRX |
 | wARS, wBRL or wCOP | USD₮, USDC, USA₮, cNGN, IDRX and each other |
 | IDRX | USD₮, USDC, USA₮, cNGN, wARS, wBRL, wCOP |
-| USA₮ | USA₮ only |
+| USA₮ | USD₮, USDC, cNGN, wARS, wBRL, wCOP, IDRX |
 | Anything else | That coin only |
 
 ## Paying from outside the chat

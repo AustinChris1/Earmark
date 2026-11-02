@@ -143,7 +143,10 @@ test("which coins each drive can be paid in", () => {
   assert.equal(routeFor(tokenBySymbol("wCOP"), tokenBySymbol("wARS")), "via-usdt");
   assert.equal(routeFor(tokenBySymbol("IDRX"), tokenBySymbol("USDT")), "direct");
   assert.equal(routeFor(tokenBySymbol("IDRX"), tokenBySymbol("wARS")), "via-usdt");
-  assert.deepEqual(payOptions(tokenBySymbol("USAT")), [], "Textile has no corridor into USA₮");
+  assert.deepEqual(payOptions(tokenBySymbol("USAT")), ["USDT", "USDC", "cNGN", "wARS", "wBRL", "wCOP", "IDRX"]);
+  assert.equal(routeFor(tokenBySymbol("USDT"), tokenBySymbol("USAT")), "direct");
+  // Naira into a USA₮ bill: cNGN to USD₮, then USD₮ to USA₮.
+  assert.equal(routeFor(tokenBySymbol("cNGN"), tokenBySymbol("USAT")), "via-usdt");
   assert.equal(routeFor(tokenBySymbol("wARS"), tokenBySymbol("USDT")), "direct");
   assert.equal(routeFor(tokenBySymbol("wARS"), tokenBySymbol("cNGN")), "via-usdt");
   assert.equal(routeFor(tokenBySymbol("USDT"), tokenBySymbol("USDT")), null);
@@ -167,7 +170,8 @@ test("pesos into a naira drive go through USDT first", async () => {
 });
 
 test("a coin that cannot reach the drive's coin goes straight back", async () => {
-  const { deps, log } = fakeDeps({}, { token: USAT, target: 10_000_000n, raised: 0n, closed: false });
+  // Kenyan shillings: Textile quotes nothing into them on Celo.
+  const { deps, log } = fakeDeps({}, { token: tokenBySymbol("KESm")!.address, target: 10_000_000n, raised: 0n, closed: false });
   const r = await settle(intent(), deps);
   assert.equal(r.status, "refunded");
   assert.ok(!log.some((l) => l.startsWith("swap")), log.join(" | "));
