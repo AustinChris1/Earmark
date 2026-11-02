@@ -13,8 +13,8 @@ import { x402Guard, x402Handler, x402Middleware } from "./x402.js";
 import { linkHandler, nonceHandler, sessionHandler, statusHandler } from "./verify.js";
 import { isTestDrive, pickFeatured } from "./featured.js";
 import { offrampUrl, rampCountry } from "./ripio.js";
-import { getBill, recentBuyCalls } from "./db.js";
-import { buyEnabled } from "./buy.js";
+import { failedBuyCalls, getBill, paidBuyCalls } from "./db.js";
+import { buyEnabled, buyPausedUntil } from "./buy.js";
 import { maskNumber } from "./bills.js";
 import { PROVIDERS } from "./abapay.js";
 import {
@@ -129,25 +129,37 @@ app.get("/api/drives", async (_req, res) => {
 // Every service Earmark has bought through buy, with the settlement on chain, so anyone can check them.
 app.get("/api/buy", async (_req, res) => {
   try {
-    const calls = await recentBuyCalls(100);
+    // Only what settled on chain counts as bought; refusals are listed apart so they cannot read as spend.
+    const [paid, failed] = await Promise.all([paidBuyCalls(), failedBuyCalls(20)]);
     const coin = tokenBySymbol(env.BUY_TOKEN);
-    const spent = calls.reduce((a, c) => a + BigInt(c.amount), 0n);
+    const human = (a: bigint | string) => (coin ? formatUnits(BigInt(a), coin.decimals) : String(a));
+    const row = (c: (typeof paid)[number]) => ({
+      service: c.service,
+      amount: human(c.amount),
+      ok: !!c.ok,
+      tx: c.tx,
+      receipt: c.tx ? `https://celoscan.io/tx/${c.tx}` : null,
+      note: c.note,
+      at: new Date(c.created_at * 1000).toISOString(),
+    });
+    const byDay: Record<string, Record<string, number>> = {};
+    for (const c of paid) {
+      const day = new Date(c.created_at * 1000).toISOString().slice(0, 10);
+      byDay[day] ??= {};
+      byDay[day][c.service] = (byDay[day][c.service] ?? 0) + 1;
+    }
+    const paused = buyPausedUntil();
     res.json({
       enabled: buyEnabled(),
+      pausedUntil: paused > Date.now() ? new Date(paused).toISOString() : null,
       payer: account.address,
       token: env.BUY_TOKEN,
       dailyCapUsd: env.BUY_DAILY_USD,
-      paidCalls: calls.filter((c) => c.ok && c.tx).length,
-      spent: coin ? formatUnits(spent, coin.decimals) : spent.toString(),
-      calls: calls.map((c) => ({
-        service: c.service,
-        amount: coin ? formatUnits(BigInt(c.amount), coin.decimals) : c.amount,
-        ok: !!c.ok,
-        tx: c.tx,
-        receipt: c.tx ? `https://celoscan.io/tx/${c.tx}` : null,
-        note: c.note,
-        at: new Date(c.created_at * 1000).toISOString(),
-      })),
+      paidCalls: paid.length,
+      spent: human(paid.reduce((a, c) => a + BigInt(c.amount), 0n)),
+      byDay,
+      calls: paid.map(row).reverse(),
+      refused: failed.map(row),
     });
   } catch (e) {
     res.status(500).json({ error: (e as Error).message });

@@ -728,6 +728,15 @@ export async function buySpentSince(token: string, since: number): Promise<bigin
   return rows.reduce((a, r) => a + BigInt(r.amount), 0n);
 }
 
+/** Every call buy settled on chain, oldest first: the record of what Earmark has actually bought. */
+export async function paidBuyCalls(): Promise<BuyCall[]> {
+  return all<BuyCall>(`SELECT service, amount, token, tx, ok, note, created_at FROM buy_calls WHERE ok = 1 ORDER BY id ASC`);
+}
+
+export async function failedBuyCalls(limit = 20): Promise<BuyCall[]> {
+  return all<BuyCall>(`SELECT service, amount, token, tx, ok, note, created_at FROM buy_calls WHERE ok = 0 ORDER BY id DESC LIMIT ?`, [limit]);
+}
+
 export async function recentBuyCalls(limit = 50): Promise<BuyCall[]> {
   return all<BuyCall>(`SELECT service, amount, token, tx, ok, note, created_at FROM buy_calls ORDER BY id DESC LIMIT ?`, [limit]);
 }

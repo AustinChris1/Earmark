@@ -89,6 +89,17 @@ let queue: Promise<unknown> = Promise.resolve();
 export class BuyUnavailable extends Error {}
 
 /**
+ * After buy refuses a call Earmark has already signed for, usually because the agent's buy coin has
+ * run out, it is left alone for a while. Without this, every failing RPC read signs another payment
+ * that cannot settle, and the day's cap fills with refusals.
+ */
+export const PAUSE_AFTER_REFUSAL_S = 30 * 60;
+let pausedUntil = 0;
+export function buyPausedUntil(): number {
+  return pausedUntil;
+}
+
+/**
  * Sends `init` to a buy service and pays its 402 from the agent wallet. Returns the paid response.
  * Throws BuyUnavailable when buy is off, the day's budget is spent, or the price is not what the
  * catalogue says; the caller then uses its own fallback.
@@ -98,6 +109,7 @@ export function buyFetch(service: BuyService, init: RequestInit & { timeoutMs?: 
     const c = coin();
     const cap = dailyCap();
     if (!c || cap === 0n) throw new BuyUnavailable("buy is off");
+    if (Date.now() < pausedUntil) throw new BuyUnavailable(`buy refused the last payment; paused until ${new Date(pausedUntil).toISOString()}`);
     const { max } = BUY_SERVICES[service];
     const target = url ?? BUY_SERVICES[service].url;
     const spent = await buySpentSince(c.symbol, Math.floor(Date.now() / 1000) - DAY);
@@ -150,6 +162,7 @@ export function buyFetch(service: BuyService, init: RequestInit & { timeoutMs?: 
       ok: paid.ok ? 1 : 0,
       note: paid.ok ? null : `HTTP ${paid.status}`,
     });
+    if (paid.status === 402) pausedUntil = Date.now() + PAUSE_AFTER_REFUSAL_S * 1000;
     return paid;
   };
   const p = queue.then(run, run);
