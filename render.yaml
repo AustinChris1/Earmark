@@ -60,10 +60,11 @@ services:
       - key: CENCORI_API_KEY
         sync: false
       # buy (usebuy.ai): Earmark pays for the model and a backup node per call, in USDC, up to this a day.
+      # 0.07 spreads a small balance over several days rather than spending it in one.
       - key: BUY_TOKEN
         value: USDC
       - key: BUY_DAILY_USD
-        value: "0.50"
+        value: "0.07"
       # Auto top-up: repeat drive #17's ₦200 MTN bill once a day until the date, paid over x402 in
       # USA₮ from the derived auto-pay wallet. Remove AUTOPAY_UNTIL, or press Stop in the chat, to end it.
       - key: AUTOPAY_FROM_DRIVE
