@@ -5,9 +5,9 @@ import { concat, formatUnits, keccak256, toHex, type Address, type Hex } from "v
 import { privateKeyToAccount } from "viem/accounts";
 import { PROVIDERS } from "./abapay.js";
 import { checkBillInput, priceBill, billRow } from "./billService.js";
-import { account, createDriveOnchain, ERC20_ABI, publicClient } from "./chain.js";
+import { account, createDriveOnchain, ERC20_ABI, publicClient, readDrive } from "./chain.js";
 import { env, tokenBySymbol } from "./config.js";
-import { getBill, getDrive, getMeta, insertBill, insertDrive, setMeta } from "./db.js";
+import { getBill, getDrive, getMeta, insertBill, insertDrive, intentCount, setMeta } from "./db.js";
 import { driveCode } from "./driveCode.js";
 
 /**
@@ -25,6 +25,8 @@ import { driveCode } from "./driveCode.js";
 
 const TICK_MS = 10 * 60 * 1000;
 const STOP_KEY = "autopay:stopped";
+/** A drive a run opened and has not paid yet: after a restart in between, the next tick pays it. */
+const OPEN_KEY = "autopay:open";
 
 const cfg = () => ({
   fromDrive: Number(process.env.AUTOPAY_FROM_DRIVE ?? 0),
@@ -136,18 +138,36 @@ export async function runAutopay(day: string): Promise<string> {
     created_tx: hash,
   });
   await insertBill(billRow(driveId, q.bill, q.quoted, "USAT"));
+  await setMeta(OPEN_KEY, String(driveId));
+  return payOpenDrive(driveId);
+}
 
-  const amt = formatUnits(q.target, usat.decimals);
+/**
+ * Pays a run's drive over x402. Never pays twice: a drive with an x402 payment already recorded,
+ * or with money in it, is left alone, and the x402 endpoint refuses more than the drive still needs.
+ */
+export async function payOpenDrive(driveId: number): Promise<string> {
+  const d = await getDrive(driveId);
+  if (!d) throw new Error(`Drive ${driveId} is not in the database.`);
+  const onchain = await readDrive(BigInt(driveId));
+  if ((await intentCount(driveId)) > 0 || onchain.raised > 0n || onchain.closed) {
+    await setMeta(OPEN_KEY, "");
+    return `drive ${driveId} already paid`;
+  }
+  const bill = await getBill(driveId);
+  const amt = formatUnits(onchain.target, usat.decimals);
   const params = new URLSearchParams({ amt, name: "auto top-up" });
-  if (src.collector_tg) params.set("u", src.collector_tg);
+  if (d.collector_tg) params.set("u", d.collector_tg);
   const url = `${env.PUBLIC_URL}/x402/drive/${driveCode(driveId)}?${params}`;
-  const r = await payOverX402(url, q.target);
+  const r = await payOverX402(url, onchain.target);
   if (r.status !== 200) throw new Error(`Drive ${driveCode(driveId)} is open but the x402 payment was refused (${r.status}).`);
+  await setMeta(OPEN_KEY, "");
 
   const settle = r.tx ? `\n<a href="https://celoscan.io/tx/${r.tx}">x402 settlement</a>` : "";
+  const what = bill ? `₦${bill.naira_amount.toLocaleString("en-US")} airtime` : "today's bill";
   await note(
-    src.chat_id,
-    `🔁 <b>Auto top-up</b>, ${day}: opened drive <code>${driveCode(driveId)}</code> for ${input.provider.label} ₦${srcBill.naira_amount.toLocaleString("en-US")} and paid it over x402 in USA₮ (${amt}) from the auto-pay wallet. Earmark now pays AbaPay; the receipt follows here.${settle}`,
+    d.chat_id,
+    `🔁 <b>Auto top-up</b>: drive <code>${driveCode(driveId)}</code>, ${what}, paid over x402 in USA₮ (${amt}) from the auto-pay wallet. Earmark now pays AbaPay; the receipt follows here.${settle}`,
     true,
   );
   return `drive ${driveId} paid, settlement ${r.tx ?? "pending"}`;
@@ -163,6 +183,11 @@ export function startAutopay() {
     running = true;
     try {
       if (await getMeta(STOP_KEY)) return;
+      const open = Number((await getMeta(OPEN_KEY)) || 0);
+      if (open) {
+        console.log("auto top-up:", await payOpenDrive(open));
+        return;
+      }
       const day = dueDay(new Date(), c.until, c.hourUtc, await getMeta("autopay:last"));
       if (!day) return;
       console.log("auto top-up:", await runAutopay(day));

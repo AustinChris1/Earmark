@@ -461,6 +461,12 @@ export async function addIntent(i: Omit<X402Intent, "forwarded_tx" | "created_at
   );
 }
 
+/** How many x402 payments were recorded for a drive, forwarded or not. */
+export async function intentCount(driveId: number): Promise<number> {
+  const r = await one<{ n: number }>(`SELECT COUNT(*) AS n FROM x402_intents WHERE drive_id = ?`, [driveId]);
+  return Number(r?.n ?? 0);
+}
+
 export function pendingIntents() {
   return all<X402Intent>(`SELECT * FROM x402_intents WHERE forwarded_tx IS NULL ORDER BY created_at`);
 }
