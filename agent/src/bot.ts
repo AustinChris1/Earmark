@@ -74,6 +74,7 @@ import {
 import { collectorIsHuman } from "./verify.js";
 import { aiEnabled, parseDriveRequest } from "./ai.js";
 import { driveCode, parseDriveRef } from "./driveCode.js";
+import { canStopAutopay, onAutopayNote, stopAutopay } from "./autopay.js";
 
 let bot: Bot | null = null;
 
@@ -924,6 +925,16 @@ function registerHandlers(b: Bot) {
   b.on("callback_query:data", async (ctx) => {
     const data = ctx.callbackQuery.data;
 
+    if (data === "ap:stop") {
+      if (!ctx.from || !(await canStopAutopay(String(ctx.from.id)))) {
+        return ctx.answerCallbackQuery({ text: "Only whoever opened the bill can stop it.", show_alert: true });
+      }
+      await stopAutopay();
+      await ctx.answerCallbackQuery({ text: "Stopped" });
+      await ctx.editMessageReplyMarkup().catch(() => {});
+      return ctx.reply("🔁 Auto top-up stopped. Nothing more will be opened or paid.");
+    }
+
     if (data === CB.dismiss) {
       await ctx.answerCallbackQuery();
       return ctx.deleteMessage().catch(() => {});
@@ -1193,6 +1204,12 @@ export function startBot(): Bot | null {
   registerHandlers(bot);
   onBillSettled(announceBill);
   onDirectNote(announceDirect);
+  onAutopayNote(async (chat, html, withStop) => {
+    await bot!.api.sendMessage(chat, html, {
+      ...HTML,
+      ...(withStop ? { reply_markup: new InlineKeyboard().text("⏹ Stop auto top-up", "ap:stop") } : {}),
+    });
+  });
   bot.catch((err) => console.error("bot:", err.error));
   void bot.start({
     onStart: async (me) => {

@@ -64,3 +64,13 @@ services:
         value: USDC
       - key: BUY_DAILY_USD
         value: "0.50"
+      # Auto top-up: repeat drive #17's ₦200 MTN bill once a day until the date, paid over x402 in
+      # USA₮ from the derived auto-pay wallet. Remove AUTOPAY_UNTIL, or press Stop in the chat, to end it.
+      - key: AUTOPAY_FROM_DRIVE
+        value: "17"
+      - key: AUTOPAY_UNTIL
+        value: "2026-11-08"
+      - key: AUTOPAY_HOUR_UTC
+        value: "9"
+      - key: AUTOPAY_MAX_USD
+        value: "0.30"

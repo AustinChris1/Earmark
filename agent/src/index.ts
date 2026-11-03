@@ -9,6 +9,7 @@ import { resumeCorridor } from "./corridorService.js";
 import { startBillSweeper } from "./billService.js";
 import { startDirectScanner } from "./directService.js";
 import { migrate } from "./db.js";
+import { startAutopay } from "./autopay.js";
 
 console.log(
   `Earmark agent ${account.address} | earmark=${env.EARMARK_ADDRESS || "(not deployed)"} | tag=${env.ATTRIBUTION_TAG || "(none)"}`,
@@ -23,6 +24,7 @@ if (env.EARMARK_ADDRESS) {
   startX402Sweeper();
   void resumeCorridor();
   startBillSweeper();
+  startAutopay();
 } else {
   console.log("EARMARK_ADDRESS not set; chain watcher and x402 forwarding disabled");
 }
